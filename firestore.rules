@@ -83,13 +83,13 @@ service cloud.firestore {
      * @allow (get) A publisher requests their own document: `/publishers/user_123` by user_123.
      * @allow (get) An admin requests any publisher's document: `/publishers/user_123` by admin_abc.
      * @deny (list) A regular publisher tries to list all other publishers.
-     * @deny (create) A regular user tries to create their own publisher profile.
+     * @deny (create) A regular user tries to create a publisher profile for someone else.
      * @principle Enforces a combination of document ownership and role-based access (Admin). Validates relational integrity on create/update.
      */
     match /publishers/{publisherId} {
       allow get: if isOwner(publisherId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isSuperAdmin() && request.resource.data.id == publisherId; // Only Super Admin can create publishers
+      allow create: if isOwner(publisherId) && request.resource.data.id == publisherId; // Allow users to create their own publisher profile.
       allow update: if isExistingDoc() && (isOwner(publisherId) || isAdmin()) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingDoc() && isSuperAdmin(); // Only Super Admin can delete publishers
     }
