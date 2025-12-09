@@ -52,10 +52,18 @@ export default function PublisherAuthPage() {
 
     const checkRole = async () => {
       setIsCheckingRole(true);
+      if (!firestore) return;
+
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+      const publisherRef = doc(firestore, 'publishers', user.uid);
+
       try {
-        const docSnap = await getDoc(adminRoleRef);
-        if (docSnap.exists()) {
+        const [adminDocSnap, publisherDocSnap] = await Promise.all([
+          getDoc(adminRoleRef),
+          getDoc(publisherRef),
+        ]);
+        
+        if (adminDocSnap.exists()) {
           toast({
             variant: "destructive",
             title: "Acceso no permitido",
@@ -63,8 +71,14 @@ export default function PublisherAuthPage() {
           });
           if (auth) await auth.signOut();
           setIsCheckingRole(false);
-        } else {
+        } else if (publisherDocSnap.exists()) {
           router.push('/publisher');
+        } else {
+          // This case can happen briefly during registration before the publisher doc is created.
+          // Or if a user is authenticated but is neither an admin nor a publisher.
+          // We will sign them out to prevent access.
+          if (auth) await auth.signOut();
+          setIsCheckingRole(false);
         }
       } catch (error) {
         console.error("Error checking user role:", error);
