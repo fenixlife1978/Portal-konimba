@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 
 export default function PublisherAuthPage() {
@@ -99,12 +99,30 @@ export default function PublisherAuthPage() {
   
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
+    if (!auth || !firestore) return;
   
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
-      await updateProfile(userCredential.user, { displayName: registerName });
+      const newUser = userCredential.user;
       
+      await updateProfile(newUser, { displayName: registerName });
+      
+      // Create publisher profile in Firestore
+      const publisherRef = doc(firestore, "publishers", newUser.uid);
+      const nameParts = registerName.split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      await setDoc(publisherRef, {
+        id: newUser.uid,
+        firstName: firstName,
+        lastName: lastName,
+        email: newUser.email,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
       toast({
         title: "¡Registro exitoso!",
         description: "Bienvenido a Siren's Portal.",
@@ -193,7 +211,7 @@ export default function PublisherAuthPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nombre</Label>
+                  <Label htmlFor="name">Nombre Completo</Label>
                   <Input 
                     id="name" 
                     type="text" 
