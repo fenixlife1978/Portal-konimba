@@ -30,6 +30,10 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 export default function PublisherAuthPage() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [registerFirstName, setRegisterFirstName] = useState('');
+  const [registerLastName, setRegisterLastName] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
   const [isCheckingRole, setIsCheckingRole] = useState(true);
 
   const auth = useAuth();
@@ -116,6 +120,48 @@ export default function PublisherAuthPage() {
       });
     }
   };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth || !firestore) return;
+    
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
+      const newUser = userCredential.user;
+      
+      await updateProfile(newUser, { displayName: `${registerFirstName} ${registerLastName}` });
+
+      const publisherRef = doc(firestore, 'publishers', newUser.uid);
+      await setDoc(publisherRef, {
+        id: newUser.uid,
+        firstName: registerFirstName,
+        lastName: registerLastName,
+        email: registerEmail,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      toast({
+        title: "¡Bienvenido!",
+        description: "Tu cuenta de publisher ha sido creada.",
+      });
+      // useEffect will redirect to /publisher on user state change
+    } catch (error: any) {
+      console.error("Publisher Registration Error:", error);
+      let description = "No se pudo crear la cuenta.";
+      if (error.code === 'auth/email-already-in-use') {
+        description = "Este correo electrónico ya está en uso."
+      } else if (error.code === 'permission-denied') {
+        description = "No tienes permisos para crear una cuenta."
+      }
+      toast({
+        variant: "destructive",
+        title: "Error de registro",
+        description: description,
+      });
+    }
+  };
   
   if (isUserLoading || isCheckingRole) {
     return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
@@ -130,42 +176,108 @@ export default function PublisherAuthPage() {
         <h1 className="text-3xl font-bold font-headline mt-4">Siren's Portal</h1>
         <p className="text-muted-foreground">Acceso de Publisher</p>
       </div>
-      <Card className="w-full max-w-sm">
-        <form onSubmit={handleLogin}>
-            <CardHeader>
-              <CardTitle>Iniciar Sesión</CardTitle>
-              <CardDescription>
-                Accede a tu panel de publisher.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="tu@email.com" 
-                  required 
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Contraseña</Label>
-                <Input 
-                  id="password" 
-                  type="password" 
-                  required 
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                />
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button className="w-full" type="submit">Acceder</Button>
-            </CardFooter>
-        </form>
-      </Card>
+      <Tabs defaultValue="login" className="w-full max-w-sm">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
+          <TabsTrigger value="register">Registrarse</TabsTrigger>
+        </TabsList>
+        <TabsContent value="login">
+          <form onSubmit={handleLogin}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Iniciar Sesión</CardTitle>
+                <CardDescription>
+                  Accede a tu panel de publisher.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    placeholder="tu@email.com" 
+                    required 
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Contraseña</Label>
+                  <Input 
+                    id="password" 
+                    type="password" 
+                    required 
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                  />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full" type="submit">Acceder</Button>
+              </CardFooter>
+            </Card>
+          </form>
+        </TabsContent>
+        <TabsContent value="register">
+           <form onSubmit={handleRegister}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Crear Cuenta de Publisher</CardTitle>
+                <CardDescription>
+                  Regístrate para acceder a tu panel de publisher.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">Nombre</Label>
+                    <Input id="firstName" placeholder="Juan" required value={registerFirstName} onChange={(e) => setRegisterFirstName(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Apellido</Label>
+                    <Input id="lastName" placeholder="Pérez" required value={registerLastName} onChange={(e) => setRegisterLastName(e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="register-email">Email</Label>
+                  <Input 
+                    id="register-email" 
+                    type="email" 
+                    placeholder="tu@email.com"
+                    required 
+                    value={registerEmail}
+                    onChange={(e) => setRegisterEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="register-password">Contraseña</Label>                  
+                  <Input 
+                    id="register-password" 
+                    type="password" 
+                    required 
+                    value={registerPassword}
+                    onChange={(e) => setRegisterPassword(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">Rol</Label>
+                  <Input 
+                    id="role" 
+                    type="text" 
+                    value="Publisher" 
+                    disabled 
+                    className="bg-muted/50"
+                  />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full" type="submit">Crear Cuenta</Button>
+              </CardFooter>
+            </Card>
+          </form>
+        </TabsContent>
+      </Tabs>
       <Button asChild variant="link" className="mt-8">
         <Link href="/" >
           <ArrowLeft className="mr-2 h-4 w-4" />
