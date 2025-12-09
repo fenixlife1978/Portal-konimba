@@ -24,6 +24,7 @@ import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 
 export default function PublisherAuthPage() {
@@ -182,6 +183,12 @@ export default function PublisherAuthPage() {
           </form>
         </TabsContent>
       </Tabs>
+      <Button asChild variant="link" className="mt-8">
+        <Link href="/" >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Volver al inicio
+        </Link>
+      </Button>
     </div>
   )
 }
