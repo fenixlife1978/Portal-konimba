@@ -18,10 +18,11 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { useAuth, useUser, useFirestore } from "@/firebase";
+// Asegúrate de que estos imports personalizados funcionen en tu proyecto
+import { useAuth, useUser, useFirestore } from "@/firebase"; 
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
-import { Logo } from "@/components/logo";
+import { Logo } from "@/components/logo"; // Asumo que este componente existe
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -34,26 +35,33 @@ export default function PublisherAuthPage() {
   const [registerLastName, setRegisterLastName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
-  const [isCheckingRole, setIsCheckingRole] = useState(true);
+  // Inicializamos a true para evitar renderizado parpadeante mientras comprobamos el estado inicial
+  const [isCheckingRole, setIsCheckingRole] = useState(true); 
 
   const auth = useAuth();
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading } = useUser(); // Hook personalizado que expone el usuario y el estado de carga
   const router = useRouter();
-  const { toast } = useToast();
+  const { toast } = useToast(); // Hook personalizado para notificaciones
 
   useEffect(() => {
+    // 1. Esperamos a que el hook useUser termine de determinar si hay un usuario logueado o no.
     if (isUserLoading) {
       return;
     }
+    
+    // 2. Si no hay usuario logueado, terminamos la verificación y mostramos el formulario.
     if (!user) {
       setIsCheckingRole(false);
       return;
     }
 
+    // 3. Si hay un usuario, procedemos a verificar su rol en Firestore.
     const checkRole = async () => {
-      setIsCheckingRole(true);
+      setIsCheckingRole(true); // Iniciamos el proceso de verificación del rol
+      
       if (!firestore) {
+        console.error("Firestore no está inicializado.");
         setIsCheckingRole(false);
         return;
       };
@@ -62,10 +70,11 @@ export default function PublisherAuthPage() {
       const publisherRef = doc(firestore, 'publishers', user.uid);
 
       try {
+        // *** ESTAS LÍNEAS REQUIEREN PERMISOS DE LECTURA EN FIRESTORE RULES ***
         const adminDocSnap = await getDoc(adminRoleRef);
         
         if (adminDocSnap.exists()) {
-          // It's an admin, log them out from publisher portal
+          // Es un admin, lo sacamos de aquí
           toast({
             variant: "destructive",
             title: "Acceso no permitido",
@@ -78,13 +87,14 @@ export default function PublisherAuthPage() {
 
         const publisherDocSnap = await getDoc(publisherRef);
         if (publisherDocSnap.exists()) {
-          // It's a publisher, let them in
+          // Es un publisher, lo dejamos entrar
           router.push('/publisher');
+          // No establecemos isCheckingRole(false) porque la redirección interrumpe el renderizado.
         } else {
-          // Not an admin, not a publisher. This can happen right after registration
-          // before the firestore doc is created. We will check if the user is new.
+          // No es admin, no es publisher. 
            const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime;
            if (!isNewUser) {
+             // Si el usuario no es nuevo (ya existía pero no tiene rol asignado)
              toast({
                variant: "destructive",
                title: "Rol no encontrado",
@@ -92,15 +102,17 @@ export default function PublisherAuthPage() {
              });
              if (auth) await auth.signOut();
            }
-           // If it's a new user, we just let the registration flow continue, it will eventually redirect.
+           // Si es un usuario nuevo (acaba de registrarse), el flujo de registro lo manejará.
            setIsCheckingRole(false);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error checking user role:", error);
+        // Este catch es donde se atrapa el error de permisos de Firestore
         toast({
           variant: "destructive",
-          title: "Error de verificación",
-          description: "No se pudo verificar el rol. Se cerrará la sesión.",
+          title: "Error de verificación de permisos",
+          // Mensaje clave para el usuario:
+          description: "No se pudo verificar el rol. Revisa tus reglas de seguridad de Firestore para las colecciones 'publishers' y 'roles_admin'.",
         });
         if (auth) await auth.signOut();
         setIsCheckingRole(false);
@@ -108,14 +120,15 @@ export default function PublisherAuthPage() {
     };
 
     checkRole();
-  }, [user, isUserLoading, router, firestore, auth, toast]);
+  }, [user, isUserLoading, router, firestore, auth, toast]); // Dependencias completas del useEffect
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth) return;
     try {
+      // Firebase Auth se encarga del inicio de sesión.
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      // The useEffect hook will handle role check and redirection
+      // El hook useEffect se encargará de verificar el rol y la redirección automáticamente.
     } catch (error: any) {
       console.error("Publisher Login Error:", error);
       let description = "No se pudo iniciar sesión. Verifica tus credenciales.";
@@ -140,6 +153,7 @@ export default function PublisherAuthPage() {
       
       await updateProfile(newUser, { displayName: `${registerFirstName} ${registerLastName}` });
 
+      // *** ESTA LÍNEA REQUIERE PERMISOS DE ESCRITURA EN FIRESTORE RULES ***
       const publisherRef = doc(firestore, 'publishers', newUser.uid);
       await setDoc(publisherRef, {
         id: newUser.uid,
@@ -156,14 +170,15 @@ export default function PublisherAuthPage() {
         title: "¡Bienvenido!",
         description: "Tu cuenta de publisher ha sido creada.",
       });
-      // useEffect will redirect to /publisher on user state change
+      // useEffect will handle user state change and redirect to /publisher
     } catch (error: any) {
       console.error("Publisher Registration Error:", error);
       let description = "No se pudo crear la cuenta.";
       if (error.code === 'auth/email-already-in-use') {
         description = "Este correo electrónico ya está en uso."
-      } else if (error.code === 'permission-denied') {
-        description = "No tienes permisos para crear una cuenta."
+      } else if (error.code === 'permission-denied' || (error.name === 'FirebaseError' && error.message.includes('permission-denied'))) {
+         // Captura el error específico de reglas de seguridad al intentar setDoc.
+        description = "Error de permisos de Firebase. Revisa tus reglas de Firestore para la colección 'publishers'.";
       }
       toast({
         variant: "destructive",
@@ -174,9 +189,11 @@ export default function PublisherAuthPage() {
   };
   
   if (isUserLoading || isCheckingRole) {
-    return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
+    // Muestra un spinner o mensaje de carga mientras se verifica el estado y el rol
+    return <div className="flex items-center justify-center min-h-screen">Verificando sesión y permisos...</div>;
   }
 
+  // Si no hay usuario y ya terminamos de cargar/chequear, mostramos el formulario
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
        <div className="mb-8 text-center">
@@ -203,27 +220,14 @@ export default function PublisherAuthPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="tu@email.com" 
-                    required 
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                  />
+                  <Input id="email" type="email" placeholder="tu@email.com" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Contraseña</Label>
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    required 
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                  />
+                  <Input id="password" type="password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
                 </div>
               </CardContent>
-              <CardFooter>
+              <CardFooter className="flex flex-col">
                 <Button className="w-full" type="submit">Acceder</Button>
               </CardFooter>
             </Card>
@@ -251,34 +255,15 @@ export default function PublisherAuthPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="register-email">Email</Label>
-                  <Input 
-                    id="register-email" 
-                    type="email" 
-                    placeholder="tu@email.com"
-                    required 
-                    value={registerEmail}
-                    onChange={(e) => setRegisterEmail(e.target.value)}
-                  />
+                  <Input id="register-email" type="email" placeholder="tu@email.com" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="role">Rol</Label>
-                    <Input
-                      id="role"
-                      type="text"
-                      value="Publisher"
-                      readOnly
-                      className="bg-muted/50"
-                    />
+                    <Input id="role" type="text" value="Publisher" readOnly className="bg-muted/50" />
                   </div>
                 <div className="space-y-2">
                   <Label htmlFor="register-password">Contraseña</Label>                  
-                  <Input 
-                    id="register-password" 
-                    type="password" 
-                    required 
-                    value={registerPassword}
-                    onChange={(e) => setRegisterPassword(e.target.value)}
-                  />
+                  <Input id="register-password" type="password" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} />
                 </div>
               </CardContent>
               <CardFooter>

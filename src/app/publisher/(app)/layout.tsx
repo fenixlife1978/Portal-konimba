@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { ArrowLeft, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { useAuth, useUser } from '@/firebase';
@@ -21,7 +21,9 @@ export default function PublisherAppLayout({ children }: { children: React.React
 
   const handleLogout = () => {
     if (auth) {
-      signOut(auth);
+      signOut(auth).then(() => {
+        router.push('/');
+      });
     }
   };
 
@@ -54,12 +56,6 @@ export default function PublisherAppLayout({ children }: { children: React.React
             <Button onClick={handleLogout} variant="ghost">
               <LogOut className="mr-2 h-4 w-4" />
               Cerrar Sesión
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/" >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Volver al inicio
-              </Link>
             </Button>
           </div>
         </div>
