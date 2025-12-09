@@ -30,9 +30,6 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 export default function PublisherAuthPage() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [registerName, setRegisterName] = useState('');
-  const [registerEmail, setRegisterEmail] = useState('');
-  const [registerPassword, setRegisterPassword] = useState('');
   const [isCheckingRole, setIsCheckingRole] = useState(true);
 
   const auth = useAuth();
@@ -74,9 +71,6 @@ export default function PublisherAuthPage() {
         } else if (publisherDocSnap.exists()) {
           router.push('/publisher');
         } else {
-           // During registration, the publisher doc might not exist yet.
-           // A successful registration will trigger a user state change and this effect will re-run.
-           // If we are here after a login attempt for a user that is not admin and not publisher, sign out.
            const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime;
            if (!isNewUser) {
              toast({
@@ -123,53 +117,6 @@ export default function PublisherAuthPage() {
     }
   };
   
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!auth || !firestore) return;
-  
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
-      const newUser = userCredential.user;
-      
-      await updateProfile(newUser, { displayName: registerName });
-      
-      // Create publisher profile in Firestore
-      const publisherRef = doc(firestore, "publishers", newUser.uid);
-      const nameParts = registerName.split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
-
-      await setDoc(publisherRef, {
-        id: newUser.uid,
-        firstName: firstName,
-        lastName: lastName,
-        email: newUser.email,
-        status: 'active',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      toast({
-        title: "¡Registro exitoso!",
-        description: "Bienvenido a Siren's Portal.",
-      });
-      // The useEffect hook will handle redirection
-
-    } catch (error: any)
-     {
-      console.error("Registration Error:", error);
-      let description = "No se pudo crear la cuenta.";
-      if (error.code === 'auth/email-already-in-use') {
-        description = "Este correo electrónico ya está en uso.";
-      }
-      toast({
-        variant: "destructive",
-        title: "Error de registro",
-        description: description,
-      });
-    }
-  };
-
   if (isUserLoading || isCheckingRole) {
     return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
   }
@@ -183,109 +130,42 @@ export default function PublisherAuthPage() {
         <h1 className="text-3xl font-bold font-headline mt-4">Siren's Portal</h1>
         <p className="text-muted-foreground">Acceso de Publisher</p>
       </div>
-      <Tabs defaultValue="login" className="w-full max-w-sm">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
-          <TabsTrigger value="register">Registrarse</TabsTrigger>
-        </TabsList>
-        <TabsContent value="login">
-          <form onSubmit={handleLogin}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Iniciar Sesión</CardTitle>
-                <CardDescription>
-                  Accede a tu panel de publisher.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="tu@email.com" 
-                    required 
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Contraseña</Label>
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    required 
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                  />
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button className="w-full" type="submit">Acceder</Button>
-              </CardFooter>
-            </Card>
-          </form>
-        </TabsContent>
-        <TabsContent value="register">
-          <form onSubmit={handleRegister}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Registrarse</CardTitle>
-                <CardDescription>
-                  Crea una nueva cuenta de publisher.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nombre Completo</Label>
-                  <Input 
-                    id="name" 
-                    type="text" 
-                    placeholder="Tu Nombre" 
-                    required
-                    value={registerName}
-                    onChange={(e) => setRegisterName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="register-email">Email</Label>
-                  <Input 
-                    id="register-email" 
-                    type="email" 
-                    placeholder="tu@email.com" 
-                    required 
-                    value={registerEmail}
-                    onChange={(e) => setRegisterEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="register-password">Contraseña</Label>
-                  <Input 
-                    id="register-password" 
-                    type="password" 
-                    required 
-                    value={registerPassword}
-                    onChange={(e) => setRegisterPassword(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Rol</Label>
-                  <Input 
-                    id="role" 
-                    type="text"
-                    value="Publisher"
-                    disabled
-                    className="bg-muted"
-                  />
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button className="w-full" type="submit">Crear Cuenta</Button>
-              </CardFooter>
-            </Card>
-          </form>
-        </TabsContent>
-      </Tabs>
+      <Card className="w-full max-w-sm">
+        <form onSubmit={handleLogin}>
+            <CardHeader>
+              <CardTitle>Iniciar Sesión</CardTitle>
+              <CardDescription>
+                Accede a tu panel de publisher.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="tu@email.com" 
+                  required 
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Contraseña</Label>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  required 
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                />
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button className="w-full" type="submit">Acceder</Button>
+            </CardFooter>
+        </form>
+      </Card>
       <Button asChild variant="link" className="mt-8">
         <Link href="/" >
           <ArrowLeft className="mr-2 h-4 w-4" />
