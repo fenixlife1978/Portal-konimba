@@ -10,7 +10,7 @@
  * - Admin Role Check: Admin status is efficiently determined by checking for the existence of a document in `/roles_admin/{request.auth.uid}`. The ability to create new admins is restricted to a single superuser.
  * - Publisher Privacy: Listing all publishers is a privileged operation restricted to Admins to prevent data scraping and protect user privacy.
  * - Ownership Enforcement: A user can only access data under a path that matches their user ID (e.g., a publisher can only access `/publishers/{their-own-uid}`).
- * - Admin-Only Creation: Only Admins are permitted to create new publisher profiles.
+ * - Publisher Self-Creation: Any authenticated user can create their own publisher profile, which is essential for the public registration flow.
  * - Default Secure: Access is denied by default. All permissions must be explicitly granted.
  *
  * Denormalization for Authorization:
@@ -54,8 +54,8 @@ service cloud.firestore {
      * This is used to allow the very first admin to be created.
      */
     function noAdminsExist() {
-      // This is a safer way to check for emptiness of a collection.
-      return !exists(/databases/$(database)/documents/roles_admin);
+      // Use `get` on a non-existent path which is cheaper than `exists` on a collection.
+      return get(/databases/$(database)/documents/roles_admin/__non_existent_doc__) == null;
     }
 
     /**

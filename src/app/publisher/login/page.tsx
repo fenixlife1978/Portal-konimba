@@ -75,6 +75,8 @@ export default function PublisherAuthPage() {
         } else if (publisherDocSnap.exists()) {
           router.push('/publisher');
         } else {
+           // This case can happen for a brief moment after registration, before the publisher doc is created.
+           // Let's check if the user is brand new. If so, we just wait for the redirect.
            const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime;
            if (!isNewUser) {
              toast({
@@ -258,16 +260,6 @@ export default function PublisherAuthPage() {
                     required 
                     value={registerPassword}
                     onChange={(e) => setRegisterPassword(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Rol</Label>
-                  <Input 
-                    id="role" 
-                    type="text" 
-                    value="Publisher" 
-                    disabled 
-                    className="bg-muted/50"
                   />
                 </div>
               </CardContent>
