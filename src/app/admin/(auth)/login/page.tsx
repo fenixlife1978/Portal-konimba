@@ -45,22 +45,35 @@ export default function AdminAuthPage() {
       return;
     }
 
-    const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-    getDoc(adminRoleRef).then(docSnap => {
-      if (docSnap.exists()) {
-        router.push('/admin');
-      } else {
+    const checkAdminRole = async () => {
+      setIsCheckingAdmin(true);
+      const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+      try {
+        const docSnap = await getDoc(adminRoleRef);
+        if (docSnap.exists()) {
+          router.push('/admin');
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Acceso denegado",
+            description: "No tienes permisos de administrador. Se cerrará tu sesión.",
+          });
+          if(auth) await auth.signOut();
+          setIsCheckingAdmin(false);
+        }
+      } catch (error) {
+        console.error("Error checking admin role:", error);
         toast({
-          variant: "destructive",
-          title: "Acceso denegado",
-          description: "No tienes permisos de administrador. Se cerrará tu sesión.",
-        });
-        auth.signOut();
-        setIsCheckingAdmin(false); // Allow rendering the login form
-      }
-    }).catch(() => {
+            variant: "destructive",
+            title: "Error de verificación",
+            description: "No se pudo verificar el rol de administrador.",
+          });
+        if(auth) await auth.signOut();
         setIsCheckingAdmin(false);
-    });
+      }
+    };
+
+    checkAdminRole();
 
   }, [user, isUserLoading, router, firestore, auth, toast]);
 
@@ -69,8 +82,8 @@ export default function AdminAuthPage() {
     if (!auth) return;
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      // The useEffect will handle the redirect on successful login
-    } catch (error: any) {
+      // The useEffect will handle the role check and redirect on successful login
+    } catch (error: any) => {
       console.error("Admin Login Error:", error);
       let description = "Ocurrió un error al intentar iniciar sesión.";
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
@@ -104,15 +117,16 @@ export default function AdminAuthPage() {
         title: "¡Administrador registrado!",
         description: "La cuenta de administrador ha sido creada.",
       });
+      // The useEffect will handle the redirect after state change
 
     } catch (error: any) {
       console.error("Admin Registration Error:", error);
       
       let description = "No se pudo crear la cuenta de administrador.";
-      if (error.code === 'permission-denied') {
-        description = "No tienes permisos para crear una cuenta de administrador.";
-      } else if (error.code === 'auth/email-already-in-use') {
+      if (error.code === 'auth/email-already-in-use') {
         description = "Este correo electrónico ya está en uso. Por favor, utiliza otro."
+      } else if (error.code === 'permission-denied') {
+        description = "No tienes permisos para crear una cuenta de administrador.";
       } else if (error.message) {
         description = error.message;
       }
@@ -124,15 +138,16 @@ export default function AdminAuthPage() {
       });
 
       // If user was created in Auth but role assignment failed in Firestore, delete the user.
-      if (userCredential && (error.code === 'permission-denied' || error.code === 'auth/email-already-in-use')) {
+      if (userCredential && userCredential.user && (error.code === 'permission-denied' || error.code !== 'auth/email-already-in-use')) {
         try {
             await userCredential.user.delete();
+            console.log("Partial user deleted after registration failure.");
         } catch (deleteError) {
             console.error("Failed to delete user after role assignment failure:", deleteError);
             toast({
                 variant: "destructive",
                 title: "Error de limpieza",
-                description: "No se pudo eliminar el usuario creado parcialmente. Por favor, contacta al soporte.",
+                description: "No se pudo eliminar el usuario creado parcialmente. Contacta al soporte.",
             });
         }
       }
@@ -202,7 +217,7 @@ export default function AdminAuthPage() {
               <CardHeader>
                 <CardTitle>Registrar Administrador</CardTitle>
                 <CardDescription>
-                  Crea la primera cuenta de administrador.
+                  Crea una cuenta de administrador. Solo el superadmin puede hacerlo.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

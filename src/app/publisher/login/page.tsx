@@ -18,13 +18,13 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { useAuth, useUser } from "@/firebase";
-import { initiateEmailSignIn } from "@/firebase/non-blocking-login";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { useAuth, useUser, useFirestore } from "@/firebase";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { doc, getDoc } from "firebase/firestore";
 
 
 export default function PublisherAuthPage() {
@@ -33,22 +33,68 @@ export default function PublisherAuthPage() {
   const [registerName, setRegisterName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+  const [isCheckingRole, setIsCheckingRole] = useState(true);
 
   const auth = useAuth();
+  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!isUserLoading && user) {
-      router.push('/publisher');
+    if (isUserLoading) {
+      return;
     }
-  }, [user, isUserLoading, router]);
+    if (!user) {
+      setIsCheckingRole(false);
+      return;
+    }
 
-  const handleLogin = (e: React.FormEvent) => {
+    const checkRole = async () => {
+      setIsCheckingRole(true);
+      const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+      try {
+        const docSnap = await getDoc(adminRoleRef);
+        if (docSnap.exists()) {
+          toast({
+            variant: "destructive",
+            title: "Acceso no permitido",
+            description: "Los administradores no pueden iniciar sesión en el panel de publishers.",
+          });
+          if (auth) await auth.signOut();
+          setIsCheckingRole(false);
+        } else {
+          router.push('/publisher');
+        }
+      } catch (error) {
+        console.error("Error checking user role:", error);
+        toast({
+          variant: "destructive",
+          title: "Error de verificación",
+          description: "No se pudo verificar el rol. Se cerrará la sesión.",
+        });
+        if (auth) await auth.signOut();
+        setIsCheckingRole(false);
+      }
+    };
+
+    checkRole();
+  }, [user, isUserLoading, router, firestore, auth, toast]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth) return;
-    initiateEmailSignIn(auth, loginEmail, loginPassword);
+    try {
+      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      // The useEffect hook will handle role check and redirection
+    } catch (error: any) {
+      console.error("Publisher Login Error:", error);
+      toast({
+        variant: "destructive",
+        title: "Error de inicio de sesión",
+        description: error.message || "No se pudo iniciar sesión. Verifica tus credenciales.",
+      });
+    }
   };
   
   const handleRegister = async (e: React.FormEvent) => {
@@ -56,29 +102,31 @@ export default function PublisherAuthPage() {
     if (!auth) return;
   
     try {
-      // Because we need to update the profile, we can't use the non-blocking version here
-      // for the initial user creation part.
       const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
       await updateProfile(userCredential.user, { displayName: registerName });
       
-      // Manually trigger a refresh of the user object if needed, or rely on onAuthStateChanged
-      // The redirect will be handled by the useEffect hook.
       toast({
         title: "¡Registro exitoso!",
         description: "Bienvenido a Siren's Portal.",
       });
+      // The useEffect hook will handle redirection
 
-    } catch (error: any) {
+    } catch (error: any)
+     {
       console.error("Registration Error:", error);
+      let description = "No se pudo crear la cuenta.";
+      if (error.code === 'auth/email-already-in-use') {
+        description = "Este correo electrónico ya está en uso.";
+      }
       toast({
         variant: "destructive",
         title: "Error de registro",
-        description: error.message || "No se pudo crear la cuenta.",
+        description: description,
       });
     }
   };
 
-  if (isUserLoading || user) {
+  if (isUserLoading || isCheckingRole) {
     return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
   }
 
@@ -89,6 +137,7 @@ export default function PublisherAuthPage() {
           <Logo />
         </Link>
         <h1 className="text-3xl font-bold font-headline mt-4">Siren's Portal</h1>
+        <p className="text-muted-foreground">Acceso de Publisher</p>
       </div>
       <Tabs defaultValue="login" className="w-full max-w-sm">
         <TabsList className="grid w-full grid-cols-2">
