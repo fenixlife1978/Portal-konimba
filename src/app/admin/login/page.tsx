@@ -72,10 +72,16 @@ export default function AdminAuthPage() {
       // The useEffect will handle the redirect on successful login
     } catch (error: any) {
       console.error("Admin Login Error:", error);
+      let description = "Ocurrió un error al intentar iniciar sesión.";
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+        description = "El correo electrónico o la contraseña son incorrectos. Por favor, verifica tus credenciales.";
+      } else if (error.message) {
+        description = error.message;
+      }
       toast({
         variant: "destructive",
         title: "Error de acceso",
-        description: error.message || "Email o contraseña incorrectos.",
+        description: description,
       });
     }
   };
@@ -205,7 +211,7 @@ export default function AdminAuthPage() {
                   <Input 
                     id="name" 
                     type="text" 
-                    placeholder="Tu Nombre" _
+                    placeholder="Tu Nombre" 
                     required
                     value={registerName}
                     onChange={(e) => setRegisterName(e.target.value)}
@@ -223,7 +229,7 @@ export default function AdminAuthPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="register-password">Contraseña</Label>
+                  <Label htmlFor="register-password">Contraseña</Label>                  
                   <Input 
                     id="register-password" 
                     type="password" 
