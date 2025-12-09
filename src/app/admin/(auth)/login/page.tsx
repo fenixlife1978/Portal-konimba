@@ -222,7 +222,7 @@ export default function AdminAuthPage() {
                   <Input 
                     id="register-email" 
                     type="email" 
-                    placeholder="tu@email.com" -
+                    placeholder="tu@email.com"
                     required 
                     value={registerEmail}
                     onChange={(e) => setRegisterEmail(e.target.value)}
