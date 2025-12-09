@@ -7,7 +7,7 @@
  * - /roles_admin/{uid}: A dedicated collection for managing administrator privileges. The existence of a document for a user's UID in this collection grants them admin rights system-wide.
  *
  * Key Security Decisions:
- * - Admin Role Check: Admin status is efficiently determined by checking for the existence of a document in `/roles_admin/{request.auth.uid}`. This avoids slow and costly `get()` calls.
+ * - Admin Role Check: Admin status is efficiently determined by checking for the existence of a document in `/roles_admin/{request.auth.uid}`. The ability to create new admins is restricted to a single superuser.
  * - Publisher Privacy: Listing all publishers is a privileged operation restricted to Admins to prevent data scraping and protect user privacy.
  * - Ownership Enforcement: A user can only access data under a path that matches their user ID (e.g., a publisher can only access `/publishers/{their-own-uid}`).
  * - Admin-Only Creation: Only Admins are permitted to create new publisher profiles.
@@ -42,6 +42,13 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
     
+    /**
+     * Checks if the user is the designated super admin.
+     */
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.email == 'vallecondo@gmail.com';
+    }
+
     /**
      * Checks if there are no admins in the system yet.
      * This is used to allow the very first admin to be created.
@@ -82,27 +89,27 @@ service cloud.firestore {
     match /publishers/{publisherId} {
       allow get: if isOwner(publisherId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isAdmin() && request.resource.data.id == publisherId;
+      allow create: if isSuperAdmin() && request.resource.data.id == publisherId; // Only Super Admin can create publishers
       allow update: if isExistingDoc() && (isOwner(publisherId) || isAdmin()) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingDoc() && isAdmin();
+      allow delete: if isExistingDoc() && isSuperAdmin(); // Only Super Admin can delete publishers
     }
 
     /**
-     * @description Manages admin roles. Existence of a document here grants admin privileges. Only other admins can manage this collection.
+     * @description Manages admin roles. Existence of a document here grants admin privileges. Only the Super Admin can manage this collection.
      * @path /roles_admin/{uid}
      * @allow (get) An admin checks if another user is also an admin: `/roles_admin/user_456` by admin_abc.
-     * @allow (create) An admin grants admin privileges to a new user: `/roles_admin/user_789` by admin_abc.
+     * @allow (create) The super admin grants admin privileges to a new user: `/roles_admin/user_789` by super_admin.
      * @allow (create) A new user registers as the first admin if no other admins exist.
      * @deny (get) A non-admin user tries to see who the admins are.
-     * @deny (create) A non-admin user attempts to make themselves an admin if one already exists.
-     * @principle Secures administrative privileges. Only admins can view or modify the list of admins, preventing privilege escalation.
+     * @deny (create) A non-super-admin user attempts to make someone an admin.
+     * @principle Secures administrative privileges. Only the super admin can view or modify the list of admins, preventing privilege escalation.
      */
     match /roles_admin/{uid} {
       allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin() || (noAdminsExist() && isOwner(uid));
-      allow update: if isExistingDoc() && isAdmin();
-      allow delete: if isExistingDoc() && isAdmin();
+      allow list: if isSuperAdmin();
+      allow create: if isSuperAdmin() || (noAdminsExist() && isOwner(uid));
+      allow update: if isExistingDoc() && isSuperAdmin();
+      allow delete: if isExistingDoc() && isSuperAdmin();
     }
   }
 }
