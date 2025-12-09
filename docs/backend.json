@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "Publisher": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Publisher",
+      "type": "object",
+      "description": "Represents a publisher within the Siren's Portal application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Publisher entity."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The first name of the publisher."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The last name of the publisher."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the publisher.",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string",
+          "description": "The phone number of the publisher."
+        },
+        "address": {
+          "type": "string",
+          "description": "The address of the publisher."
+        },
+        "city": {
+          "type": "string",
+          "description": "The city of the publisher."
+        },
+        "state": {
+          "type": "string",
+          "description": "The state of the publisher."
+        },
+        "zipCode": {
+          "type": "string",
+          "description": "The zip code of the publisher."
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the publisher (e.g., active, inactive)."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "The timestamp when the publisher was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "The timestamp when the publisher was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "email"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/publishers/{publisherId}",
+        "definition": {
+          "entityName": "Publisher",
+          "schema": {
+            "$ref": "#/backend/entities/Publisher"
+          },
+          "description": "Stores publisher profiles. Uses path-based ownership for security. Only admins can create publishers.",
+          "params": [
+            {
+              "name": "publisherId",
+              "description": "The unique identifier for the publisher."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{uid}",
+        "definition": {
+          "entityName": "roles_admin",
+          "schema": {
+            "$ref": "#/backend/entities/Publisher"
+          },
+          "description": "Collection to store admin roles. Existence of a document grants admin privileges. Uses 'existence over content' for rule simplicity.",
+          "params": [
+            {
+              "name": "uid",
+              "description": "The Firebase Auth UID of the admin user."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "Based on the provided information, the application \"Siren's Portal\" requires a Firestore structure that supports admin and publisher roles, managing user data, payments, leads, offers, and reports. The structure emphasizes authorization independence and clear security rules. To achieve this, we will leverage path-based ownership and dedicated collections for global roles. \n\n1.  **Publishers:** Publisher data is stored under `/publishers/{publisherId}`. This enforces path-based ownership, simplifying security rules. \n2.  **Admin Roles:** Admin roles are managed using the `/roles_admin/{uid}` collection. The existence of a document in this collection grants admin privileges.\n\nThe structure promotes authorization independence by avoiding `get()` calls in security rules. List operations are secured using structural segregation. For instance, only admins can `list` publishers, and publishers can only `list` their own payment data. The structure ensures that all documents within a collection share the same security requirements."
+  }
+}

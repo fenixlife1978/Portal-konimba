@@ -1,0 +1,99 @@
+/**
+ * Core Philosophy: This ruleset implements a role-based security model with two primary roles: "Publishers" and "Admins".
+ * Admins have broad permissions to manage the system, while Publishers are restricted to managing their own profile data.
+ *
+ * Data Structure:
+ * - /publishers/{publisherId}: Stores individual publisher profiles. Access is primarily controlled by ownership, where the document ID matches the user's Auth UID.
+ * - /roles_admin/{uid}: A dedicated collection for managing administrator privileges. The existence of a document for a user's UID in this collection grants them admin rights system-wide.
+ *
+ * Key Security Decisions:
+ * - Admin Role Check: Admin status is efficiently determined by checking for the existence of a document in `/roles_admin/{request.auth.uid}`. This avoids slow and costly `get()` calls.
+ * - Publisher Privacy: Listing all publishers is a privileged operation restricted to Admins to prevent data scraping and protect user privacy.
+ * - Ownership Enforcement: A user can only access data under a path that matches their user ID (e.g., a publisher can only access `/publishers/{their-own-uid}`).
+ * - Admin-Only Creation: Only Admins are permitted to create new publisher profiles.
+ * - Default Secure: Access is denied by default. All permissions must be explicitly granted.
+ *
+ * Denormalization for Authorization:
+ * The `/roles_admin` collection is a prime example of denormalization for authorization. Instead of storing a role property on a user document (which would require a `get()` call in every rule), we use a separate collection. This allows for a highly performant `exists()` check to determine admin status, making the entire ruleset faster and more scalable.
+ *
+ * Structural Segregation:
+ * The data is segregated by function and security level into distinct top-level collections (`/publishers` and `/roles_admin`). This clear separation ensures that security rules for one type of data do not inadvertently affect another.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------------
+    // Helper Functions
+    // ------------------------------------------------------------------------
+
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the requesting user has an admin role.
+     * Admin status is granted if a document with the user's UID exists in the roles_admin collection.
+     */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /**
+     * Checks if the requesting user's UID matches the provided userId.
+     * This is the foundation of the document ownership model.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * Verifies that a document already exists.
+     * CRITICAL for all update and delete operations to prevent acting on non-existent data.
+     */
+    function isExistingDoc() {
+      return resource != null;
+    }
+
+    // ------------------------------------------------------------------------
+    // Collection Rules
+    // ------------------------------------------------------------------------
+
+    /**
+     * @description Manages publisher profiles. Publishers can read/update their own profile. Admins have full CRUD access.
+     * @path /publishers/{publisherId}
+     * @allow (get) A publisher requests their own document: `/publishers/user_123` by user_123.
+     * @allow (get) An admin requests any publisher's document: `/publishers/user_123` by admin_abc.
+     * @deny (list) A regular publisher tries to list all other publishers.
+     * @deny (create) A regular user tries to create their own publisher profile.
+     * @principle Enforces a combination of document ownership and role-based access (Admin). Validates relational integrity on create/update.
+     */
+    match /publishers/{publisherId} {
+      allow get: if isOwner(publisherId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.id == publisherId;
+      allow update: if isExistingDoc() && (isOwner(publisherId) || isAdmin()) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingDoc() && isAdmin();
+    }
+
+    /**
+     * @description Manages admin roles. Existence of a document here grants admin privileges. Only other admins can manage this collection.
+     * @path /roles_admin/{uid}
+     * @allow (get) An admin checks if another user is also an admin: `/roles_admin/user_456` by admin_abc.
+     * @allow (create) An admin grants admin privileges to a new user: `/roles_admin/user_789` by admin_abc.
+     * @deny (get) A non-admin user tries to see who the admins are.
+     * @deny (create) A non-admin user attempts to make themselves an admin.
+     * @principle Secures administrative privileges. Only admins can view or modify the list of admins, preventing privilege escalation.
+     */
+    match /roles_admin/{uid} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isExistingDoc() && isAdmin();
+      allow delete: if isExistingDoc() && isAdmin();
+    }
+  }
+}
