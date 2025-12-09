@@ -13,12 +13,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth, useUser } from "@/firebase";
-import { initiateEmailSignIn } from "@/firebase/non-blocking-login";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore } from "@/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -65,10 +64,20 @@ export default function AdminAuthPage() {
 
   }, [user, isUserLoading, router, firestore, auth, toast]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth) return;
-    initiateEmailSignIn(auth, loginEmail, loginPassword);
+    try {
+      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      // The useEffect will handle the redirect on successful login
+    } catch (error: any) {
+      console.error("Admin Login Error:", error);
+      toast({
+        variant: "destructive",
+        title: "Error de acceso",
+        description: error.message || "Email o contraseña incorrectos.",
+      });
+    }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -83,29 +92,35 @@ export default function AdminAuthPage() {
 
       const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
       
-      try {
-        await setDoc(adminRoleRef, { role: 'admin' });
-        toast({
-          title: "¡Administrador registrado!",
-          description: "La cuenta de administrador ha sido creada.",
-        });
-      } catch (firestoreError: any) {
-        console.error("Firestore Admin Role Error:", firestoreError);
-        toast({
-          variant: "destructive",
-          title: "Error al asignar rol",
-          description: firestoreError.message || "No se pudo asignar el rol de administrador.",
-        });
-        await newUser.delete();
-      }
+      // We are not using non-blocking here to catch permission errors directly
+      await setDoc(adminRoleRef, { role: 'admin' });
+      toast({
+        title: "¡Administrador registrado!",
+        description: "La cuenta de administrador ha sido creada.",
+      });
+      // The useEffect will handle the redirect
 
-    } catch (authError: any) {
-      console.error("Admin Auth Registration Error:", authError);
+    } catch (error: any) {
+      console.error("Admin Registration Error:", error);
+      // This will catch both auth and firestore errors
+      let description = "No se pudo crear la cuenta de administrador.";
+      if (error.code === 'permission-denied') {
+        description = "No tienes permisos para crear una cuenta de administrador.";
+      } else if (error.message) {
+        description = error.message;
+      }
+      
       toast({
         variant: "destructive",
         title: "Error de registro",
-        description: authError.message || "No se pudo crear la cuenta de administrador.",
+        description: description,
       });
+
+      // If user was created but role assignment failed, delete the user.
+      const currentUser = auth.currentUser;
+      if (currentUser && currentUser.email === registerEmail) {
+        await currentUser.delete();
+      }
     }
   };
 
