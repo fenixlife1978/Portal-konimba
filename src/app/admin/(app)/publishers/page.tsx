@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -139,7 +140,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                 <DialogHeader>
                   <DialogTitle>¿Estás seguro?</DialogTitle>
                   <DialogDescription>
-                    Esta acción no se puede deshacer. Esto eliminará permanentemente al publisher. La cuenta de autenticación no se eliminará.
+                    Esta acción eliminará permanentemente los datos del publisher de la base de datos, pero no su cuenta de autenticación. Esta operación no se puede deshacer.
                   </DialogDescription>
                 </DialogHeader>
                  <DialogFooter>
@@ -194,7 +195,7 @@ export default function PublishersPage() {
       await deleteDoc(publisherRef);
       toast({
         title: "Publisher eliminado",
-        description: "El publisher ha sido eliminado del sistema.",
+        description: "Los datos del publisher han sido eliminados del sistema.",
       });
     } catch (error: any) {
       toast({
