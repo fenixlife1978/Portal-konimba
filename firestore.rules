@@ -7,7 +7,7 @@
  * - /roles_admin/{uid}: A dedicated collection for managing administrator privileges. The existence of a document for a user's UID in this collection grants them admin rights system-wide.
  *
  * Key Security Decisions:
- * - Admin Role Check: Admin status is efficiently determined by checking for the existence of a document in `/roles_admin/{request.auth.uid}`. The ability to create new admins is restricted to a single superuser.
+ * - Admin Role Check: Admin status is efficiently determined by checking for the existence of a document in `/roles_admin/{request.auth.uid}`.
  * - Publisher Privacy: Listing all publishers is a privileged operation restricted to Admins to prevent data scraping and protect user privacy.
  * - Ownership Enforcement: A user can only access data under a path that matches their user ID (e.g., a publisher can only access `/publishers/{their-own-uid}`).
  * - Publisher Self-Creation: Any authenticated user can create their own publisher profile, which is essential for the public registration flow.
@@ -54,10 +54,9 @@ service cloud.firestore {
      * This is used to allow the very first admin to be created.
      */
     function noAdminsExist() {
-      // Use `get` on a non-existent path which is cheaper than `exists` on a collection.
-      return get(/databases/$(database)/documents/roles_admin/__non_existent_doc__) == null;
+      return !exists(/databases/$(database)/documents/roles_admin);
     }
-
+    
     /**
      * Checks if the requesting user's UID matches the provided userId.
      * This is the foundation of the document ownership model.
@@ -66,14 +65,6 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
     
-    /**
-     * Verifies that a document already exists.
-     * CRITICAL for all update and delete operations to prevent acting on non-existent data.
-     */
-    function isExistingDoc() {
-      return resource != null;
-    }
-
     // ------------------------------------------------------------------------
     // Collection Rules
     // ------------------------------------------------------------------------
@@ -83,14 +74,16 @@ service cloud.firestore {
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
-      // Allow read and write if user is owner OR is admin
-      allow read, write: if isSignedIn() && (isOwner(publisherId) || isAdmin());
-      // Allow list only for admins
+      // READ: Allow owner or admin.
+      allow read: if isSignedIn() && (isOwner(publisherId) || isAdmin());
+      // WRITE (UPDATE): Allow owner or admin.
+      allow update: if isSignedIn() && (isOwner(publisherId) || isAdmin());
+      // LIST: Only admins can list all publishers.
       allow list: if isAdmin();
-      // Allow creation for any signed-in user for their own document
+      // CREATE: Any authenticated user can create THEIR OWN profile document.
       allow create: if isSignedIn() && isOwner(publisherId);
-      // Allow deletion only for super admins or admins
-      allow delete: if isAdmin() || isSuperAdmin();
+      // DELETE: Only admins can delete.
+      allow delete: if isAdmin();
     }
 
     /**
@@ -98,12 +91,12 @@ service cloud.firestore {
      * @path /roles_admin/{adminId}
      */
     match /roles_admin/{adminId} {
-      // Allow read and write only for admins
+      // READ/WRITE: Admins can manage other admins.
       allow read, write: if isAdmin();
-      // Allow the first admin to be created by themselves, or subsequent admins by the super admin.
+      // CREATE: The very first admin can be created by anyone, subsequent admins can only be created by the super admin.
       allow create: if isSignedIn() && ( (noAdminsExist() && isOwner(adminId)) || isSuperAdmin() );
-      // Allow list, update, delete only for super admins
-      allow list, update, delete: if isSuperAdmin();
+      // LIST/DELETE: Only the super admin can list or delete admins.
+      allow list, delete: if isSuperAdmin();
     }
   }
 }
