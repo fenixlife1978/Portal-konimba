@@ -9,11 +9,11 @@ import {
 
 export default function PublisherDashboardPage() {
   const menuItems = [
-    { title: "Pagos Pendientes", description: "Consulta los pagos que están por ser procesados.", href: "/publisher/pending-payments", icon: <IconPending />, color: "hover:border-chart-1" },
-    { title: "Pagos Históricos", description: "Revisa tu historial completo de pagos.", href: "/publisher/history", icon: <IconHistory />, color: "hover:border-chart-2" },
-    { title: "Mis Recibos", description: "Accede y descarga tus recibos de pago.", href: "/publisher/receipts", icon: <IconReceipt />, color: "hover:border-chart-3" },
-    { title: "Mi Rendimiento", description: "Monitorea tu rendimiento actual en tiempo real.", href: "/publisher/performance", icon: <IconPerformance />, color: "hover:border-chart-4" },
-    { title: "Configuración", description: "Ajusta la configuración de tu cuenta y notificaciones.", href: "/publisher/settings", icon: <IconSettings />, color: "hover:border-chart-5" },
+    { title: "Pagos Pendientes", description: "Consulta los pagos que están por ser procesados.", href: "/publisher/pending-payments", icon: <IconPending />, color: "bg-chart-1" },
+    { title: "Pagos Históricos", description: "Revisa tu historial completo de pagos.", href: "/publisher/history", icon: <IconHistory />, color: "bg-chart-2" },
+    { title: "Mis Recibos", description: "Accede y descarga tus recibos de pago.", href: "/publisher/receipts", icon: <IconReceipt />, color: "bg-chart-3" },
+    { title: "Mi Rendimiento", description: "Monitorea tu rendimiento actual en tiempo real.", href: "/publisher/performance", icon: <IconPerformance />, color: "bg-chart-4" },
+    { title: "Configuración", description: "Ajusta la configuración de tu cuenta y notificaciones.", href: "/publisher/settings", icon: <IconSettings />, color: "bg-chart-5" },
   ];
 
   return (
