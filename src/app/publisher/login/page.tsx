@@ -53,18 +53,19 @@ export default function PublisherAuthPage() {
 
     const checkRole = async () => {
       setIsCheckingRole(true);
-      if (!firestore) return;
+      if (!firestore) {
+        setIsCheckingRole(false);
+        return;
+      };
 
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
       const publisherRef = doc(firestore, 'publishers', user.uid);
 
       try {
-        const [adminDocSnap, publisherDocSnap] = await Promise.all([
-          getDoc(adminRoleRef),
-          getDoc(publisherRef),
-        ]);
+        const adminDocSnap = await getDoc(adminRoleRef);
         
         if (adminDocSnap.exists()) {
+          // It's an admin, log them out from publisher portal
           toast({
             variant: "destructive",
             title: "Acceso no permitido",
@@ -72,11 +73,16 @@ export default function PublisherAuthPage() {
           });
           if (auth) await auth.signOut();
           setIsCheckingRole(false);
-        } else if (publisherDocSnap.exists()) {
+          return;
+        }
+
+        const publisherDocSnap = await getDoc(publisherRef);
+        if (publisherDocSnap.exists()) {
+          // It's a publisher, let them in
           router.push('/publisher');
         } else {
-           // This case can happen for a brief moment after registration, before the publisher doc is created.
-           // Let's check if the user is brand new. If so, we just wait for the redirect.
+          // Not an admin, not a publisher. This can happen right after registration
+          // before the firestore doc is created. We will check if the user is new.
            const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime;
            if (!isNewUser) {
              toast({
@@ -86,6 +92,7 @@ export default function PublisherAuthPage() {
              });
              if (auth) await auth.signOut();
            }
+           // If it's a new user, we just let the registration flow continue, it will eventually redirect.
            setIsCheckingRole(false);
         }
       } catch (error) {
@@ -140,6 +147,7 @@ export default function PublisherAuthPage() {
         lastName: registerLastName,
         email: registerEmail,
         status: 'active',
+        role: 'publisher',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -252,6 +260,16 @@ export default function PublisherAuthPage() {
                     onChange={(e) => setRegisterEmail(e.target.value)}
                   />
                 </div>
+                <div className="space-y-2">
+                    <Label htmlFor="role">Rol</Label>
+                    <Input
+                      id="role"
+                      type="text"
+                      value="Publisher"
+                      readOnly
+                      className="bg-muted/50"
+                    />
+                  </div>
                 <div className="space-y-2">
                   <Label htmlFor="register-password">Contraseña</Label>                  
                   <Input 
