@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth, useUser, setDocumentNonBlocking } from "@/firebase";
+import { useAuth, useUser } from "@/firebase";
 import { initiateEmailSignIn } from "@/firebase/non-blocking-login";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
@@ -21,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore } from "@/firebase";
-import { doc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export default function AdminAuthPage() {
   const [loginEmail, setLoginEmail] = useState('');
@@ -42,21 +42,17 @@ export default function AdminAuthPage() {
     if (!isUserLoading && user) {
       // Check if user is admin
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-      // In a real app you might want to use useDoc for this
-      // For this simplified version, a one-time check after login/register is enough
-      import('firebase/firestore').then(({ getDoc }) => {
-        getDoc(adminRoleRef).then(docSnap => {
-          if (docSnap.exists()) {
-            router.push('/admin');
-          } else {
-             toast({
-              variant: "destructive",
-              title: "Acceso denegado",
-              description: "No tienes permisos de administrador.",
-            });
-            auth.signOut();
-          }
-        });
+      getDoc(adminRoleRef).then(docSnap => {
+        if (docSnap.exists()) {
+          router.push('/admin');
+        } else {
+           toast({
+            variant: "destructive",
+            title: "Acceso denegado",
+            description: "No tienes permisos de administrador.",
+          });
+          auth.signOut();
+        }
       });
     }
   }, [user, isUserLoading, router, firestore, auth, toast]);
@@ -80,19 +76,33 @@ export default function AdminAuthPage() {
       // ** Assign admin role by creating a document in `roles_admin` collection **
       // This will now work for the first admin due to the new security rule.
       const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
-      setDocumentNonBlocking(adminRoleRef, { role: 'admin' }, {});
+      
+      // Use try-catch around the setDoc to handle permission errors gracefully
+      try {
+        await setDoc(adminRoleRef, { role: 'admin' });
+        toast({
+          title: "¡Administrador registrado!",
+          description: "La cuenta de administrador ha sido creada.",
+        });
+      } catch (firestoreError: any) {
+        console.error("Firestore Admin Role Error:", firestoreError);
+        // This toast will now correctly show the specific Firestore error.
+        toast({
+          variant: "destructive",
+          title: "Error al asignar rol",
+          description: firestoreError.message || "No se pudo asignar el rol de administrador.",
+        });
+        // Optional: delete the created user if role assignment fails
+        await newUser.delete();
+      }
 
-      toast({
-        title: "¡Administrador registrado!",
-        description: "La cuenta de administrador ha sido creada.",
-      });
-      // Redirect is handled by the useEffect hook.
-    } catch (error: any) {
-      console.error("Admin Registration Error:", error);
+      // The useEffect will handle redirection upon successful auth state change.
+    } catch (authError: any) {
+      console.error("Admin Auth Registration Error:", authError);
       toast({
         variant: "destructive",
         title: "Error de registro",
-        description: error.message || "No se pudo crear la cuenta de administrador.",
+        description: authError.message || "No se pudo crear la cuenta de administrador.",
       });
     }
   };
