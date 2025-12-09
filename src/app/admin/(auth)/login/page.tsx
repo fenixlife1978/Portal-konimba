@@ -124,7 +124,7 @@ export default function AdminAuthPage() {
       });
 
       // If user was created in Auth but role assignment failed in Firestore, delete the user.
-      if (userCredential && error.code === 'permission-denied') {
+      if (userCredential && (error.code === 'permission-denied' || error.code === 'auth/email-already-in-use')) {
         try {
             await userCredential.user.delete();
         } catch (deleteError) {
@@ -222,7 +222,7 @@ export default function AdminAuthPage() {
                   <Input 
                     id="register-email" 
                     type="email" 
-                    placeholder="tu@email.com" 
+                    placeholder="tu@email.com" -
                     required 
                     value={registerEmail}
                     onChange={(e) => setRegisterEmail(e.target.value)}
