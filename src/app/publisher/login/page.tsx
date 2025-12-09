@@ -74,11 +74,19 @@ export default function PublisherAuthPage() {
         } else if (publisherDocSnap.exists()) {
           router.push('/publisher');
         } else {
-          // This case can happen briefly during registration before the publisher doc is created.
-          // Or if a user is authenticated but is neither an admin nor a publisher.
-          // We will sign them out to prevent access.
-          if (auth) await auth.signOut();
-          setIsCheckingRole(false);
+           // During registration, the publisher doc might not exist yet.
+           // A successful registration will trigger a user state change and this effect will re-run.
+           // If we are here after a login attempt for a user that is not admin and not publisher, sign out.
+           const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime;
+           if (!isNewUser) {
+             toast({
+               variant: "destructive",
+               title: "Rol no encontrado",
+               description: "No eres un publisher registrado. Se cerrará la sesión.",
+             });
+             if (auth) await auth.signOut();
+           }
+           setIsCheckingRole(false);
         }
       } catch (error) {
         console.error("Error checking user role:", error);
@@ -103,10 +111,14 @@ export default function PublisherAuthPage() {
       // The useEffect hook will handle role check and redirection
     } catch (error: any) {
       console.error("Publisher Login Error:", error);
+      let description = "No se pudo iniciar sesión. Verifica tus credenciales.";
+      if (error.code === 'auth/invalid-credential') {
+        description = "Correo electrónico o contraseña incorrectos."
+      }
       toast({
         variant: "destructive",
         title: "Error de inicio de sesión",
-        description: error.message || "No se pudo iniciar sesión. Verifica tus credenciales.",
+        description: description,
       });
     }
   };
@@ -254,6 +266,16 @@ export default function PublisherAuthPage() {
                     required 
                     value={registerPassword}
                     onChange={(e) => setRegisterPassword(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">Rol</Label>
+                  <Input 
+                    id="role" 
+                    type="text"
+                    value="Publisher"
+                    disabled
+                    className="bg-muted"
                   />
                 </div>
               </CardContent>
