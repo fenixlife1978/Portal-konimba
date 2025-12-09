@@ -84,28 +84,29 @@ export default function AdminAuthPage() {
     e.preventDefault();
     if (!auth || !firestore) return;
   
+    let userCredential;
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
+      userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
       const newUser = userCredential.user;
       
       await updateProfile(newUser, { displayName: registerName });
 
       const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
       
-      // We are not using non-blocking here to catch permission errors directly
       await setDoc(adminRoleRef, { role: 'admin' });
       toast({
         title: "¡Administrador registrado!",
         description: "La cuenta de administrador ha sido creada.",
       });
-      // The useEffect will handle the redirect
 
     } catch (error: any) {
       console.error("Admin Registration Error:", error);
-      // This will catch both auth and firestore errors
+      
       let description = "No se pudo crear la cuenta de administrador.";
       if (error.code === 'permission-denied') {
         description = "No tienes permisos para crear una cuenta de administrador.";
+      } else if (error.code === 'auth/email-already-in-use') {
+        description = "Este correo electrónico ya está en uso. Por favor, utiliza otro."
       } else if (error.message) {
         description = error.message;
       }
@@ -116,10 +117,18 @@ export default function AdminAuthPage() {
         description: description,
       });
 
-      // If user was created but role assignment failed, delete the user.
-      const currentUser = auth.currentUser;
-      if (currentUser && currentUser.email === registerEmail) {
-        await currentUser.delete();
+      // If user was created in Auth but role assignment failed in Firestore, delete the user.
+      if (userCredential && error.code === 'permission-denied') {
+        try {
+            await userCredential.user.delete();
+        } catch (deleteError) {
+            console.error("Failed to delete user after role assignment failure:", deleteError);
+            toast({
+                variant: "destructive",
+                title: "Error de limpieza",
+                description: "No se pudo eliminar el usuario creado parcialmente. Por favor, contacta al soporte.",
+            });
+        }
       }
     }
   };
@@ -196,7 +205,7 @@ export default function AdminAuthPage() {
                   <Input 
                     id="name" 
                     type="text" 
-                    placeholder="Tu Nombre" 
+                    placeholder="Tu Nombre" _
                     required
                     value={registerName}
                     onChange={(e) => setRegisterName(e.target.value)}
