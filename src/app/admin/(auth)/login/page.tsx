@@ -83,7 +83,7 @@ export default function AdminAuthPage() {
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       // The useEffect will handle the role check and redirect on successful login
-    } catch (error: any) => {
+    } catch (error: any) {
       console.error("Admin Login Error:", error);
       let description = "Ocurrió un error al intentar iniciar sesión.";
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
