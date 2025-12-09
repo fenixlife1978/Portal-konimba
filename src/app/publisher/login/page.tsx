@@ -19,9 +19,11 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useAuth, useUser } from "@/firebase";
-import { initiateEmailSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login";
-import { updateProfile } from "firebase/auth";
+import { initiateEmailSignIn } from "@/firebase/non-blocking-login";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
+import { Logo } from "@/components/logo";
+import Link from "next/link";
 
 
 export default function PublisherAuthPage() {
@@ -55,7 +57,7 @@ export default function PublisherAuthPage() {
     try {
       // Because we need to update the profile, we can't use the non-blocking version here
       // for the initial user creation part.
-      const userCredential = await auth.createUserWithEmailAndPassword(registerEmail, registerPassword);
+      const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
       await updateProfile(userCredential.user, { displayName: registerName });
       
       // Manually trigger a refresh of the user object if needed, or rely on onAuthStateChanged
@@ -80,8 +82,14 @@ export default function PublisherAuthPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
-      <Tabs defaultValue="login" className="w-[400px]">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
+       <div className="mb-8 text-center">
+        <Link href="/" className="inline-block">
+          <Logo />
+        </Link>
+        <h1 className="text-3xl font-bold font-headline mt-4">Siren's Portal</h1>
+      </div>
+      <Tabs defaultValue="login" className="w-full max-w-sm">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
           <TabsTrigger value="register">Registrarse</TabsTrigger>
