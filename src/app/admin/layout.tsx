@@ -1,26 +1,47 @@
+'use client';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, LogOut } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const auth = useAuth();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    if (auth) {
+      signOut(auth).then(() => {
+        router.push('/'); // Redirect to home page after logout
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b">
         <div className="container mx-auto px-4 h-20 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 group">
+          <Link href="/admin" className="flex items-center gap-3 group">
             <Logo className="h-10 w-10" />
             <span className="text-xl font-bold font-headline text-foreground hidden sm:inline">
               Siren's Portal
             </span>
           </Link>
 
-          <Button asChild variant="ghost">
-            <Link href="/" >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver al inicio
-            </Link>
-          </Button>
+          <div className="flex items-center gap-4">
+             <Button onClick={handleLogout} variant="ghost">
+              <LogOut className="mr-2 h-4 w-4" />
+              Cerrar Sesión
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/" >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Volver al inicio
+              </Link>
+            </Button>
+          </div>
         </div>
       </header>
       <main className="container mx-auto p-4 sm:p-8">
