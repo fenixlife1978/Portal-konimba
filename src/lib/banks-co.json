@@ -1,0 +1,27 @@
+
+[
+  { "code": "0001", "name": "BANCO DE BOGOTA" },
+  { "code": "0002", "name": "BANCO POPULAR" },
+  { "code": "0006", "name": "BANCO ITAU" },
+  { "code": "0007",_ "name": "BANCOLOMBIA" },
+  { "code": "0009", "name": "BANCO DE OCCIDENTE" },
+  { "code": "0013", "name": "BBVA COLOMBIA" },
+  { "code": "0014", "name": "SCOTIABANK COLPATRIA" },
+  { "code": "0023", "name": "BANCO AV VILLAS" },
+  { "code": "0032", "name": "BANCO CAJA SOCIAL" },
+  { "code": "0040", "name": "CITIBANK" },
+  { "code": "0051", "name": "DAVIVIENDA" },
+  { "code": "0052", "name": "BANCO AGRARIO" },
+  { "code": "0058", "name": "GNB SUDAMERIS" },
+  { "code": "0062", "name": "BANCO PICHINCHA" },
+  { "code": "0063", "name": "BANCOOMEVA" },
+  { "code": "0065", "name": "BANCO FALABELLA" },
+  { "code": "0066", "name": "BANCO FINANDINA" },
+  { "code": "0067", "name": "BANCO COOPERATIVO COOPCENTRAL" },
+  { "code": "0301", "name": "LULO BANK" },
+  { "code": "0303", "name": "RAPPIPAY" },
+  { "code": "0323", "name": "MOVII" },
+  { "code": "0331", "name": "IRIS" },
+  { "code": "0340", "name": "NEQUI" },
+  { "code": "0367", "name": "DALE" }
+]
