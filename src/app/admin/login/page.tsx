@@ -29,6 +29,7 @@ export default function AdminAuthPage() {
   const [registerName, setRegisterName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
   const auth = useAuth();
   const firestore = useFirestore();
@@ -37,24 +38,31 @@ export default function AdminAuthPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // A real app should check for admin custom claims or roles in Firestore.
-    // This is a simplified check.
-    if (!isUserLoading && user) {
-      // Check if user is admin
-      const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-      getDoc(adminRoleRef).then(docSnap => {
-        if (docSnap.exists()) {
-          router.push('/admin');
-        } else {
-           toast({
-            variant: "destructive",
-            title: "Acceso denegado",
-            description: "No tienes permisos de administrador.",
-          });
-          auth.signOut();
-        }
-      });
+    if (isUserLoading) {
+      return;
     }
+    if (!user) {
+      setIsCheckingAdmin(false);
+      return;
+    }
+
+    const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+    getDoc(adminRoleRef).then(docSnap => {
+      if (docSnap.exists()) {
+        router.push('/admin');
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Acceso denegado",
+          description: "No tienes permisos de administrador. Se cerrará tu sesión.",
+        });
+        auth.signOut();
+        setIsCheckingAdmin(false); // Allow rendering the login form
+      }
+    }).catch(() => {
+        setIsCheckingAdmin(false);
+    });
+
   }, [user, isUserLoading, router, firestore, auth, toast]);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -73,11 +81,8 @@ export default function AdminAuthPage() {
       
       await updateProfile(newUser, { displayName: registerName });
 
-      // ** Assign admin role by creating a document in `roles_admin` collection **
-      // This will now work for the first admin due to the new security rule.
       const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
       
-      // Use try-catch around the setDoc to handle permission errors gracefully
       try {
         await setDoc(adminRoleRef, { role: 'admin' });
         toast({
@@ -86,17 +91,14 @@ export default function AdminAuthPage() {
         });
       } catch (firestoreError: any) {
         console.error("Firestore Admin Role Error:", firestoreError);
-        // This toast will now correctly show the specific Firestore error.
         toast({
           variant: "destructive",
           title: "Error al asignar rol",
           description: firestoreError.message || "No se pudo asignar el rol de administrador.",
         });
-        // Optional: delete the created user if role assignment fails
         await newUser.delete();
       }
 
-      // The useEffect will handle redirection upon successful auth state change.
     } catch (authError: any) {
       console.error("Admin Auth Registration Error:", authError);
       toast({
@@ -107,7 +109,7 @@ export default function AdminAuthPage() {
     }
   };
 
-  if (isUserLoading || user) {
+  if (isUserLoading || isCheckingAdmin) {
     return <div className="flex items-center justify-center min-h-screen">Verificando permisos...</div>;
   }
 
