@@ -41,6 +41,14 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
+    
+    /**
+     * Checks if there are no admins in the system yet.
+     * This is used to allow the very first admin to be created.
+     */
+    function noAdminsExist() {
+      return !exists(/databases/$(database)/documents/roles_admin);
+    }
 
     /**
      * Checks if the requesting user's UID matches the provided userId.
@@ -84,14 +92,15 @@ service cloud.firestore {
      * @path /roles_admin/{uid}
      * @allow (get) An admin checks if another user is also an admin: `/roles_admin/user_456` by admin_abc.
      * @allow (create) An admin grants admin privileges to a new user: `/roles_admin/user_789` by admin_abc.
+     * @allow (create) A new user registers as the first admin if no other admins exist.
      * @deny (get) A non-admin user tries to see who the admins are.
-     * @deny (create) A non-admin user attempts to make themselves an admin.
+     * @deny (create) A non-admin user attempts to make themselves an admin if one already exists.
      * @principle Secures administrative privileges. Only admins can view or modify the list of admins, preventing privilege escalation.
      */
     match /roles_admin/{uid} {
       allow get: if isAdmin();
       allow list: if isAdmin();
-      allow create: if isAdmin();
+      allow create: if isAdmin() || (noAdminsExist() && isOwner(uid));
       allow update: if isExistingDoc() && isAdmin();
       allow delete: if isExistingDoc() && isAdmin();
     }

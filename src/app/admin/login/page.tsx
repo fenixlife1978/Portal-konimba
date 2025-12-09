@@ -40,9 +40,26 @@ export default function AdminAuthPage() {
     // A real app should check for admin custom claims or roles in Firestore.
     // This is a simplified check.
     if (!isUserLoading && user) {
-      router.push('/admin');
+      // Check if user is admin
+      const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+      // In a real app you might want to use useDoc for this
+      // For this simplified version, a one-time check after login/register is enough
+      import('firebase/firestore').then(({ getDoc }) => {
+        getDoc(adminRoleRef).then(docSnap => {
+          if (docSnap.exists()) {
+            router.push('/admin');
+          } else {
+             toast({
+              variant: "destructive",
+              title: "Acceso denegado",
+              description: "No tienes permisos de administrador.",
+            });
+            auth.signOut();
+          }
+        });
+      });
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, router, firestore, auth, toast]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,11 +75,10 @@ export default function AdminAuthPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
       const newUser = userCredential.user;
       
-      // Update the user's profile with their name
       await updateProfile(newUser, { displayName: registerName });
 
       // ** Assign admin role by creating a document in `roles_admin` collection **
-      // This is a non-blocking operation.
+      // This will now work for the first admin due to the new security rule.
       const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
       setDocumentNonBlocking(adminRoleRef, { role: 'admin' }, {});
 
@@ -82,7 +98,7 @@ export default function AdminAuthPage() {
   };
 
   if (isUserLoading || user) {
-    return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
+    return <div className="flex items-center justify-center min-h-screen">Verificando permisos...</div>;
   }
 
   return (
@@ -144,7 +160,7 @@ export default function AdminAuthPage() {
               <CardHeader>
                 <CardTitle>Registrar Administrador</CardTitle>
                 <CardDescription>
-                  Crea una nueva cuenta de administrador.
+                  Crea la primera cuenta de administrador.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
