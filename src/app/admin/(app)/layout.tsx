@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/firebase';
@@ -34,12 +34,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
              <Button onClick={handleLogout} variant="ghost">
               <LogOut className="mr-2 h-4 w-4" />
               Cerrar Sesión
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/" >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Volver al inicio
-              </Link>
             </Button>
           </div>
         </div>
