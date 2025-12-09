@@ -26,7 +26,7 @@ export default function Home() {
             description="Gestiona publishers, leads, pagos y más."
           />
           <DashboardLink
-            href="/publisher"
+            href="/publisher/login"
             title="Panel de Publisher"
             description="Consulta tu rendimiento, pagos y configuración."
           />
