@@ -89,8 +89,8 @@ service cloud.firestore {
       allow list: if isAdmin();
       // Allow creation for any signed-in user for their own document
       allow create: if isSignedIn() && isOwner(publisherId);
-      // Allow deletion only for super admins
-      allow delete: if isSuperAdmin();
+      // Allow deletion only for super admins or admins
+      allow delete: if isAdmin() || isSuperAdmin();
     }
 
     /**
