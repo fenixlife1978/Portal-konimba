@@ -29,6 +29,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MoreHorizontal, Pencil, Trash2, ArrowLeft } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 type Publisher = {
   id: string;
@@ -41,6 +42,15 @@ type Publisher = {
   city?: string;
   state?: string;
   zipCode?: string;
+  // Payment info
+  country?: string;
+  paymentMethod?: string;
+  bank?: string;
+  accountNumber?: string;
+  mobilePaymentPhone?: string;
+  mobilePaymentId?: string;
+  usdtPlatform?: string;
+  usdtAddress?: string;
 };
 
 function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; onSave: (data: Partial<Publisher>) => Promise<void>; onDelete: () => Promise<void> }) {
@@ -62,6 +72,16 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
     const { id, value } = e.target;
     setEditedPublisher(prev => ({ ...prev, [id]: value }));
   };
+
+  const InfoField = ({ label, value }: { label: string, value?: string }) => (
+    value ? (
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label className="text-right text-muted-foreground">{label}</Label>
+        <p className="col-span-3 text-sm">{value}</p>
+      </div>
+    ) : null
+  );
+  
 
   return (
     <TableRow key={publisher.id}>
@@ -86,17 +106,18 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
               <DialogTrigger asChild>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                   <Pencil className="mr-2 h-4 w-4" />
-                  Editar
+                  Ver / Editar
                 </DropdownMenuItem>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Editar Publisher</DialogTitle>
+                  <DialogTitle>Detalles del Publisher</DialogTitle>
                   <DialogDescription>
-                    Realiza cambios en el perfil del publisher. Haz clic en guardar cuando termines.
+                    Edita los datos básicos o consulta la información de pago.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
+                  <h3 className="font-semibold text-foreground mb-2">Información Personal</h3>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="firstName" className="text-right">
                       Nombre
@@ -121,6 +142,23 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                     </Label>
                     <Input id="address" value={editedPublisher.address || ''} onChange={handleInputChange} className="col-span-3" />
                   </div>
+                  
+                  <Separator className="my-4" />
+
+                  <h3 className="font-semibold text-foreground mb-2">Información de Pago (Solo Lectura)</h3>
+                  
+                  <InfoField label="País" value={publisher.country === 'VE' ? 'Venezuela' : publisher.country === 'CO' ? 'Colombia' : publisher.country} />
+                  <InfoField label="Método" value={publisher.paymentMethod} />
+                  <InfoField label="Banco" value={publisher.bank} />
+                  <InfoField label="Nº de Cuenta" value={publisher.accountNumber} />
+                  <InfoField label="Teléfono (Pago Móvil)" value={publisher.mobilePaymentPhone} />
+                  <InfoField label="ID (Pago Móvil)" value={publisher.mobilePaymentId} />
+                  <InfoField label="Plataforma USDT" value={publisher.usdtPlatform} />
+                  <InfoField label="Dirección USDT" value={publisher.usdtAddress} />
+
+                  {!publisher.country && (
+                     <p className="col-span-4 text-sm text-center text-muted-foreground mt-2">El publisher aún no ha configurado sus datos de pago.</p>
+                  )}
                 </div>
                 <DialogFooter>
                   <DialogClose asChild>
@@ -263,3 +301,5 @@ export default function PublishersPage() {
     </div>
   );
 }
+
+    
