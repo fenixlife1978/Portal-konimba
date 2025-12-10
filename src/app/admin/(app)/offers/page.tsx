@@ -25,8 +25,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { MoreHorizontal, Pencil, Trash2, ArrowLeft, PlusCircle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -39,13 +37,13 @@ import * as z from 'zod';
 type Offer = {
   id: string;
   name: string;
-  description: string;
+  paymentAmount: number;
   status: 'active' | 'inactive';
 };
 
 const offerSchema = z.object({
   name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
-  description: z.string().min(10, "La descripción debe tener al menos 10 caracteres."),
+  paymentAmount: z.coerce.number().positive("El monto debe ser un número positivo."),
   status: z.enum(['active', 'inactive']),
 });
 
@@ -54,7 +52,7 @@ type OfferFormData = z.infer<typeof offerSchema>;
 function OfferForm({ onSave, offer, onOpenChange }: { onSave: (data: OfferFormData) => Promise<void>; offer?: Offer | null, onOpenChange: (open: boolean) => void }) {
   const { register, handleSubmit, formState: { errors } } = useForm<OfferFormData>({
     resolver: zodResolver(offerSchema),
-    defaultValues: offer || { name: '', description: '', status: 'active' },
+    defaultValues: offer || { name: '', paymentAmount: 0, status: 'active' },
   });
 
   const handleFormSubmit = async (data: OfferFormData) => {
@@ -77,9 +75,9 @@ function OfferForm({ onSave, offer, onOpenChange }: { onSave: (data: OfferFormDa
           {errors.name && <p className="col-span-4 text-right text-sm text-destructive">{errors.name.message}</p>}
         </div>
         <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="description" className="text-right">Descripción</Label>
-          <Textarea id="description" {...register('description')} className="col-span-3" />
-          {errors.description && <p className="col-span-4 text-right text-sm text-destructive">{errors.description.message}</p>}
+          <Label htmlFor="paymentAmount" className="text-right">Monto (USD)</Label>
+          <Input id="paymentAmount" type="number" step="0.01" {...register('paymentAmount')} className="col-span-3" />
+          {errors.paymentAmount && <p className="col-span-4 text-right text-sm text-destructive">{errors.paymentAmount.message}</p>}
         </div>
         <div className="grid grid-cols-4 items-center gap-4">
           <Label htmlFor="status" className="text-right">Estado</Label>
@@ -104,7 +102,7 @@ function OfferRow({ offer, onSave, onDelete }: { offer: Offer; onSave: (data: Pa
   return (
     <TableRow>
       <TableCell className="font-medium">{offer.name}</TableCell>
-      <TableCell className="hidden md:table-cell max-w-sm truncate">{offer.description}</TableCell>
+      <TableCell>${offer.paymentAmount.toFixed(2)}</TableCell>
       <TableCell>
         <Badge variant={offer.status === 'active' ? 'default' : 'secondary'}>
           {offer.status === 'active' ? 'Activa' : 'Inactiva'}
@@ -190,7 +188,7 @@ export default function OffersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
-                <TableHead className="hidden md:table-cell">Descripción</TableHead>
+                <TableHead>Monto (USD)</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>

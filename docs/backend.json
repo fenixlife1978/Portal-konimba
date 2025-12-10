@@ -79,9 +79,9 @@
           "type": "string",
           "description": "The name of the offer."
         },
-        "description": {
-          "type": "string",
-          "description": "A detailed description of the offer."
+        "paymentAmount": {
+          "type": "number",
+          "description": "The payment amount for the offer in USD."
         },
         "status": {
           "type": "string",
@@ -99,7 +99,7 @@
           "format": "date-time"
         }
       },
-      "required": ["id", "name", "status"]
+      "required": ["id", "name", "status", "paymentAmount"]
     },
     "Lead": {
       "$schema": "http://json-schema.org/draft-07/schema#",
