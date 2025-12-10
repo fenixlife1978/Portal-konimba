@@ -5,6 +5,8 @@
  * Data Structure:
  * - /publishers/{publisherId}: Stores individual publisher profiles. Access is primarily controlled by ownership, where the document ID matches the user's Auth UID.
  * - /roles_admin/{uid}: A dedicated collection for managing administrator privileges. The existence of a document for a user's UID in this collection grants them admin rights system-wide.
+ * - /offers/{offerId}: Stores all promotional offers. Admins manage them, while all users can read them.
+ * - /leads/{leadId}: Stores records of generated leads. Admins have full control, while Publishers can only read their own lead records.
  *
  * Key Security Decisions:
  * - Admin Role Check: Admin status is efficiently determined by checking for the existence of a document in `/roles_admin/{request.auth.uid}`.
@@ -12,12 +14,6 @@
  * - Ownership Enforcement: A user can only access data under a path that matches their user ID (e.g., a publisher can only access `/publishers/{their-own-uid}`).
  * - Publisher Self-Creation: Any authenticated user can create their own publisher profile, which is essential for the public registration flow.
  * - Default Secure: Access is denied by default. All permissions must be explicitly granted.
- *
- * Denormalization for Authorization:
- * The `/roles_admin` collection is a prime example of denormalization for authorization. Instead of storing a role property on a user document (which would require a `get()` call in every rule), we use a separate collection. This allows for a highly performant `exists()` check to determine admin status, making the entire ruleset faster and more scalable.
- *
- * Structural Segregation:
- * The data is segregated by function and security level into distinct top-level collections (`/publishers` and `/roles_admin`). This clear separation ensures that security rules for one type of data do not inadvertently affect another.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -97,6 +93,30 @@ service cloud.firestore {
       allow create: if isSignedIn() && ( (noAdminsExist() && isOwner(adminId)) || isSuperAdmin() );
       // LIST/DELETE: Only the super admin can list or delete admins.
       allow list, delete: if isSuperAdmin();
+    }
+
+    /**
+     * @description Manages promotional offers. Admins have full CRUD access. Authenticated users can read.
+     * @path /offers/{offerId}
+     */
+    match /offers/{offerId} {
+      // READ/LIST: All signed-in users (admins and publishers) can view offers.
+      allow read, list: if isSignedIn();
+      // CREATE/UPDATE/DELETE: Only admins can manage offers.
+      allow write: if isAdmin();
+    }
+
+    /**
+     * @description Manages lead records. Admins have full control. Publishers can read their own records.
+     * @path /leads/{leadId}
+     */
+    match /leads/{leadId} {
+      // READ: Allow admin or the publisher who owns the record.
+      allow read: if isAdmin() || (isSignedIn() && isOwner(resource.data.publisherId));
+      // LIST: Publishers can list their own leads, Admins can list all.
+      allow list: if isAdmin() || (isSignedIn() && request.query.where.publisherId == request.auth.uid);
+      // CREATE/UPDATE/DELETE: Only admins can create, update, or delete lead records.
+      allow write: if isAdmin();
     }
   }
 }
