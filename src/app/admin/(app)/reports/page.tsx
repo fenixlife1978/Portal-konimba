@@ -5,7 +5,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -80,11 +80,14 @@ export default function ReportsPage() {
     const endDate = `${year}-${month.padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
     try {
+      // This query requires a composite index on publisherId and date.
+      // Firestore will provide a link in the console error to create it.
       const leadsQuery = query(
         collection(firestore, 'leads'),
         where('publisherId', '==', publisherId),
         where('date', '>=', startDate),
-        where('date', '<=', endDate)
+        where('date', '<=', endDate),
+        orderBy('date', 'asc') // Order by date for chronological processing
       );
       const leadsSnapshot = await getDocs(leadsQuery);
       const leads = leadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lead));
@@ -99,6 +102,7 @@ export default function ReportsPage() {
       const offersMap = new Map<string, Offer>();
 
       if (offerIds.length > 0) {
+        // Fetch all required offers in a single query
         const offersQuery = query(collection(firestore, 'offers'), where('__name__', 'in', offerIds));
         const offersSnapshot = await getDocs(offersQuery);
         offersSnapshot.docs.forEach(doc => {
@@ -109,10 +113,13 @@ export default function ReportsPage() {
       setReportData({ leads, offersMap, daysInMonth });
 
     } catch (error: any) {
+      console.error("Report Generation Error:", error);
       toast({
         variant: "destructive",
         title: "Error al generar reporte",
-        description: error.message || "No se pudieron obtener los datos.",
+        description: error.message.includes('requires an index') 
+          ? "Se necesita un índice de Firestore. Revisa la consola del navegador para crearlo."
+          : error.message || "No se pudieron obtener los datos.",
       });
     } finally {
       setIsGenerating(false);
@@ -124,7 +131,7 @@ export default function ReportsPage() {
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
   const months = [
     { value: '1', label: 'Enero' }, { value: '2', label: 'Febrero' }, { value: '3', label: 'Marzo' },
-    { value: '4', label: 'Abril' }, { value: '5', label: 'Mayo' }, { value: '6', label: 'Junio' },
+    { value: '4', 'label': 'Abril' }, { value: '5', label: 'Mayo' }, { value: '6', label: 'Junio' },
     { value: '7', label: 'Julio' }, { value: '8', label: 'Agosto' }, { value: '9', label: 'Septiembre' },
     { value: '10', label: 'Octubre' }, { value: '11', label: 'Noviembre' }, { value: '12', label: 'Diciembre' }
   ];
@@ -144,7 +151,7 @@ export default function ReportsPage() {
     leads.forEach(lead => {
         const day = parseInt(lead.date.split('-')[2]);
         if (!leadsByOffer.has(lead.offerId)) {
-            leadsByOffer.set(lead.offerId, { offerName: lead.offerName, days: new Map() });
+            leadsByOffer.set(lead.offerId, { offerName: lead.offerName || 'Oferta Desconocida', days: new Map() });
         }
         const offerEntry = leadsByOffer.get(lead.offerId)!;
         offerEntry.days.set(day, (offerEntry.days.get(day) || 0) + lead.quantity);
@@ -278,13 +285,13 @@ export default function ReportsPage() {
                     <Input 
                         id="exchangeRate" 
                         type="number"
-                        placeholder="Ej: 390"
+                        placeholder="Ej: 39.5"
                         value={exchangeRate || ''}
-                        onChange={(e) => setExchangeRate(parseFloat(e.target.value))}
+                        onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
                     />
                 </div>
                 <div className="p-4 bg-muted rounded-lg col-span-2 flex items-center justify-between">
-                    <span className="text-lg font-bold text-foreground">TOTAL A COBRAR (BsF)</span>
+                    <span className="text-lg font-bold text-foreground">TOTAL A COBRAR ({exchangeRate > 0 ? 'BsF' : 'Local'})</span>
                     <span className="text-xl font-extrabold text-primary">
                         {totalInLocalCurrency.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
@@ -295,3 +302,5 @@ export default function ReportsPage() {
     </div>
   );
 }
+
+    
