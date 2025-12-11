@@ -21,8 +21,10 @@ import {
 import { useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { Progress } from '@/components/ui/progress';
+
 
 import banksVe from '@/lib/banks-ve.json';
 import banksCo from '@/lib/banks-co.json';
@@ -59,6 +61,7 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
 
   const publisherRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -107,6 +110,7 @@ export default function SettingsPage() {
   
   const onSubmit = async (data: FormData) => {
     if (!publisherRef) return;
+    setIsSaving(true);
     try {
       await setDoc(publisherRef, {
         ...data,
@@ -116,13 +120,15 @@ export default function SettingsPage() {
         title: "Configuración guardada",
         description: "Tus datos de pago se han actualizado correctamente.",
       });
-      setIsModalOpen(false); // Cierra el modal al guardar
+      setIsModalOpen(false);
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: "Error al guardar",
         description: error.message || "No se pudieron guardar los cambios.",
       });
+    } finally {
+        setIsSaving(false);
     }
   };
   
@@ -159,7 +165,6 @@ export default function SettingsPage() {
       </div>
 
       <Card>
-        <form onSubmit={handleSubmit(onSubmit)} id="payment-settings-form">
           <CardHeader>
             <CardTitle>Método de Pago</CardTitle>
             <CardDescription>
@@ -217,11 +222,13 @@ export default function SettingsPage() {
                     <Button type="button">Configurar Detalles de Pago</Button>
                   </DialogTrigger>
                   <DialogContent>
+                    <form onSubmit={handleSubmit(onSubmit)}>
                       <DialogHeader>
                         <DialogTitle>Configurar Método de Pago</DialogTitle>
                         <DialogDescription>
                           Completa los detalles para recibir tus ganancias. Los campos con * son requeridos.
                         </DialogDescription>
+                        {isSaving && <Progress value={33} className="w-[100%] mt-2 animate-pulse" />}
                       </DialogHeader>
                       <div className="grid gap-4 py-4">
                         {paymentMethod === 'pagoMovil' && country === 'VE' && (
@@ -312,17 +319,27 @@ export default function SettingsPage() {
                       </div>
                       <DialogFooter>
                          <DialogClose asChild>
-                            <Button type="button" variant="outline">Cancelar</Button>
+                            <Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button>
                           </DialogClose>
-                        <Button type="submit" form="payment-settings-form">Guardar Cambios</Button>
+                        <Button type="submit" disabled={isSaving}>
+                          {isSaving ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Guardando...
+                            </>
+                          ) : (
+                            'Guardar Cambios'
+                          )}
+                        </Button>
                       </DialogFooter>
+                    </form>
                   </DialogContent>
                 </Dialog>
                 
                 <div className="mt-4 text-sm text-muted-foreground p-4 border rounded-lg">
                   <h4 className="font-semibold text-foreground mb-2">Configuración Actual:</h4>
                   {publisherData?.country ? (
-                    <>
+                    <div className="space-y-1">
                       <p><strong>País:</strong> {publisherData.country === 'VE' ? 'Venezuela' : publisherData.country === 'CO' ? 'Colombia' : publisherData.country}</p>
                       {publisherData.paymentMethod && <p><strong>Método:</strong> {publisherData.paymentMethod}</p>}
                       {publisherData.bank && <p><strong>Banco:</strong> {publisherData.bank}</p>}
@@ -331,7 +348,7 @@ export default function SettingsPage() {
                       {publisherData.mobilePaymentId && <p><strong>ID:</strong> {publisherData.mobilePaymentId}</p>}
                       {publisherData.usdtPlatform && <p><strong>Plataforma USDT:</strong> {publisherData.usdtPlatform}</p>}
                       {publisherData.usdtAddress && <p><strong>Dirección USDT:</strong> {publisherData.usdtAddress}</p>}
-                    </>
+                    </div>
                   ) : (
                     <p>Aún no has configurado un método de pago.</p>
                   )}
@@ -339,8 +356,9 @@ export default function SettingsPage() {
               </div>
             )}
           </CardContent>
-        </form>
       </Card>
     </div>
   );
 }
+
+    
