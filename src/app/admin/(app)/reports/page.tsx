@@ -25,6 +25,7 @@ import {
   TableRow,
   TableFooter,
 } from '@/components/ui/table';
+import { Separator } from '@/components/ui/separator';
 
 // Types
 type Publisher = { id: string; firstName: string; lastName: string; email: string; };
@@ -51,6 +52,7 @@ type ReportFormData = z.infer<typeof reportFormSchema>;
 const generalReportSchema = z.object({
     month: z.string().nonempty("El mes es requerido."),
     year: z.string().nonempty("El año es requerido."),
+    period: z.enum(['monthly', 'fortnight-1', 'fortnight-2']).default('monthly'),
 });
 type GeneralReportFormData = z.infer<typeof generalReportSchema>;
 
@@ -62,14 +64,19 @@ type InactivityReportFormData = z.infer<typeof inactivityReportSchema>;
 type ReportData = {
   leads: Lead[];
   offersMap: Map<string, Offer>;
-  daysInMonth: number;
+  daysInPeriod: number[];
+  periodLabel: string;
+}
+type PublisherReportData = {
+    publisherInfo: Publisher;
+    reportData: ReportData;
 }
 type GeneralReportResult = {
-    publisherId: string;
-    publisherName: string;
-    totalLeads: number;
-    totalEarnings: number;
-}[];
+    publisherReports: PublisherReportData[];
+    grandTotalLeads: number;
+    grandTotalEarnings: number;
+    totalLeadsByOffer: Map<string, { offerName: string, totalLeads: number }>;
+}
 
 type InactivePublisher = {
     id: string;
@@ -84,9 +91,9 @@ const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 const months = [
     { value: '1', label: 'Enero' }, { value: '2', label: 'Febrero' }, { value: '3', label: 'Marzo' },
-    { value: '4', label: 'Abril' }, { value: '5', label: 'Mayo' }, { value: '6', label: 'Junio' },
-    { value: '7', label: 'Julio' }, { value: '8', label: 'Agosto' }, { value: '9', label: 'Septiembre' },
-    { value: '10', label: 'Octubre' }, { value: '11', label: 'Noviembre' }, { value: '12', label: 'Diciembre' }
+    { value: '4', label: 'Abril' }, { value: '5', label: 'Mayo' }, { value: '6', 'label': 'Junio' },
+    { value: '7', label: 'Julio' }, { value: '8', label: 'Agosto' }, { value: '9', 'label': 'Septiembre' },
+    { value: '10', label: 'Octubre' }, { value: '11', 'label': 'Noviembre' }, { value: '12', 'label': 'Diciembre' }
 ];
 
 
@@ -129,6 +136,123 @@ export default function ReportsPage() {
 }
 
 // #################################################################################
+// ## SHARED: Report Display Component
+// #################################################################################
+function ReportDisplay({ reportData, publisher, period, showExchangeRate = false }: { reportData: ReportData, publisher: Publisher, period: string, showExchangeRate?: boolean}) {
+    const [exchangeRate, setExchangeRate] = useState<number>(0);
+    
+    const processReport = () => {
+        if (!reportData) return null;
+
+        const { leads, offersMap, daysInPeriod } = reportData;
+
+        const leadsByOffer = new Map<string, { offerName: string, days: Map<number, number> }>();
+        leads.forEach(lead => {
+            const day = parseInt(lead.date.split('-')[2]);
+            if (!leadsByOffer.has(lead.offerId)) {
+                leadsByOffer.set(lead.offerId, { offerName: lead.offerName || 'Oferta Desconocida', days: new Map() });
+            }
+            const offerEntry = leadsByOffer.get(lead.offerId)!;
+            offerEntry.days.set(day, (offerEntry.days.get(day) || 0) + lead.quantity);
+        });
+
+        let totalLeads = 0;
+        let totalEarnings = 0;
+
+        const tableRows = Array.from(leadsByOffer.entries()).map(([offerId, data]) => {
+            const offer = offersMap.get(offerId);
+            const offerPayment = offer?.paymentAmount || 0;
+            const totalOfferLeads = Array.from(data.days.values()).reduce((sum, qty) => sum + qty, 0);
+            const offerEarnings = totalOfferLeads * offerPayment;
+            totalLeads += totalOfferLeads;
+            totalEarnings += offerEarnings;
+            
+            return {
+                ...data,
+                offerId,
+                totalOfferLeads,
+                offerEarnings,
+                offerPayment
+            };
+        });
+
+        return { dayColumns: daysInPeriod, tableRows, totalLeads, totalEarnings };
+    }
+
+    const processed = processReport();
+     if (!processed) return null;
+
+    const totalInLocalCurrency = processed.totalEarnings * exchangeRate;
+
+    return (
+        <Card className="mt-8 border-t pt-4">
+            <CardHeader>
+                <CardTitle>Reporte para {publisher.firstName} {publisher.lastName}</CardTitle>
+                <CardDescription>Período: {period}</CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="font-bold min-w-[150px]">Ofertas</TableHead>
+                            {processed.dayColumns.map(day => <TableHead key={day} className="text-center">{day}</TableHead>)}
+                            <TableHead className="text-center font-bold min-w-[100px] bg-secondary">Total Leads</TableHead>
+                            <TableHead className="text-center font-bold min-w-[100px] bg-secondary">Precio (USD)</TableHead>
+                            <TableHead className="text-right font-bold min-w-[120px] bg-secondary">Ganancia (USD)</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                    {processed.tableRows.map(row => (
+                        <TableRow key={row.offerId}>
+                            <TableCell className="font-medium">{row.offerName}</TableCell>
+                            {processed.dayColumns.map(day => (
+                                <TableCell key={day} className="text-center">
+                                    {row.days.get(day) || ''}
+                                </TableCell>
+                            ))}
+                            <TableCell className="text-center font-bold bg-secondary">{row.totalOfferLeads}</TableCell>
+                            <TableCell className="text-center font-medium bg-secondary">${row.offerPayment.toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-bold bg-secondary">${row.offerEarnings.toFixed(2)}</TableCell>
+                        </TableRow>
+                    ))}
+                    </TableBody>
+                    <TableFooter>
+                        <TableRow className="bg-primary/90 text-primary-foreground hover:bg-primary/90">
+                        <TableCell className="font-bold">TOTALES PUBLISHER</TableCell>
+                        <TableCell colSpan={processed.dayColumns.length}></TableCell>
+                        <TableCell className="text-center font-extrabold text-lg">{processed.totalLeads}</TableCell>
+                        <TableCell></TableCell>
+                        <TableCell className="text-right font-extrabold text-lg">${processed.totalEarnings.toFixed(2)}</TableCell>
+                        </TableRow>
+                    </TableFooter>
+                </Table>
+            </CardContent>
+           {showExchangeRate && (
+             <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
+                <div className="space-y-2">
+                    <Label htmlFor="exchangeRate">Tasa de Cambio (Opcional)</Label>
+                    <Input 
+                        id="exchangeRate" 
+                        type="number"
+                        placeholder="Ej: 39.5"
+                        value={exchangeRate || ''}
+                        onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
+                    />
+                </div>
+                <div className="p-4 bg-muted rounded-lg col-span-2 flex items-center justify-between">
+                    <span className="text-lg font-bold text-foreground">TOTAL A COBRAR ({exchangeRate > 0 ? 'Local' : 'USD'})</span>
+                    <span className="text-xl font-extrabold text-primary">
+                        {totalInLocalCurrency > 0 ? totalInLocalCurrency.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '$' + processed.totalEarnings.toFixed(2)}
+                    </span>
+                </div>
+            </CardContent>
+           )}
+        </Card>
+    );
+}
+
+
+// #################################################################################
 // ## TAB 1: Reporte por Publisher
 // #################################################################################
 
@@ -141,7 +265,6 @@ function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publ
 
     const [reportData, setReportData] = useState<ReportData | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [exchangeRate, setExchangeRate] = useState<number>(0);
     
     const publisherId = watch('publisherId');
     const selectedPublisher = publishers?.find(p => p.id === publisherId);
@@ -188,65 +311,27 @@ function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publ
                     offersMap.set(doc.id, { id: doc.id, ...doc.data() } as Offer);
                 });
             }
-
-            setReportData({ leads, offersMap, daysInMonth });
+            const periodLabel = `${months.find(m => m.value === watch('month'))?.label} ${watch('year')}`;
+            setReportData({ leads, offersMap, daysInPeriod: Array.from({ length: daysInMonth }, (_, i) => i + 1), periodLabel });
 
         } catch (error: any) {
             console.error("Report Generation Error:", error);
+            const firebaseUrl = error.message.match(/https:\/\/console.firebase.google.com\/project\/[^/]+\/database\/firestore\/indexes\?create_composite=.*/);
             toast({
                 variant: "destructive",
                 title: "Error al generar reporte",
-                description: error.message.includes('requires an index') 
+                description: firebaseUrl 
                 ? "Se necesita un índice de Firestore. Revisa la consola del navegador para crearlo."
                 : error.message || "No se pudieron obtener los datos.",
             });
+             if (firebaseUrl) {
+                console.error(`Firestore Index Required. Please create it by visiting this URL: ${firebaseUrl[0]}`);
+            }
         } finally {
             setIsGenerating(false);
         }
     };
-
-    const processReport = () => {
-        if (!reportData) return null;
-
-        const { leads, offersMap, daysInMonth } = reportData;
-        const dayColumns = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-
-        const leadsByOffer = new Map<string, { offerName: string, days: Map<number, number> }>();
-        leads.forEach(lead => {
-            const day = parseInt(lead.date.split('-')[2]);
-            if (!leadsByOffer.has(lead.offerId)) {
-                leadsByOffer.set(lead.offerId, { offerName: lead.offerName || 'Oferta Desconocida', days: new Map() });
-            }
-            const offerEntry = leadsByOffer.get(lead.offerId)!;
-            offerEntry.days.set(day, (offerEntry.days.get(day) || 0) + lead.quantity);
-        });
-
-        let totalLeads = 0;
-        let totalEarnings = 0;
-
-        const tableRows = Array.from(leadsByOffer.entries()).map(([offerId, data]) => {
-        const offer = offersMap.get(offerId);
-        const offerPayment = offer?.paymentAmount || 0;
-        const totalOfferLeads = Array.from(data.days.values()).reduce((sum, qty) => sum + qty, 0);
-        const offerEarnings = totalOfferLeads * offerPayment;
-        totalLeads += totalOfferLeads;
-        totalEarnings += offerEarnings;
-        
-        return {
-            ...data,
-            offerId,
-            totalOfferLeads,
-            offerEarnings,
-            offerPayment
-        };
-        });
-
-        return { dayColumns, tableRows, totalLeads, totalEarnings };
-    }
-
-    const processed = processReport();
-    const totalInLocalCurrency = processed ? processed.totalEarnings * exchangeRate : 0;
-
+    
     return (
         <Card>
             <CardHeader>
@@ -291,68 +376,8 @@ function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publ
             </form>
             </CardContent>
 
-             {processed && selectedPublisher && (
-            <Card className="mt-8 border-0 shadow-none">
-                <CardHeader>
-                    <CardTitle>Reporte para {selectedPublisher.firstName} {selectedPublisher.lastName}</CardTitle>
-                    <CardDescription>Período: {months.find(m => m.value === watch('month'))?.label} {watch('year')}</CardDescription>
-                </CardHeader>
-                <CardContent className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="font-bold min-w-[150px]">Ofertas</TableHead>
-                                {processed.dayColumns.map(day => <TableHead key={day} className="text-center">{day}</TableHead>)}
-                                <TableHead className="text-center font-bold min-w-[100px] bg-secondary">Total Leads</TableHead>
-                                <TableHead className="text-center font-bold min-w-[100px] bg-secondary">Precio (USD)</TableHead>
-                                <TableHead className="text-right font-bold min-w-[120px] bg-secondary">Ganancia (USD)</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                        {processed.tableRows.map(row => (
-                            <TableRow key={row.offerId}>
-                                <TableCell className="font-medium">{row.offerName}</TableCell>
-                                {processed.dayColumns.map(day => (
-                                    <TableCell key={day} className="text-center">
-                                        {row.days.get(day) || ''}
-                                    </TableCell>
-                                ))}
-                                <TableCell className="text-center font-bold bg-secondary">{row.totalOfferLeads}</TableCell>
-                                <TableCell className="text-center font-medium bg-secondary">${row.offerPayment.toFixed(2)}</TableCell>
-                                <TableCell className="text-right font-bold bg-secondary">${row.offerEarnings.toFixed(2)}</TableCell>
-                            </TableRow>
-                        ))}
-                        </TableBody>
-                        <TableFooter>
-                            <TableRow className="bg-primary/90 text-primary-foreground hover:bg-primary/90">
-                            <TableCell className="font-bold">TOTALES</TableCell>
-                            <TableCell colSpan={processed.dayColumns.length}></TableCell>
-                            <TableCell className="text-center font-extrabold text-lg">{processed.totalLeads}</TableCell>
-                            <TableCell></TableCell>
-                            <TableCell className="text-right font-extrabold text-lg">${processed.totalEarnings.toFixed(2)}</TableCell>
-                            </TableRow>
-                        </TableFooter>
-                    </Table>
-                </CardContent>
-                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
-                    <div className="space-y-2">
-                        <Label htmlFor="exchangeRate">Tasa de Cambio (Opcional)</Label>
-                        <Input 
-                            id="exchangeRate" 
-                            type="number"
-                            placeholder="Ej: 39.5"
-                            value={exchangeRate || ''}
-                            onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
-                        />
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg col-span-2 flex items-center justify-between">
-                        <span className="text-lg font-bold text-foreground">TOTAL A COBRAR ({exchangeRate > 0 ? 'Local' : ''})</span>
-                        <span className="text-xl font-extrabold text-primary">
-                            {totalInLocalCurrency > 0 ? totalInLocalCurrency.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '$' + processed.totalEarnings.toFixed(2)}
-                        </span>
-                    </div>
-                </CardContent>
-            </Card>
+             {reportData && selectedPublisher && (
+                <ReportDisplay reportData={reportData} publisher={selectedPublisher} period={reportData.periodLabel} showExchangeRate={true} />
             )}
         </Card>
     );
@@ -366,7 +391,7 @@ function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publ
 function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const { control, handleSubmit, formState: { errors } } = useForm<GeneralReportFormData>({
+    const { control, handleSubmit, watch, formState: { errors } } = useForm<GeneralReportFormData>({
         resolver: zodResolver(generalReportSchema),
     });
     const [reportData, setReportData] = useState<GeneralReportResult | null>(null);
@@ -377,10 +402,24 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
         setIsGenerating(true);
         setReportData(null);
 
-        const { month, year } = data;
-        const startDate = `${year}-${month.padStart(2, '0')}-01`;
-        const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
-        const endDate = `${year}-${month.padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+        const { month, year, period } = data;
+        
+        let startDay = 1;
+        let endDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+        let periodLabel = `${months.find(m => m.value === month)?.label} ${year}`;
+        let daysInPeriodArray: number[];
+        
+        if (period === 'fortnight-1') {
+            endDay = 15;
+            periodLabel = `1ra Quincena - ${periodLabel}`;
+        } else if (period === 'fortnight-2') {
+            startDay = 16;
+            periodLabel = `2da Quincena - ${periodLabel}`;
+        }
+        
+        daysInPeriodArray = Array.from({ length: (endDay - startDay) + 1 }, (_, i) => startDay + i);
+        const startDate = `${year}-${month.padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
+        const endDate = `${year}-${month.padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
 
         try {
             const leadsQuery = query(
@@ -404,36 +443,61 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
                 const offersSnapshot = await getDocs(offersQuery);
                 offersSnapshot.docs.forEach(doc => offersMap.set(doc.id, { id: doc.id, ...doc.data() } as Offer));
             }
-
-            const leadsByPublisher = new Map<string, { publisherName: string; totalLeads: number; totalEarnings: number }>();
             
+            const leadsByPublisher = new Map<string, Lead[]>();
             leads.forEach(lead => {
-                const offer = offersMap.get(lead.offerId);
-                const leadEarning = (offer?.paymentAmount || 0) * lead.quantity;
-
                 if (!leadsByPublisher.has(lead.publisherId)) {
-                    leadsByPublisher.set(lead.publisherId, {
-                        publisherName: lead.publisherName || publishers.find(p => p.id === lead.publisherId)?.firstName + ' ' + publishers.find(p => p.id === lead.publisherId)?.lastName,
-                        totalLeads: 0,
-                        totalEarnings: 0
-                    });
+                    leadsByPublisher.set(lead.publisherId, []);
                 }
-
-                const publisherEntry = leadsByPublisher.get(lead.publisherId)!;
-                publisherEntry.totalLeads += lead.quantity;
-                publisherEntry.totalEarnings += leadEarning;
+                leadsByPublisher.get(lead.publisherId)!.push(lead);
             });
 
-            const result = Array.from(leadsByPublisher.entries()).map(([publisherId, data]) => ({
-                publisherId,
-                ...data
-            }));
+            let grandTotalEarnings = 0;
+            let grandTotalLeads = 0;
+            const totalLeadsByOffer = new Map<string, { offerName: string, totalLeads: number }>();
+            
+            const publisherReports: PublisherReportData[] = [];
+            for (const [pubId, pubLeads] of leadsByPublisher.entries()) {
+                const publisherInfo = publishers.find(p => p.id === pubId);
+                if (publisherInfo) {
+                     pubLeads.forEach(lead => {
+                        const offerName = lead.offerName || 'Desconocida';
+                        const current = totalLeadsByOffer.get(lead.offerId) || { offerName: offerName, totalLeads: 0 };
+                        current.totalLeads += lead.quantity;
+                        totalLeadsByOffer.set(lead.offerId, current);
 
-            setReportData(result);
+                        grandTotalLeads += lead.quantity;
+                        const offer = offersMap.get(lead.offerId);
+                        grandTotalEarnings += (offer?.paymentAmount || 0) * lead.quantity;
+                    });
+                    
+                    publisherReports.push({
+                        publisherInfo: publisherInfo,
+                        reportData: {
+                            leads: pubLeads,
+                            offersMap: offersMap,
+                            daysInPeriod: daysInPeriodArray,
+                            periodLabel: periodLabel
+                        }
+                    });
+                }
+            }
+            
+            publisherReports.sort((a,b) => a.publisherInfo.firstName.localeCompare(b.publisherInfo.firstName));
+
+            setReportData({ publisherReports, grandTotalLeads, grandTotalEarnings, totalLeadsByOffer });
 
         } catch (error: any) {
             console.error("General Report Error:", error);
-            toast({ variant: "destructive", title: "Error al generar reporte", description: error.message });
+            const firebaseUrl = error.message.match(/https:\/\/console.firebase.google.com\/project\/[^/]+\/database\/firestore\/indexes\?create_composite=.*/);
+            toast({ 
+                variant: "destructive", 
+                title: "Error al generar reporte", 
+                description: firebaseUrl ? "Se necesita un índice de Firestore para esta consulta. Revisa la consola para obtener el enlace de creación." : error.message 
+            });
+            if (firebaseUrl) {
+                console.error(`Firestore Index Required. Please create it by visiting this URL: ${firebaseUrl[0]}`);
+            }
         } finally {
             setIsGenerating(false);
         }
@@ -448,6 +512,17 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
             <CardContent>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                         <div className="space-y-2">
+                            <Label htmlFor="period">Período</Label>
+                            <Controller name="period" control={control} render={({ field }) => (
+                                <Select onValueChange={field.onChange} defaultValue="monthly" value={field.value}><SelectTrigger><SelectValue placeholder="Período" /></SelectTrigger><SelectContent>
+                                    <SelectItem value="monthly">Mes Completo</SelectItem>
+                                    <SelectItem value="fortnight-1">1ra Quincena</SelectItem>
+                                    <SelectItem value="fortnight-2">2da Quincena</SelectItem>
+                                </SelectContent></Select>
+                            )} />
+                            {errors.period && <p className="text-sm text-destructive">{errors.period.message}</p>}
+                        </div>
                         <div className="space-y-2">
                             <Label htmlFor="month">Mes</Label>
                             <Controller name="month" control={control} render={({ field }) => (
@@ -471,26 +546,54 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
             </CardContent>
 
             {reportData && (
-                <CardContent className="mt-6">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Publisher</TableHead>
-                                <TableHead className="text-center">Total Leads</TableHead>
-                                <TableHead className="text-right">Ganancia Total (USD)</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {reportData.length === 0 && <TableRow><TableCell colSpan={3} className="text-center">No hay datos para este período.</TableCell></TableRow>}
-                            {reportData.map(item => (
-                                <TableRow key={item.publisherId}>
-                                    <TableCell className="font-medium">{item.publisherName}</TableCell>
-                                    <TableCell className="text-center">{item.totalLeads}</TableCell>
-                                    <TableCell className="text-right font-bold">${item.totalEarnings.toFixed(2)}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                <CardContent className="mt-6 space-y-8">
+                     {reportData.publisherReports.length === 0 ? (
+                        <p className="text-center text-muted-foreground">No hay datos para este período.</p>
+                     ) : (
+                        <>
+                        {reportData.publisherReports.map(({ publisherInfo, reportData }, index) => (
+                           <ReportDisplay key={publisherInfo.id} publisher={publisherInfo} reportData={reportData} period={reportData.periodLabel} />
+                        ))}
+                        
+                        <Separator className="my-8" />
+                        
+                        <Card className="bg-muted/50">
+                             <CardHeader>
+                                <CardTitle>Resumen General de la Nómina</CardTitle>
+                                <CardDescription>Totales para el período seleccionado: {reportData.publisherReports[0].reportData.periodLabel}</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                 <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Oferta</TableHead>
+                                            <TableHead className="text-right">Total Leads Generados</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {Array.from(reportData.totalLeadsByOffer.entries()).map(([offerId, data]) => (
+                                            <TableRow key={offerId}>
+                                                <TableCell className="font-medium">{data.offerName}</TableCell>
+                                                <TableCell className="text-right">{data.totalLeads}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                    <TableFooter>
+                                        <TableRow className="bg-primary/90 text-primary-foreground hover:bg-primary/90">
+                                            <TableCell className="font-bold">TOTAL LEADS</TableCell>
+                                            <TableCell className="text-right font-extrabold text-lg">{reportData.grandTotalLeads}</TableCell>
+                                        </TableRow>
+                                    </TableFooter>
+                                 </Table>
+
+                                 <div className="mt-6 p-4 bg-primary/90 text-primary-foreground rounded-lg flex items-center justify-between">
+                                    <span className="text-lg font-bold">TOTAL NÓMINA (USD)</span>
+                                    <span className="text-2xl font-extrabold">${reportData.grandTotalEarnings.toFixed(2)}</span>
+                                 </div>
+                            </CardContent>
+                        </Card>
+                        </>
+                     )}
                 </CardContent>
             )}
         </Card>
@@ -527,10 +630,10 @@ function InactivityReport({ publishers }: { publishers: Publisher[] }) {
         const now = new Date();
         let startDate: Date;
 
-        if (period === '1') startDate = new Date(now.setMonth(now.getMonth() - 1));
-        else if (period === '2') startDate = new Date(now.setMonth(now.getMonth() - 2));
-        else if (period === '3-6') startDate = new Date(now.setMonth(now.getMonth() - 6));
-        else startDate = new Date(now.setMonth(now.getMonth() - 12)); // A proxy for > 6 months
+        if (period === '1') startDate = new Date(new Date().setMonth(now.getMonth() - 1));
+        else if (period === '2') startDate = new Date(new Date().setMonth(now.getMonth() - 2));
+        else if (period === '3-6') startDate = new Date(new Date().setMonth(now.getMonth() - 6));
+        else startDate = new Date(new Date().setMonth(now.getMonth() - 12)); // A proxy for > 6 months
 
         try {
             const leadsQuery = query(
@@ -558,25 +661,15 @@ function InactivityReport({ publishers }: { publishers: Publisher[] }) {
                     })
                     .map(p => ({ id: p.id, name: `${p.firstName} ${p.lastName}`, email: p.email, lastLeadDate: lastLeadDateByPublisher.get(p.id)?.toLocaleDateString() || 'Nunca' }));
             } else {
+                 const endDate = period === '6+' ? new Date(new Date().setMonth(new Date().getMonth() - 6)) : startDate;
                  inactivePublishers = publishers
                     .filter(p => {
                         const lastLeadDate = lastLeadDateByPublisher.get(p.id);
-                        return !lastLeadDate || lastLeadDate < startDate;
+                        return !lastLeadDate || lastLeadDate < endDate;
                     })
                     .map(p => ({ id: p.id, name: `${p.firstName} ${p.lastName}`, email: p.email, lastLeadDate: lastLeadDateByPublisher.get(p.id)?.toLocaleDateString() || 'Nunca' }));
             }
              
-            if (period === '6+') {
-                 const sixMonthsAgo = new Date(new Date().setMonth(new Date().getMonth() - 6));
-                  inactivePublishers = publishers
-                    .filter(p => {
-                        const lastLeadDate = lastLeadDateByPublisher.get(p.id);
-                        return !lastLeadDate || lastLeadDate < sixMonthsAgo;
-                    })
-                    .map(p => ({ id: p.id, name: `${p.firstName} ${p.lastName}`, email: p.email, lastLeadDate: lastLeadDateByPublisher.get(p.id)?.toLocaleDateString() || 'Nunca' }));
-            }
-
-
             setReportData(inactivePublishers);
             if (inactivePublishers.length === 0) {
                  toast({ title: "Sin resultados", description: "Todos los publishers están activos para este período." });
