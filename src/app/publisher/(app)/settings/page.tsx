@@ -29,14 +29,28 @@ import banksCo from '@/lib/banks-co.json';
 
 // Schemas for validation
 const formSchema = z.object({
-  country: z.string().nonempty("Debes seleccionar un país."),
-  paymentMethod: z.string().nonempty("Debes seleccionar un método de pago."),
+  country: z.string({ required_error: "Debes seleccionar un país." }).nonempty("Debes seleccionar un país."),
+  paymentMethod: z.string({ required_error: "Debes seleccionar un método de pago." }).nonempty("Debes seleccionar un método de pago."),
   bank: z.string().optional(),
   accountNumber: z.string().optional(),
   mobilePaymentPhone: z.string().optional(),
   mobilePaymentId: z.string().optional(),
   usdtPlatform: z.string().optional(),
   usdtAddress: z.string().optional(),
+}).superRefine((data, ctx) => {
+    if (data.paymentMethod === 'pagoMovil' && data.country === 'VE') {
+        if (!data.bank) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El banco es requerido.", path: ['bank'] });
+        if (!data.mobilePaymentPhone) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El teléfono es requerido.", path: ['mobilePaymentPhone'] });
+        if (!data.mobilePaymentId) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La cédula/RIF es requerida.", path: ['mobilePaymentId'] });
+    }
+    if (data.paymentMethod === 'transferencia' && (data.country === 'VE' || data.country === 'CO')) {
+        if (!data.bank) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El banco es requerido.", path: ['bank'] });
+        if (!data.accountNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El número de cuenta es requerido.", path: ['accountNumber'] });
+    }
+    if (data.paymentMethod === 'usdt') {
+        if (!data.usdtPlatform) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La plataforma es requerida.", path: ['usdtPlatform'] });
+        if (!data.usdtAddress) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La dirección o ID es requerida.", path: ['usdtAddress'] });
+    }
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -85,7 +99,6 @@ export default function SettingsPage() {
   const country = watch('country');
   const paymentMethod = watch('paymentMethod');
 
-  // When country changes, reset payment method
   useEffect(() => {
     setValue('paymentMethod', '');
   }, [country, setValue]);
@@ -112,7 +125,7 @@ export default function SettingsPage() {
       });
     }
   };
-
+  
   const renderBankList = () => {
     if (country === 'VE') {
       return banksVe.map((bank) => (
@@ -125,107 +138,6 @@ export default function SettingsPage() {
       ));
     }
     return null;
-  };
-
-  const renderPaymentFields = () => {
-    return (
-      <DialogContent>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <DialogHeader>
-            <DialogTitle>Configurar Método de Pago</DialogTitle>
-            <DialogDescription>
-              Completa los detalles para recibir tus ganancias.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            {paymentMethod === 'pagoMovil' && country === 'VE' && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="bank">Banco</Label>
-                   <Controller
-                    name="bank"
-                    control={control}
-                    render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value || ''}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona un banco" />
-                        </SelectTrigger>
-                        <SelectContent>{renderBankList()}</SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="mobilePaymentPhone">Número de Teléfono</Label>
-                  <Controller name="mobilePaymentPhone" control={control} render={({ field }) => <Input {...field} id="mobilePaymentPhone" placeholder="04XX-XXXXXXX" value={field.value || ''} />} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="mobilePaymentId">Cédula o RIF</Label>
-                  <Controller name="mobilePaymentId" control={control} render={({ field }) => <Input {...field} id="mobilePaymentId" placeholder="V-12345678" value={field.value || ''} />} />
-                </div>
-              </>
-            )}
-
-            {paymentMethod === 'transferencia' && (country === 'VE' || country === 'CO') && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="bank">Banco</Label>
-                  <Controller
-                    name="bank"
-                    control={control}
-                    render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value || ''}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona un banco" />
-                        </SelectTrigger>
-                        <SelectContent>{renderBankList()}</SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="accountNumber">Número de Cuenta</Label>
-                  <Controller name="accountNumber" control={control} render={({ field }) => <Input {...field} id="accountNumber" placeholder="0102..." value={field.value || ''} />} />
-                </div>
-              </>
-            )}
-            
-            {paymentMethod === 'usdt' && (
-              <>
-                 <div className="space-y-2">
-                  <Label htmlFor="usdtPlatform">Plataforma</Label>
-                  <Controller
-                    name="usdtPlatform"
-                    control={control}
-                    render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value || ''}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona una plataforma" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="binance">Binance</SelectItem>
-                          <SelectItem value="otro">Otro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="usdtAddress">Dirección USDT (o ID de Pago)</Label>
-                  <Controller name="usdtAddress" control={control} render={({ field }) => <Input {...field} id="usdtAddress" placeholder="Tu dirección o ID de pago" value={field.value || ''} />} />
-                </div>
-              </>
-            )}
-          </div>
-          <DialogFooter>
-             <DialogClose asChild>
-                <Button type="button" variant="outline">Cancelar</Button>
-              </DialogClose>
-            <Button type="submit">Guardar Cambios</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    );
   };
 
   if (isLoadingData) {
@@ -247,84 +159,187 @@ export default function SettingsPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Método de Pago</CardTitle>
-          <CardDescription>
-            Selecciona y configura cómo deseas recibir tus ganancias.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="country">País de Origen</Label>
-            <Controller
-              name="country"
-              control={control}
-              render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger id="country">
-                    <SelectValue placeholder="Selecciona tu país" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="VE">Venezuela</SelectItem>
-                    <SelectItem value="CO">Colombia</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.country && <p className="text-sm text-destructive">{errors.country.message}</p>}
-          </div>
-
-          {country && (
+        <form onSubmit={handleSubmit(onSubmit)} id="payment-settings-form">
+          <CardHeader>
+            <CardTitle>Método de Pago</CardTitle>
+            <CardDescription>
+              Selecciona y configura cómo deseas recibir tus ganancias.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="paymentMethod">Método de Pago</Label>
-               <Controller
-                name="paymentMethod"
+              <Label htmlFor="country">País de Origen</Label>
+              <Controller
+                name="country"
                 control={control}
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value} disabled={!country}>
-                    <SelectTrigger id="paymentMethod">
-                      <SelectValue placeholder="Selecciona un método" />
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger id="country">
+                      <SelectValue placeholder="Selecciona tu país" />
                     </SelectTrigger>
                     <SelectContent>
-                      {country === 'VE' && <SelectItem value="pagoMovil">Pago Móvil</SelectItem>}
-                      <SelectItem value="transferencia">Transferencia Bancaria</SelectItem>
-                      <SelectItem value="usdt">USDT</SelectItem>
+                      <SelectItem value="VE">Venezuela</SelectItem>
+                      <SelectItem value="CO">Colombia</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
               />
-              {errors.paymentMethod && <p className="text-sm text-destructive">{errors.paymentMethod.message}</p>}
+              {errors.country && <p className="text-sm text-destructive">{errors.country.message}</p>}
             </div>
-          )}
 
-          {paymentMethod && (
-            <div className="pt-4">
-              <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogTrigger asChild>
-                  <Button>Configurar Detalles de Pago</Button>
-                </DialogTrigger>
-                {renderPaymentFields()}
-              </Dialog>
-              <div className="mt-4 text-sm text-muted-foreground p-4 border rounded-lg">
-                <h4 className="font-semibold text-foreground mb-2">Configuración Actual:</h4>
-                {publisherData?.country ? (
-                  <>
-                    <p><strong>País:</strong> {publisherData.country === 'VE' ? 'Venezuela' : publisherData.country === 'CO' ? 'Colombia' : publisherData.country}</p>
-                    {publisherData.paymentMethod && <p><strong>Método:</strong> {publisherData.paymentMethod}</p>}
-                    {publisherData.bank && <p><strong>Banco:</strong> {publisherData.bank}</p>}
-                    {publisherData.accountNumber && <p><strong>Nº Cuenta:</strong> {publisherData.accountNumber}</p>}
-                    {publisherData.mobilePaymentPhone && <p><strong>Teléfono:</strong> {publisherData.mobilePaymentPhone}</p>}
-                    {publisherData.mobilePaymentId && <p><strong>ID:</strong> {publisherData.mobilePaymentId}</p>}
-                    {publisherData.usdtPlatform && <p><strong>Plataforma USDT:</strong> {publisherData.usdtPlatform}</p>}
-                    {publisherData.usdtAddress && <p><strong>Dirección USDT:</strong> {publisherData.usdtAddress}</p>}
-                  </>
-                ) : (
-                  <p>Aún no has configurado un método de pago.</p>
-                )}
+            {country && (
+              <div className="space-y-2">
+                <Label htmlFor="paymentMethod">Método de Pago</Label>
+                 <Controller
+                  name="paymentMethod"
+                  control={control}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value} disabled={!country}>
+                      <SelectTrigger id="paymentMethod">
+                        <SelectValue placeholder="Selecciona un método" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {country === 'VE' && <SelectItem value="pagoMovil">Pago Móvil</SelectItem>}
+                        <SelectItem value="transferencia">Transferencia Bancaria</SelectItem>
+                        <SelectItem value="usdt">USDT</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.paymentMethod && <p className="text-sm text-destructive">{errors.paymentMethod.message}</p>}
               </div>
-            </div>
-          )}
-        </CardContent>
+            )}
+
+            {paymentMethod && (
+              <div className="pt-4">
+                <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                  <DialogTrigger asChild>
+                    <Button type="button">Configurar Detalles de Pago</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Configurar Método de Pago</DialogTitle>
+                        <DialogDescription>
+                          Completa los detalles para recibir tus ganancias. Los campos con * son requeridos.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        {paymentMethod === 'pagoMovil' && country === 'VE' && (
+                          <>
+                            <div className="space-y-2">
+                              <Label htmlFor="bank">Banco *</Label>
+                               <Controller
+                                name="bank"
+                                control={control}
+                                render={({ field }) => (
+                                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecciona un banco" />
+                                    </SelectTrigger>
+                                    <SelectContent>{renderBankList()}</SelectContent>
+                                  </Select>
+                                )}
+                              />
+                               {errors.bank && <p className="text-sm text-destructive">{errors.bank.message}</p>}
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="mobilePaymentPhone">Número de Teléfono *</Label>
+                              <Controller name="mobilePaymentPhone" control={control} render={({ field }) => <Input {...field} id="mobilePaymentPhone" placeholder="04XX-XXXXXXX" value={field.value || ''} />} />
+                               {errors.mobilePaymentPhone && <p className="text-sm text-destructive">{errors.mobilePaymentPhone.message}</p>}
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="mobilePaymentId">Cédula o RIF *</Label>
+                              <Controller name="mobilePaymentId" control={control} render={({ field }) => <Input {...field} id="mobilePaymentId" placeholder="V-12345678" value={field.value || ''} />} />
+                               {errors.mobilePaymentId && <p className="text-sm text-destructive">{errors.mobilePaymentId.message}</p>}
+                            </div>
+                          </>
+                        )}
+
+                        {paymentMethod === 'transferencia' && (country === 'VE' || country === 'CO') && (
+                          <>
+                            <div className="space-y-2">
+                              <Label htmlFor="bank">Banco *</Label>
+                              <Controller
+                                name="bank"
+                                control={control}
+                                render={({ field }) => (
+                                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecciona un banco" />
+                                    </SelectTrigger>
+                                    <SelectContent>{renderBankList()}</SelectContent>
+                                  </Select>
+                                )}
+                              />
+                               {errors.bank && <p className="text-sm text-destructive">{errors.bank.message}</p>}
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="accountNumber">Número de Cuenta *</Label>
+                              <Controller name="accountNumber" control={control} render={({ field }) => <Input {...field} id="accountNumber" placeholder="0102..." value={field.value || ''} />} />
+                               {errors.accountNumber && <p className="text-sm text-destructive">{errors.accountNumber.message}</p>}
+                            </div>
+                          </>
+                        )}
+                        
+                        {paymentMethod === 'usdt' && (
+                          <>
+                             <div className="space-y-2">
+                              <Label htmlFor="usdtPlatform">Plataforma *</Label>
+                              <Controller
+                                name="usdtPlatform"
+                                control={control}
+                                render={({ field }) => (
+                                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecciona una plataforma" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="binance">Binance</SelectItem>
+                                      <SelectItem value="otro">Otro</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                              />
+                               {errors.usdtPlatform && <p className="text-sm text-destructive">{errors.usdtPlatform.message}</p>}
+                            </div>
+                             <div className="space-y-2">
+                              <Label htmlFor="usdtAddress">Dirección USDT (o ID de Pago) *</Label>
+                              <Controller name="usdtAddress" control={control} render={({ field }) => <Input {...field} id="usdtAddress" placeholder="Tu dirección o ID de pago" value={field.value || ''} />} />
+                               {errors.usdtAddress && <p className="text-sm text-destructive">{errors.usdtAddress.message}</p>}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <DialogFooter>
+                         <DialogClose asChild>
+                            <Button type="button" variant="outline">Cancelar</Button>
+                          </DialogClose>
+                        <Button type="submit" form="payment-settings-form">Guardar Cambios</Button>
+                      </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+                
+                <div className="mt-4 text-sm text-muted-foreground p-4 border rounded-lg">
+                  <h4 className="font-semibold text-foreground mb-2">Configuración Actual:</h4>
+                  {publisherData?.country ? (
+                    <>
+                      <p><strong>País:</strong> {publisherData.country === 'VE' ? 'Venezuela' : publisherData.country === 'CO' ? 'Colombia' : publisherData.country}</p>
+                      {publisherData.paymentMethod && <p><strong>Método:</strong> {publisherData.paymentMethod}</p>}
+                      {publisherData.bank && <p><strong>Banco:</strong> {publisherData.bank}</p>}
+                      {publisherData.accountNumber && <p><strong>Nº Cuenta:</strong> {publisherData.accountNumber}</p>}
+                      {publisherData.mobilePaymentPhone && <p><strong>Teléfono:</strong> {publisherData.mobilePaymentPhone}</p>}
+                      {publisherData.mobilePaymentId && <p><strong>ID:</strong> {publisherData.mobilePaymentId}</p>}
+                      {publisherData.usdtPlatform && <p><strong>Plataforma USDT:</strong> {publisherData.usdtPlatform}</p>}
+                      {publisherData.usdtAddress && <p><strong>Dirección USDT:</strong> {publisherData.usdtAddress}</p>}
+                    </>
+                  ) : (
+                    <p>Aún no has configurado un método de pago.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </form>
       </Card>
     </div>
   );
