@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, FileText } from 'lucide-react';
 import Link from 'next/link';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -31,13 +32,15 @@ type Offer = { id: string; name: string; paymentAmount: number; };
 type Lead = { 
   id: string; 
   publisherId: string;
+  publisherName: string;
   offerId: string; 
   offerName: string;
   date: string; // YYYY-MM-DD
   quantity: number; 
+  createdAt: Timestamp;
 };
 
-// Schema
+// Schemas
 const reportFormSchema = z.object({
   publisherId: z.string().nonempty("Debes seleccionar un publisher."),
   month: z.string().nonempty("El mes es requerido."),
@@ -45,143 +48,56 @@ const reportFormSchema = z.object({
 });
 type ReportFormData = z.infer<typeof reportFormSchema>;
 
+const generalReportSchema = z.object({
+    month: z.string().nonempty("El mes es requerido."),
+    year: z.string().nonempty("El año es requerido."),
+});
+type GeneralReportFormData = z.infer<typeof generalReportSchema>;
+
+const inactivityReportSchema = z.object({
+    period: z.string().nonempty("Debes seleccionar un período."),
+});
+type InactivityReportFormData = z.infer<typeof inactivityReportSchema>;
+
 type ReportData = {
   leads: Lead[];
   offersMap: Map<string, Offer>;
   daysInMonth: number;
 }
+type GeneralReportResult = {
+    publisherId: string;
+    publisherName: string;
+    totalLeads: number;
+    totalEarnings: number;
+}[];
 
+type InactivePublisher = {
+    id: string;
+    name: string;
+    email: string;
+    lastLeadDate: string | null;
+};
+
+
+// Date options for forms
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+const months = [
+    { value: '1', label: 'Enero' }, { value: '2', label: 'Febrero' }, { value: '3', label: 'Marzo' },
+    { value: '4', label: 'Abril' }, { value: '5', label: 'Mayo' }, { value: '6', label: 'Junio' },
+    { value: '7', label: 'Julio' }, { value: '8', label: 'Agosto' }, { value: '9', label: 'Septiembre' },
+    { value: '10', label: 'Octubre' }, { value: '11', label: 'Noviembre' }, { value: '12', label: 'Diciembre' }
+];
+
+
+// Main Component
 export default function ReportsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
-  const { control, handleSubmit, watch, formState: { errors } } = useForm<ReportFormData>({
-    resolver: zodResolver(reportFormSchema),
-  });
-
-  const [reportData, setReportData] = useState<ReportData | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [exchangeRate, setExchangeRate] = useState<number>(0);
-
+  
   // Data fetching for publishers
   const publishersRef = useMemoFirebase(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
   const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
-
-  const publisherId = watch('publisherId');
-  const selectedPublisher = publishers?.find(p => p.id === publisherId);
-
-  const onSubmit = async (data: ReportFormData) => {
-    if (!firestore) return;
-    setIsGenerating(true);
-    setReportData(null);
-    
-    const { publisherId, month, year } = data;
-    const startDate = `${year}-${month.padStart(2, '0')}-01`;
-    const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
-    const endDate = `${year}-${month.padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
-
-    try {
-      // This query requires a composite index on publisherId and date.
-      // Firestore will provide a link in the console error to create it.
-      const leadsQuery = query(
-        collection(firestore, 'leads'),
-        where('publisherId', '==', publisherId),
-        where('date', '>=', startDate),
-        where('date', '<=', endDate),
-        orderBy('date', 'asc') // Order by date for chronological processing
-      );
-      const leadsSnapshot = await getDocs(leadsQuery);
-      const leads = leadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lead));
-
-      if (leads.length === 0) {
-        toast({ title: "Sin resultados", description: "No se encontraron leads para este publisher en el período seleccionado." });
-        setIsGenerating(false);
-        return;
-      }
-      
-      const offerIds = [...new Set(leads.map(lead => lead.offerId))];
-      const offersMap = new Map<string, Offer>();
-
-      if (offerIds.length > 0) {
-        // Fetch all required offers in a single query
-        const offersQuery = query(collection(firestore, 'offers'), where('__name__', 'in', offerIds));
-        const offersSnapshot = await getDocs(offersQuery);
-        offersSnapshot.docs.forEach(doc => {
-            offersMap.set(doc.id, { id: doc.id, ...doc.data() } as Offer);
-        });
-      }
-
-      setReportData({ leads, offersMap, daysInMonth });
-
-    } catch (error: any) {
-      console.error("Report Generation Error:", error);
-      toast({
-        variant: "destructive",
-        title: "Error al generar reporte",
-        description: error.message.includes('requires an index') 
-          ? "Se necesita un índice de Firestore. Revisa la consola del navegador para crearlo."
-          : error.message || "No se pudieron obtener los datos.",
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  // Date options
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
-  const months = [
-    { value: '1', label: 'Enero' }, { value: '2', label: 'Febrero' }, { value: '3', label: 'Marzo' },
-    { value: '4', 'label': 'Abril' }, { value: '5', label: 'Mayo' }, { value: '6', label: 'Junio' },
-    { value: '7', label: 'Julio' }, { value: '8', label: 'Agosto' }, { value: '9', label: 'Septiembre' },
-    { value: '10', label: 'Octubre' }, { value: '11', label: 'Noviembre' }, { value: '12', label: 'Diciembre' }
-  ];
-
-  const publisherOptions = publishers?.map(p => ({
-    value: p.id,
-    label: `${p.firstName} ${p.lastName} (${p.email})`,
-  })) || [];
-
-  const processReport = () => {
-    if (!reportData) return null;
-
-    const { leads, offersMap, daysInMonth } = reportData;
-    const dayColumns = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-
-    const leadsByOffer = new Map<string, { offerName: string, days: Map<number, number> }>();
-    leads.forEach(lead => {
-        const day = parseInt(lead.date.split('-')[2]);
-        if (!leadsByOffer.has(lead.offerId)) {
-            leadsByOffer.set(lead.offerId, { offerName: lead.offerName || 'Oferta Desconocida', days: new Map() });
-        }
-        const offerEntry = leadsByOffer.get(lead.offerId)!;
-        offerEntry.days.set(day, (offerEntry.days.get(day) || 0) + lead.quantity);
-    });
-
-    let totalLeads = 0;
-    let totalEarnings = 0;
-
-    const tableRows = Array.from(leadsByOffer.entries()).map(([offerId, data]) => {
-      const offer = offersMap.get(offerId);
-      const offerPayment = offer?.paymentAmount || 0;
-      const totalOfferLeads = Array.from(data.days.values()).reduce((sum, qty) => sum + qty, 0);
-      const offerEarnings = totalOfferLeads * offerPayment;
-      totalLeads += totalOfferLeads;
-      totalEarnings += offerEarnings;
-      
-      return {
-        ...data,
-        offerId,
-        totalOfferLeads,
-        offerEarnings,
-        offerPayment
-      };
-    });
-
-    return { dayColumns, tableRows, totalLeads, totalEarnings };
-  }
-
-  const processed = processReport();
-  const totalInLocalCurrency = processed ? processed.totalEarnings * exchangeRate : 0;
 
   return (
     <div>
@@ -192,115 +108,540 @@ export default function ReportsPage() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Generar Reporte por Publisher</CardTitle>
-          <CardDescription>Selecciona un publisher y un período para ver su rendimiento.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2 md:col-span-3">
-                <Label>Publisher</Label>
-                <Controller name="publisherId" control={control} render={({ field }) => (
-                  <Combobox options={publisherOptions} value={field.value} onChange={field.onChange} placeholder="Busca y selecciona un publisher..." loading={isLoadingPublishers} />
-                )} />
-                {errors.publisherId && <p className="text-sm text-destructive">{errors.publisherId.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="month">Mes</Label>
-                <Controller name="month" control={control} render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue placeholder="Mes" /></SelectTrigger>
-                    <SelectContent>{months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                )} />
-                 {errors.month && <p className="text-sm text-destructive">{errors.month.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="year">Año</Label>
-                <Controller name="year" control={control} render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue placeholder="Año" /></SelectTrigger>
-                    <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
-                  </Select>
-                )} />
-                {errors.year && <p className="text-sm text-destructive">{errors.year.message}</p>}
-              </div>
-            </div>
-            <Button type="submit" disabled={isGenerating}>
-              <FileText className="mr-2 h-4 w-4" />
-              {isGenerating ? 'Generando...' : 'Generar Reporte'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {processed && selectedPublisher && (
-        <Card className="mt-8">
-            <CardHeader>
-                <CardTitle>Reporte para {selectedPublisher.firstName} {selectedPublisher.lastName}</CardTitle>
-                <CardDescription>Período: {months.find(m => m.value === watch('month'))?.label} {watch('year')}</CardDescription>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="font-bold min-w-[150px]">Ofertas</TableHead>
-                            {processed.dayColumns.map(day => <TableHead key={day} className="text-center">{day}</TableHead>)}
-                            <TableHead className="text-center font-bold min-w-[100px] bg-secondary">Total Leads</TableHead>
-                            <TableHead className="text-center font-bold min-w-[100px] bg-secondary">Precio (USD)</TableHead>
-                            <TableHead className="text-right font-bold min-w-[120px] bg-secondary">Ganancia (USD)</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                       {processed.tableRows.map(row => (
-                         <TableRow key={row.offerId}>
-                            <TableCell className="font-medium">{row.offerName}</TableCell>
-                            {processed.dayColumns.map(day => (
-                                <TableCell key={day} className="text-center">
-                                    {row.days.get(day) || ''}
-                                </TableCell>
-                            ))}
-                            <TableCell className="text-center font-bold bg-secondary">{row.totalOfferLeads}</TableCell>
-                            <TableCell className="text-center font-medium bg-secondary">${row.offerPayment.toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-bold bg-secondary">${row.offerEarnings.toFixed(2)}</TableCell>
-                         </TableRow>
-                       ))}
-                    </TableBody>
-                    <TableFooter>
-                        <TableRow className="bg-primary/90 text-primary-foreground hover:bg-primary/90">
-                           <TableCell className="font-bold">TOTALES</TableCell>
-                           <TableCell colSpan={processed.dayColumns.length}></TableCell>
-                           <TableCell className="text-center font-extrabold text-lg">{processed.totalLeads}</TableCell>
-                           <TableCell></TableCell>
-                           <TableCell className="text-right font-extrabold text-lg">${processed.totalEarnings.toFixed(2)}</TableCell>
-                        </TableRow>
-                    </TableFooter>
-                 </Table>
-            </CardContent>
-             <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
-                <div className="space-y-2">
-                    <Label htmlFor="exchangeRate">Tasa de Cambio (Opcional)</Label>
-                    <Input 
-                        id="exchangeRate" 
-                        type="number"
-                        placeholder="Ej: 39.5"
-                        value={exchangeRate || ''}
-                        onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
-                    />
-                </div>
-                <div className="p-4 bg-muted rounded-lg col-span-2 flex items-center justify-between">
-                    <span className="text-lg font-bold text-foreground">TOTAL A COBRAR ({exchangeRate > 0 ? 'BsF' : 'Local'})</span>
-                    <span className="text-xl font-extrabold text-primary">
-                        {totalInLocalCurrency.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                </div>
-            </CardContent>
-        </Card>
-      )}
+      <Tabs defaultValue="publisher-report">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="publisher-report">Reporte por Publisher</TabsTrigger>
+          <TabsTrigger value="general-payment-report">Reporte General de Pagos</TabsTrigger>
+          <TabsTrigger value="inactivity-report">Reporte de Inactividad</TabsTrigger>
+        </TabsList>
+        <TabsContent value="publisher-report">
+            <PublisherReport publishers={publishers || []} isLoadingPublishers={isLoadingPublishers} />
+        </TabsContent>
+        <TabsContent value="general-payment-report">
+            <GeneralPaymentReport publishers={publishers || []} />
+        </TabsContent>
+        <TabsContent value="inactivity-report">
+            <InactivityReport publishers={publishers || []} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
 
+// #################################################################################
+// ## TAB 1: Reporte por Publisher
+// #################################################################################
+
+function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publisher[], isLoadingPublishers: boolean }) {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const { control, handleSubmit, watch, formState: { errors } } = useForm<ReportFormData>({
+        resolver: zodResolver(reportFormSchema),
+    });
+
+    const [reportData, setReportData] = useState<ReportData | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [exchangeRate, setExchangeRate] = useState<number>(0);
     
+    const publisherId = watch('publisherId');
+    const selectedPublisher = publishers?.find(p => p.id === publisherId);
+
+    const publisherOptions = publishers?.map(p => ({
+        value: p.id,
+        label: `${p.firstName} ${p.lastName} (${p.email})`,
+    })) || [];
+
+    const onSubmit = async (data: ReportFormData) => {
+        if (!firestore) return;
+        setIsGenerating(true);
+        setReportData(null);
+        
+        const { publisherId, month, year } = data;
+        const startDate = `${year}-${month.padStart(2, '0')}-01`;
+        const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
+        const endDate = `${year}-${month.padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+        try {
+            const leadsQuery = query(
+                collection(firestore, 'leads'),
+                where('publisherId', '==', publisherId),
+                where('date', '>=', startDate),
+                where('date', '<=', endDate),
+                orderBy('date', 'asc')
+            );
+            const leadsSnapshot = await getDocs(leadsQuery);
+            const leads = leadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lead));
+
+            if (leads.length === 0) {
+                toast({ title: "Sin resultados", description: "No se encontraron leads para este publisher en el período seleccionado." });
+                setIsGenerating(false);
+                return;
+            }
+            
+            const offerIds = [...new Set(leads.map(lead => lead.offerId))];
+            const offersMap = new Map<string, Offer>();
+
+            if (offerIds.length > 0) {
+                const offersQuery = query(collection(firestore, 'offers'), where('__name__', 'in', offerIds));
+                const offersSnapshot = await getDocs(offersQuery);
+                offersSnapshot.docs.forEach(doc => {
+                    offersMap.set(doc.id, { id: doc.id, ...doc.data() } as Offer);
+                });
+            }
+
+            setReportData({ leads, offersMap, daysInMonth });
+
+        } catch (error: any) {
+            console.error("Report Generation Error:", error);
+            toast({
+                variant: "destructive",
+                title: "Error al generar reporte",
+                description: error.message.includes('requires an index') 
+                ? "Se necesita un índice de Firestore. Revisa la consola del navegador para crearlo."
+                : error.message || "No se pudieron obtener los datos.",
+            });
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const processReport = () => {
+        if (!reportData) return null;
+
+        const { leads, offersMap, daysInMonth } = reportData;
+        const dayColumns = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+        const leadsByOffer = new Map<string, { offerName: string, days: Map<number, number> }>();
+        leads.forEach(lead => {
+            const day = parseInt(lead.date.split('-')[2]);
+            if (!leadsByOffer.has(lead.offerId)) {
+                leadsByOffer.set(lead.offerId, { offerName: lead.offerName || 'Oferta Desconocida', days: new Map() });
+            }
+            const offerEntry = leadsByOffer.get(lead.offerId)!;
+            offerEntry.days.set(day, (offerEntry.days.get(day) || 0) + lead.quantity);
+        });
+
+        let totalLeads = 0;
+        let totalEarnings = 0;
+
+        const tableRows = Array.from(leadsByOffer.entries()).map(([offerId, data]) => {
+        const offer = offersMap.get(offerId);
+        const offerPayment = offer?.paymentAmount || 0;
+        const totalOfferLeads = Array.from(data.days.values()).reduce((sum, qty) => sum + qty, 0);
+        const offerEarnings = totalOfferLeads * offerPayment;
+        totalLeads += totalOfferLeads;
+        totalEarnings += offerEarnings;
+        
+        return {
+            ...data,
+            offerId,
+            totalOfferLeads,
+            offerEarnings,
+            offerPayment
+        };
+        });
+
+        return { dayColumns, tableRows, totalLeads, totalEarnings };
+    }
+
+    const processed = processReport();
+    const totalInLocalCurrency = processed ? processed.totalEarnings * exchangeRate : 0;
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Generar Reporte por Publisher</CardTitle>
+                <CardDescription>Selecciona un publisher y un período para ver su rendimiento.</CardDescription>
+            </CardHeader>
+            <CardContent>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2 md:col-span-3">
+                    <Label>Publisher</Label>
+                    <Controller name="publisherId" control={control} render={({ field }) => (
+                    <Combobox options={publisherOptions} value={field.value} onChange={field.onChange} placeholder="Busca y selecciona un publisher..." loading={isLoadingPublishers} />
+                    )} />
+                    {errors.publisherId && <p className="text-sm text-destructive">{errors.publisherId.message}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="month">Mes</Label>
+                    <Controller name="month" control={control} render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                        <SelectTrigger><SelectValue placeholder="Mes" /></SelectTrigger>
+                        <SelectContent>{months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    )} />
+                    {errors.month && <p className="text-sm text-destructive">{errors.month.message}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="year">Año</Label>
+                    <Controller name="year" control={control} render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                        <SelectTrigger><SelectValue placeholder="Año" /></SelectTrigger>
+                        <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+                    </Select>
+                    )} />
+                    {errors.year && <p className="text-sm text-destructive">{errors.year.message}</p>}
+                </div>
+                </div>
+                <Button type="submit" disabled={isGenerating}>
+                <FileText className="mr-2 h-4 w-4" />
+                {isGenerating ? 'Generando...' : 'Generar Reporte'}
+                </Button>
+            </form>
+            </CardContent>
+
+             {processed && selectedPublisher && (
+            <Card className="mt-8 border-0 shadow-none">
+                <CardHeader>
+                    <CardTitle>Reporte para {selectedPublisher.firstName} {selectedPublisher.lastName}</CardTitle>
+                    <CardDescription>Período: {months.find(m => m.value === watch('month'))?.label} {watch('year')}</CardDescription>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="font-bold min-w-[150px]">Ofertas</TableHead>
+                                {processed.dayColumns.map(day => <TableHead key={day} className="text-center">{day}</TableHead>)}
+                                <TableHead className="text-center font-bold min-w-[100px] bg-secondary">Total Leads</TableHead>
+                                <TableHead className="text-center font-bold min-w-[100px] bg-secondary">Precio (USD)</TableHead>
+                                <TableHead className="text-right font-bold min-w-[120px] bg-secondary">Ganancia (USD)</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {processed.tableRows.map(row => (
+                            <TableRow key={row.offerId}>
+                                <TableCell className="font-medium">{row.offerName}</TableCell>
+                                {processed.dayColumns.map(day => (
+                                    <TableCell key={day} className="text-center">
+                                        {row.days.get(day) || ''}
+                                    </TableCell>
+                                ))}
+                                <TableCell className="text-center font-bold bg-secondary">{row.totalOfferLeads}</TableCell>
+                                <TableCell className="text-center font-medium bg-secondary">${row.offerPayment.toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-bold bg-secondary">${row.offerEarnings.toFixed(2)}</TableCell>
+                            </TableRow>
+                        ))}
+                        </TableBody>
+                        <TableFooter>
+                            <TableRow className="bg-primary/90 text-primary-foreground hover:bg-primary/90">
+                            <TableCell className="font-bold">TOTALES</TableCell>
+                            <TableCell colSpan={processed.dayColumns.length}></TableCell>
+                            <TableCell className="text-center font-extrabold text-lg">{processed.totalLeads}</TableCell>
+                            <TableCell></TableCell>
+                            <TableCell className="text-right font-extrabold text-lg">${processed.totalEarnings.toFixed(2)}</TableCell>
+                            </TableRow>
+                        </TableFooter>
+                    </Table>
+                </CardContent>
+                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
+                    <div className="space-y-2">
+                        <Label htmlFor="exchangeRate">Tasa de Cambio (Opcional)</Label>
+                        <Input 
+                            id="exchangeRate" 
+                            type="number"
+                            placeholder="Ej: 39.5"
+                            value={exchangeRate || ''}
+                            onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
+                        />
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg col-span-2 flex items-center justify-between">
+                        <span className="text-lg font-bold text-foreground">TOTAL A COBRAR ({exchangeRate > 0 ? 'Local' : ''})</span>
+                        <span className="text-xl font-extrabold text-primary">
+                            {totalInLocalCurrency > 0 ? totalInLocalCurrency.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '$' + processed.totalEarnings.toFixed(2)}
+                        </span>
+                    </div>
+                </CardContent>
+            </Card>
+            )}
+        </Card>
+    );
+}
+
+
+// #################################################################################
+// ## TAB 2: Reporte General de Pagos
+// #################################################################################
+
+function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const { control, handleSubmit, formState: { errors } } = useForm<GeneralReportFormData>({
+        resolver: zodResolver(generalReportSchema),
+    });
+    const [reportData, setReportData] = useState<GeneralReportResult | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const onSubmit = async (data: GeneralReportFormData) => {
+        if (!firestore) return;
+        setIsGenerating(true);
+        setReportData(null);
+
+        const { month, year } = data;
+        const startDate = `${year}-${month.padStart(2, '0')}-01`;
+        const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
+        const endDate = `${year}-${month.padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+        try {
+            const leadsQuery = query(
+                collection(firestore, 'leads'),
+                where('date', '>=', startDate),
+                where('date', '<=', endDate)
+            );
+            const leadsSnapshot = await getDocs(leadsQuery);
+            const leads = leadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lead));
+
+            if (leads.length === 0) {
+                toast({ title: "Sin resultados", description: "No se encontraron leads en el período seleccionado." });
+                setIsGenerating(false);
+                return;
+            }
+
+            const offerIds = [...new Set(leads.map(lead => lead.offerId))];
+            const offersMap = new Map<string, Offer>();
+            if (offerIds.length > 0) {
+                const offersQuery = query(collection(firestore, 'offers'), where('__name__', 'in', offerIds));
+                const offersSnapshot = await getDocs(offersQuery);
+                offersSnapshot.docs.forEach(doc => offersMap.set(doc.id, { id: doc.id, ...doc.data() } as Offer));
+            }
+
+            const leadsByPublisher = new Map<string, { publisherName: string; totalLeads: number; totalEarnings: number }>();
+            
+            leads.forEach(lead => {
+                const offer = offersMap.get(lead.offerId);
+                const leadEarning = (offer?.paymentAmount || 0) * lead.quantity;
+
+                if (!leadsByPublisher.has(lead.publisherId)) {
+                    leadsByPublisher.set(lead.publisherId, {
+                        publisherName: lead.publisherName || publishers.find(p => p.id === lead.publisherId)?.firstName + ' ' + publishers.find(p => p.id === lead.publisherId)?.lastName,
+                        totalLeads: 0,
+                        totalEarnings: 0
+                    });
+                }
+
+                const publisherEntry = leadsByPublisher.get(lead.publisherId)!;
+                publisherEntry.totalLeads += lead.quantity;
+                publisherEntry.totalEarnings += leadEarning;
+            });
+
+            const result = Array.from(leadsByPublisher.entries()).map(([publisherId, data]) => ({
+                publisherId,
+                ...data
+            }));
+
+            setReportData(result);
+
+        } catch (error: any) {
+            console.error("General Report Error:", error);
+            toast({ variant: "destructive", title: "Error al generar reporte", description: error.message });
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Reporte General de Pagos</CardTitle>
+                <CardDescription>Ver todos los publishers que generaron ganancias en un período específico.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="month">Mes</Label>
+                            <Controller name="month" control={control} render={({ field }) => (
+                                <Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue placeholder="Mes" /></SelectTrigger><SelectContent>{months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent></Select>
+                            )} />
+                            {errors.month && <p className="text-sm text-destructive">{errors.month.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="year">Año</Label>
+                            <Controller name="year" control={control} render={({ field }) => (
+                                <Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue placeholder="Año" /></SelectTrigger><SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select>
+                            )} />
+                            {errors.year && <p className="text-sm text-destructive">{errors.year.message}</p>}
+                        </div>
+                    </div>
+                    <Button type="submit" disabled={isGenerating}>
+                        <FileText className="mr-2 h-4 w-4" />
+                        {isGenerating ? 'Generando...' : 'Generar Reporte'}
+                    </Button>
+                </form>
+            </CardContent>
+
+            {reportData && (
+                <CardContent className="mt-6">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Publisher</TableHead>
+                                <TableHead className="text-center">Total Leads</TableHead>
+                                <TableHead className="text-right">Ganancia Total (USD)</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {reportData.length === 0 && <TableRow><TableCell colSpan={3} className="text-center">No hay datos para este período.</TableCell></TableRow>}
+                            {reportData.map(item => (
+                                <TableRow key={item.publisherId}>
+                                    <TableCell className="font-medium">{item.publisherName}</TableCell>
+                                    <TableCell className="text-center">{item.totalLeads}</TableCell>
+                                    <TableCell className="text-right font-bold">${item.totalEarnings.toFixed(2)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            )}
+        </Card>
+    );
+}
+
+
+// #################################################################################
+// ## TAB 3: Reporte de Inactividad
+// #################################################################################
+
+function InactivityReport({ publishers }: { publishers: Publisher[] }) {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const { control, handleSubmit, formState: { errors } } = useForm<InactivityReportFormData>({
+        resolver: zodResolver(inactivityReportSchema),
+    });
+    const [reportData, setReportData] = useState<InactivePublisher[] | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const periodOptions = [
+        { value: '1', label: '1 Mes' },
+        { value: '2', label: '2 Meses' },
+        { value: '3-6', label: '3 a 6 Meses' },
+        { value: '6+', label: 'Más de 6 Meses' },
+    ];
+
+    const onSubmit = async (data: InactivityReportFormData) => {
+        if (!firestore || publishers.length === 0) return;
+        setIsGenerating(true);
+        setReportData(null);
+
+        const { period } = data;
+        const now = new Date();
+        let startDate: Date;
+
+        if (period === '1') startDate = new Date(now.setMonth(now.getMonth() - 1));
+        else if (period === '2') startDate = new Date(now.setMonth(now.getMonth() - 2));
+        else if (period === '3-6') startDate = new Date(now.setMonth(now.getMonth() - 6));
+        else startDate = new Date(now.setMonth(now.getMonth() - 12)); // A proxy for > 6 months
+
+        try {
+            const leadsQuery = query(
+                collection(firestore, 'leads'),
+                orderBy('createdAt', 'desc')
+            );
+            const leadsSnapshot = await getDocs(leadsQuery);
+            const leads = leadsSnapshot.docs.map(doc => doc.data() as Lead);
+
+            const lastLeadDateByPublisher = new Map<string, Date>();
+            leads.forEach(lead => {
+                if (!lastLeadDateByPublisher.has(lead.publisherId)) {
+                    lastLeadDateByPublisher.set(lead.publisherId, lead.createdAt.toDate());
+                }
+            });
+            
+            let inactivePublishers: InactivePublisher[] = [];
+
+            if (period === '3-6') {
+                const threeMonthsAgo = new Date(new Date().setMonth(new Date().getMonth() - 3));
+                inactivePublishers = publishers
+                    .filter(p => {
+                        const lastLeadDate = lastLeadDateByPublisher.get(p.id);
+                        return !lastLeadDate || (lastLeadDate < threeMonthsAgo && lastLeadDate >= startDate);
+                    })
+                    .map(p => ({ id: p.id, name: `${p.firstName} ${p.lastName}`, email: p.email, lastLeadDate: lastLeadDateByPublisher.get(p.id)?.toLocaleDateString() || 'Nunca' }));
+            } else {
+                 inactivePublishers = publishers
+                    .filter(p => {
+                        const lastLeadDate = lastLeadDateByPublisher.get(p.id);
+                        return !lastLeadDate || lastLeadDate < startDate;
+                    })
+                    .map(p => ({ id: p.id, name: `${p.firstName} ${p.lastName}`, email: p.email, lastLeadDate: lastLeadDateByPublisher.get(p.id)?.toLocaleDateString() || 'Nunca' }));
+            }
+             
+            if (period === '6+') {
+                 const sixMonthsAgo = new Date(new Date().setMonth(new Date().getMonth() - 6));
+                  inactivePublishers = publishers
+                    .filter(p => {
+                        const lastLeadDate = lastLeadDateByPublisher.get(p.id);
+                        return !lastLeadDate || lastLeadDate < sixMonthsAgo;
+                    })
+                    .map(p => ({ id: p.id, name: `${p.firstName} ${p.lastName}`, email: p.email, lastLeadDate: lastLeadDateByPublisher.get(p.id)?.toLocaleDateString() || 'Nunca' }));
+            }
+
+
+            setReportData(inactivePublishers);
+            if (inactivePublishers.length === 0) {
+                 toast({ title: "Sin resultados", description: "Todos los publishers están activos para este período." });
+            }
+
+        } catch (error: any) {
+            console.error("Inactivity Report Error:", error);
+            toast({ variant: "destructive", title: "Error al generar reporte", description: error.message });
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Reporte de Inactividad de Publishers</CardTitle>
+                <CardDescription>Encuentra publishers que no han generado leads en un período determinado.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="period">Período de Inactividad</Label>
+                            <Controller name="period" control={control} render={({ field }) => (
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <SelectTrigger><SelectValue placeholder="Selecciona un período" /></SelectTrigger>
+                                    <SelectContent>
+                                        {periodOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            )} />
+                            {errors.period && <p className="text-sm text-destructive">{errors.period.message}</p>}
+                        </div>
+                    </div>
+                    <Button type="submit" disabled={isGenerating}>
+                        <FileText className="mr-2 h-4 w-4" />
+                        {isGenerating ? 'Generando...' : 'Generar Reporte'}
+                    </Button>
+                </form>
+            </CardContent>
+
+             {reportData && (
+                <CardContent className="mt-6">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Publisher</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead className="text-right">Último Lead Registrado</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {reportData.length === 0 && <TableRow><TableCell colSpan={3} className="text-center">No hay publishers inactivos para este período.</TableCell></TableRow>}
+                            {reportData.map(item => (
+                                <TableRow key={item.id}>
+                                    <TableCell className="font-medium">{item.name}</TableCell>
+                                    <TableCell>{item.email}</TableCell>
+                                    <TableCell className="text-right">{item.lastLeadDate}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            )}
+        </Card>
+    );
+}
