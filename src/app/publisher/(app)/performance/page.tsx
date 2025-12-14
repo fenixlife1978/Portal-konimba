@@ -69,10 +69,11 @@ export default function PerformancePage() {
       const now = new Date();
       const month = String(now.getMonth() + 1);
       const year = String(now.getFullYear());
-      const currentDay = now.getDate();
-
+      
+      // We will fetch leads for the entire current month to represent the "open" period
       const startDate = `${year}-${month.padStart(2, '0')}-01`;
-      const endDate = `${year}-${month.padStart(2, '0')}-${String(currentDay).padStart(2, '0')}`;
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const endDate = `${year}-${month.padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}`;
 
       try {
         const leadsQuery = query(
@@ -86,7 +87,6 @@ export default function PerformancePage() {
         const leads = leadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lead));
 
         if (leads.length === 0) {
-          toast({ title: "Sin actividad reciente", description: "Aún no has generado leads este mes." });
           setReportData(null);
           setIsGenerating(false);
           return;
@@ -102,8 +102,8 @@ export default function PerformancePage() {
                 offersMap.set(doc.id, { id: doc.id, ...doc.data() } as Offer);
             });
         }
-        const periodLabel = `Rendimiento de ${months.find(m => m.value === month)?.label} ${year} (hasta hoy)`;
-        const daysInPeriod = Array.from({ length: currentDay }, (_, i) => i + 1);
+        const periodLabel = `Reporte de ${months.find(m => m.value === month)?.label} ${year} (Período Abierto)`;
+        const daysInPeriod = Array.from({ length: lastDayOfMonth }, (_, i) => i + 1);
         
         setReportData({ leads, offersMap, daysInPeriod, periodLabel });
 
@@ -127,7 +127,7 @@ export default function PerformancePage() {
     return (
         <div className="flex items-center justify-center pt-16">
             <Loader2 className="mr-2 h-8 w-8 animate-spin" />
-            <p className="text-lg">Cargando tu rendimiento...</p>
+            <p className="text-lg">Cargando tu reporte...</p>
         </div>
     );
   }
@@ -136,7 +136,7 @@ export default function PerformancePage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold font-headline text-foreground">
-          Mi Rendimiento
+          Mi Reporte
         </h1>
         <Button asChild variant="outline">
           <Link href="/publisher">
@@ -151,11 +151,11 @@ export default function PerformancePage() {
        ) : (
            <Card>
                <CardHeader>
-                   <CardTitle>Sin Datos de Rendimiento</CardTitle>
-                   <CardDescription>No hemos encontrado leads generados por ti en el mes actual. ¡Es hora de empezar!</CardDescription>
+                   <CardTitle>Sin Actividad en el Período Actual</CardTitle>
+                   <CardDescription>No hemos encontrado leads generados por ti en el mes actual. Este es tu reporte para el período abierto.</CardDescription>
                </CardHeader>
                <CardContent>
-                   <p className="text-muted-foreground">Cuando empieces a generar leads, tu progreso aparecerá aquí.</p>
+                   <p className="text-muted-foreground">Cuando empieces a generar leads, tu progreso del período aparecerá aquí.</p>
                </CardContent>
            </Card>
        )}
@@ -250,7 +250,7 @@ function ReportDisplay({ reportData, publisher, period }: { reportData: ReportDa
                     </TableBody>
                     <TableFooter>
                         <TableRow className="bg-primary/90 text-primary-foreground hover:bg-primary/90">
-                        <TableCell className="font-bold">GANANCIA PROYECTADA</TableCell>
+                        <TableCell className="font-bold">GANANCIA DEL PERIODO</TableCell>
                         <TableCell colSpan={processed.dayColumns.length}></TableCell>
                         <TableCell className="text-center font-extrabold text-lg">{processed.totalLeads}</TableCell>
                         <TableCell></TableCell>
@@ -262,3 +262,4 @@ function ReportDisplay({ reportData, publisher, period }: { reportData: ReportDa
         </Card>
     );
 }
+    
