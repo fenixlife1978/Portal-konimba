@@ -70,16 +70,11 @@ service cloud.firestore {
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
-      // READ: Allow owner or admin.
-      allow read: if isSignedIn() && (isOwner(publisherId) || isAdmin());
-      // WRITE (UPDATE): Allow owner or admin.
-      allow update: if isSignedIn() && (isOwner(publisherId) || isAdmin());
-      // LIST: Only admins can list all publishers.
-      allow list: if isAdmin();
-      // CREATE: Any authenticated user can create THEIR OWN profile document.
+      // Admins have unrestricted access.
+      allow read, write: if isAdmin();
+      // Non-admins rules
+      allow read, update: if isSignedIn() && isOwner(publisherId);
       allow create: if isSignedIn() && isOwner(publisherId);
-      // DELETE: Only admins can delete.
-      allow delete: if isAdmin();
     }
 
     /**
@@ -87,11 +82,11 @@ service cloud.firestore {
      * @path /roles_admin/{adminId}
      */
     match /roles_admin/{adminId} {
-      // READ/WRITE: Admins can manage other admins.
-      allow read, write: if isAdmin();
-      // CREATE: The very first admin can be created by anyone, subsequent admins can only be created by the super admin.
+      // Admins and Super Admin have read/write access.
+      allow read, write: if isAdmin() || isSuperAdmin();
+      // The very first admin can be created by anyone, subsequent admins can only be created by the super admin.
       allow create: if isSignedIn() && ( (noAdminsExist() && isOwner(adminId)) || isSuperAdmin() );
-      // LIST/DELETE: Only the super admin can list or delete admins.
+      // Only the super admin can list or delete admins.
       allow list, delete: if isSuperAdmin();
     }
 
@@ -100,10 +95,10 @@ service cloud.firestore {
      * @path /offers/{offerId}
      */
     match /offers/{offerId} {
-      // READ/LIST: All signed-in users (admins and publishers) can view offers.
-      allow read, list: if isSignedIn();
-      // CREATE/UPDATE/DELETE: Only admins can manage offers.
+      // Admins have unrestricted access.
       allow write: if isAdmin();
+      // All signed-in users can read/list.
+      allow read, list: if isSignedIn();
     }
 
     /**
@@ -111,12 +106,12 @@ service cloud.firestore {
      * @path /leads/{leadId}
      */
     match /leads/{leadId} {
-      // READ: Allow admin or the publisher who owns the record.
-      allow read: if isAdmin() || (isSignedIn() && isOwner(resource.data.publisherId));
-      // LIST: Publishers can list their own leads, Admins can list all.
-      allow list: if isAdmin() || (isSignedIn() && request.query.where[0][2] == request.auth.uid);
-      // CREATE/UPDATE/DELETE: Only admins can create, update, or delete lead records.
-      allow write: if isAdmin();
+      // Admins have unrestricted access.
+      allow read, write: if isAdmin();
+      // Publishers can read their own records.
+      allow read: if isSignedIn() && isOwner(resource.data.publisherId);
+      // Publishers can list their own leads.
+      allow list: if isSignedIn() && request.query.where[0][2] == request.auth.uid;
     }
   }
 }
