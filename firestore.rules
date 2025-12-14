@@ -114,7 +114,7 @@ service cloud.firestore {
       // READ: Allow admin or the publisher who owns the record.
       allow read: if isAdmin() || (isSignedIn() && isOwner(resource.data.publisherId));
       // LIST: Publishers can list their own leads, Admins can list all.
-      allow list: if isAdmin() || (isSignedIn() && request.query.where.publisherId == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && request.query.where[0][2] == request.auth.uid);
       // CREATE/UPDATE/DELETE: Only admins can create, update, or delete lead records.
       allow write: if isAdmin();
     }
