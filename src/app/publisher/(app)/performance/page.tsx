@@ -346,4 +346,3 @@ function ReportDisplay({ reportData, publisher, period }: { reportData: ReportDa
         </Card>
     );
 }
-    
