@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox } from '@/components/ui/combobox';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, FileText, Calendar as CalendarIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -26,6 +26,8 @@ import {
   TableFooter,
 } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 // Types
 type Publisher = { id: string; firstName: string; lastName: string; email: string; };
@@ -95,12 +97,16 @@ const months = [
     { value: '7', label: 'Julio' }, { value: '8', label: 'Agosto' }, { value: '9', 'label': 'Septiembre' },
     { value: '10', label: 'Octubre' }, { value: '11', 'label': 'Noviembre' }, { value: '12', 'label': 'Diciembre' }
 ];
+const periodOptions = [
+    { value: 'monthly', label: 'Mes Completo' },
+    { value: 'fortnight-1', label: '1ra Quincena' },
+    { value: 'fortnight-2', label: '2da Quincena' },
+];
 
 
 // Main Component
 export default function ReportsPage() {
   const firestore = useFirestore();
-  const { toast } = useToast();
   
   // Data fetching for publishers
   const publishersRef = useMemoFirebase(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
@@ -383,6 +389,41 @@ function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publ
     );
 }
 
+function SelectionModal<T extends string>({ open, onOpenChange, title, options, value, onValueChange, fieldName }: {
+    open: boolean,
+    onOpenChange: (open: boolean) => void,
+    title: string,
+    options: { value: T, label: string }[],
+    value: T,
+    onValueChange: (value: T) => void,
+    fieldName: string
+}) {
+    const [selectedValue, setSelectedValue] = useState(value);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{title}</DialogTitle>
+                </DialogHeader>
+                <div className="py-4">
+                    <RadioGroup value={selectedValue} onValueChange={(val: T) => setSelectedValue(val)}>
+                        {options.map((option) => (
+                            <div key={option.value} className="flex items-center space-x-2">
+                                <RadioGroupItem value={option.value} id={`${fieldName}-${option.value}`} />
+                                <Label htmlFor={`${fieldName}-${option.value}`}>{option.label}</Label>
+                            </div>
+                        ))}
+                    </RadioGroup>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
+                    <Button onClick={() => { onValueChange(selectedValue); onOpenChange(false); }}>Seleccionar</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
 
 // #################################################################################
 // ## TAB 2: Reporte General de Pagos
@@ -391,11 +432,25 @@ function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publ
 function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const { control, handleSubmit, watch, formState: { errors } } = useForm<GeneralReportFormData>({
+    const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<GeneralReportFormData>({
         resolver: zodResolver(generalReportSchema),
+        defaultValues: {
+            period: 'monthly',
+            month: String(new Date().getMonth() + 1),
+            year: String(new Date().getFullYear()),
+        }
     });
+
+    const [periodModalOpen, setPeriodModalOpen] = useState(false);
+    const [monthModalOpen, setMonthModalOpen] = useState(false);
+    const [yearModalOpen, setYearModalOpen] = useState(false);
+
     const [reportData, setReportData] = useState<GeneralReportResult | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
+
+    const watchedPeriod = watch('period');
+    const watchedMonth = watch('month');
+    const watchedYear = watch('year');
 
     const onSubmit = async (data: GeneralReportFormData) => {
         if (!firestore) return;
@@ -513,28 +568,27 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                          <div className="space-y-2">
-                            <Label htmlFor="period">Período</Label>
-                            <Controller name="period" control={control} render={({ field }) => (
-                                <Select onValueChange={field.onChange} defaultValue="monthly" value={field.value}><SelectTrigger><SelectValue placeholder="Período" /></SelectTrigger><SelectContent>
-                                    <SelectItem value="monthly">Mes Completo</SelectItem>
-                                    <SelectItem value="fortnight-1">1ra Quincena</SelectItem>
-                                    <SelectItem value="fortnight-2">2da Quincena</SelectItem>
-                                </SelectContent></Select>
-                            )} />
-                            {errors.period && <p className="text-sm text-destructive">{errors.period.message}</p>}
+                            <Label>Período</Label>
+                             <Button type="button" variant="outline" className="w-full justify-start" onClick={() => setPeriodModalOpen(true)}>
+                                 <CalendarIcon className="mr-2 h-4 w-4" />
+                                 {periodOptions.find(p => p.value === watchedPeriod)?.label || 'Seleccionar Período'}
+                             </Button>
+                             {errors.period && <p className="text-sm text-destructive">{errors.period.message}</p>}
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="month">Mes</Label>
-                            <Controller name="month" control={control} render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue placeholder="Mes" /></SelectTrigger><SelectContent>{months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent></Select>
-                            )} />
+                            <Label>Mes</Label>
+                             <Button type="button" variant="outline" className="w-full justify-start" onClick={() => setMonthModalOpen(true)}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {months.find(m => m.value === watchedMonth)?.label || 'Seleccionar Mes'}
+                             </Button>
                             {errors.month && <p className="text-sm text-destructive">{errors.month.message}</p>}
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="year">Año</Label>
-                            <Controller name="year" control={control} render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}><SelectTrigger><SelectValue placeholder="Año" /></SelectTrigger><SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select>
-                            )} />
+                            <Label>Año</Label>
+                             <Button type="button" variant="outline" className="w-full justify-start" onClick={() => setYearModalOpen(true)}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {watchedYear || 'Seleccionar Año'}
+                             </Button>
                             {errors.year && <p className="text-sm text-destructive">{errors.year.message}</p>}
                         </div>
                     </div>
@@ -543,6 +597,36 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
                         {isGenerating ? 'Generando...' : 'Generar Reporte'}
                     </Button>
                 </form>
+
+                 <SelectionModal
+                    open={periodModalOpen}
+                    onOpenChange={setPeriodModalOpen}
+                    title="Seleccionar Período"
+                    options={periodOptions}
+                    value={watchedPeriod}
+                    onValueChange={(value) => setValue('period', value)}
+                    fieldName="period"
+                />
+
+                <SelectionModal
+                    open={monthModalOpen}
+                    onOpenChange={setMonthModalOpen}
+                    title="Seleccionar Mes"
+                    options={months}
+                    value={watchedMonth}
+                    onValueChange={(value) => setValue('month', value)}
+                    fieldName="month"
+                />
+
+                <SelectionModal
+                    open={yearModalOpen}
+                    onOpenChange={setYearModalOpen}
+                    title="Seleccionar Año"
+                    options={years.map(y => ({ value: String(y), label: String(y) }))}
+                    value={watchedYear}
+                    onValueChange={(value) => setValue('year', value)}
+                    fieldName="year"
+                />
             </CardContent>
 
             {reportData && (
