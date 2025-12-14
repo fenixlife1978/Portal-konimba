@@ -66,14 +66,14 @@ service cloud.firestore {
     // ------------------------------------------------------------------------
 
     /**
-     * @description Manages publisher profiles. Publishers can read/update their own profile. Admins have full CRUD access.
+     * @description Manages publisher profiles. Publishers can read their own profile. Admins have full CRUD access.
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
       // Admins have unrestricted access.
       allow read, write: if isAdmin();
-      // Non-admins rules
-      allow read, update: if isSignedIn() && isOwner(publisherId);
+      // Publishers can create their own profile and read it afterwards. They cannot update it.
+      allow read: if isSignedIn() && isOwner(publisherId);
       allow create: if isSignedIn() && isOwner(publisherId);
     }
 
@@ -98,7 +98,7 @@ service cloud.firestore {
       // Admins have unrestricted access.
       allow write: if isAdmin();
       // All signed-in users can read/list.
-      allow read, list: if isSignedIn();
+      allow read: if isSignedIn();
     }
 
     /**
@@ -108,9 +108,8 @@ service cloud.firestore {
     match /leads/{leadId} {
       // Admins have unrestricted access.
       allow read, write: if isAdmin();
-      // Publishers can read their own records.
+      // Publishers can read their own records, and list only their own leads.
       allow read: if isSignedIn() && isOwner(resource.data.publisherId);
-      // Publishers can list their own leads.
       allow list: if isSignedIn() && request.query.where[0][2] == request.auth.uid;
     }
   }
