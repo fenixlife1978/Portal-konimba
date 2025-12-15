@@ -63,7 +63,6 @@ export const IconReceipt = () => (
 
 export const IconPending = () => (
   <IconWrapper>
-    <circle cx="24" cy="24" r="22" fill="white" opacity="0.1" />
     <path d="M18 16L30 16L28 24H20L18 16Z" fill="hsl(var(--primary-foreground))" />
     <path d="M20 28L28 28L30 32H18L20 28Z" fill="hsl(var(--primary-foreground))" />
     <path d="M24 16V13" stroke="hsl(var(--primary-foreground))" strokeWidth="2" strokeLinecap="round" />
@@ -73,7 +72,6 @@ export const IconPending = () => (
 
 export const IconHistory = () => (
   <IconWrapper>
-    <circle cx="24" cy="24" r="22" fill="white" opacity="0.1" />
     <path d="M24 14V24H32" stroke="hsl(var(--primary-foreground))" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M16.458 31.542C18.9331 33.7222 22.2592 35 26 35C33.1797 35 39 29.1797 39 22C39 14.8203 33.1797 9 26 9C23.9573 9 22.0334 9.40395 20.3223 10.124" stroke="hsl(var(--primary-foreground))" strokeWidth="3" strokeLinecap="round" />
     <path d="M18 9L15 13L19 14" stroke="hsl(var(--primary-foreground))" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -82,7 +80,6 @@ export const IconHistory = () => (
 
 export const IconPerformance = () => (
   <IconWrapper>
-    <circle cx="24" cy="24" r="22" fill="white" opacity="0.1" />
     <path d="M13 32L21 22L28 28L35 18" stroke="hsl(var(--primary-foreground))" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M30 18H35V23" stroke="hsl(var(--primary-foreground))" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
   </IconWrapper>
@@ -90,7 +87,6 @@ export const IconPerformance = () => (
 
 export const IconSettings = () => (
   <IconWrapper>
-    <circle cx="24" cy="24" r="22" fill="white" opacity="0.1" />
     <path d="M29.5858 18.4142C30.3668 19.1953 30.3668 20.4616 29.5858 21.2426L26.7574 24.0711L23.9289 21.2426L26.7574 18.4142C27.5384 17.6332 28.8047 17.6332 29.5858 18.4142Z" fill="hsl(var(--primary-foreground))" />
     <path d="M21.2426 29.5858C20.4616 30.3668 19.1953 30.3668 18.4142 29.5858L15 26.1716L21.8284 19.3431L26.1716 23L21.2426 29.5858Z" fill="hsl(var(--primary-foreground))" />
     <path d="M33.8284 26.1716L26.1716 33.8284L23 30.6569L30.6569 23L33.8284 26.1716Z" fill="hsl(var(--primary-foreground))" />
