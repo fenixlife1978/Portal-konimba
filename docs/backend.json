@@ -173,6 +173,25 @@
         }
       },
       "required": ["companyName", "companyAddress"]
+    },
+     "Payment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Payment",
+      "type": "object",
+      "description": "Represents a payment record for a publisher for a specific period.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the payment." },
+        "publisherId": { "type": "string", "description": "The ID of the publisher receiving the payment." },
+        "publisherName": { "type": "string", "description": "The name of the publisher." },
+        "paymentPeriod": { "type": "string", "description": "The payment period identifier (e.g., '2024-07-fortnight-1')." },
+        "amountUSD": { "type": "number", "description": "The total payment amount in USD." },
+        "amountVES": { "type": "number", "description": "The total payment amount in Venezuelan Bolívares." },
+        "amountCOP": { "type": "number", "description": "The total payment amount in Colombian Pesos." },
+        "status": { "type": "string", "enum": ["pending", "paid"], "description": "The status of the payment." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the payment was generated." },
+        "paidAt": { "type": "string", "format": "date-time", "description": "Timestamp when the payment was marked as paid." }
+      },
+      "required": ["id", "publisherId", "paymentPeriod", "amountUSD", "status"]
     }
   },
   "auth": {
@@ -240,6 +259,15 @@
           "schema": { "$ref": "#/backend/entities/CompanySettings" },
           "description": "Stores global company settings, like name, address, and conversion rates. Typically a singleton document (e.g., /settings/company). Only accessible by admins.",
           "params": [{ "name": "settingId", "description": "The unique ID for the settings document (e.g., 'company')." }]
+        }
+      },
+      {
+        "path": "/payments/{paymentId}",
+        "definition": {
+          "entityName": "Payment",
+          "schema": { "$ref": "#/backend/entities/Payment" },
+          "description": "Stores payment records for each publisher for a given period. Admins have full control, publishers can only read their own paid records.",
+          "params": [{ "name": "paymentId", "description": "The unique ID for the payment record." }]
         }
       }
     ],

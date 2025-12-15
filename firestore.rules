@@ -124,5 +124,17 @@ service cloud.firestore {
       // Admins have full read and write access.
       allow read, write: if isAdmin();
     }
+
+    /**
+     * @description Manages payment records. Admins have full control. Publishers can read their own paid records.
+     * @path /payments/{paymentId}
+     */
+    match /payments/{paymentId} {
+      // Admins can read, write, create, and list all payments.
+      allow read, write, create, list: if isAdmin();
+      
+      // Publishers can only read their own payments, but only if the payment status is 'paid'.
+      allow read: if isSignedIn() && isOwner(resource.data.publisherId) && resource.data.status == 'paid';
+    }
   }
 }
