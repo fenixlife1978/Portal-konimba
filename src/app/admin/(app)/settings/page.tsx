@@ -3,17 +3,20 @@ import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirestore, useDoc, useMemoFirebase, useStorage } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, UploadCloud, Building, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Loader2, Building, Image as ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
+import { FileUpload } from '@/components/ui/file-upload';
+import { Progress } from '@/components/ui/progress';
 
 const settingsSchema = z.object({
   companyName: z.string().min(1, 'El nombre de la empresa es requerido.'),
@@ -27,13 +30,16 @@ type SettingsFormData = z.infer<typeof settingsSchema>;
 
 export default function SettingsPage() {
   const firestore = useFirestore();
+  const storage = useStorage();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData, isLoading } = useDoc<SettingsFormData>(settingsRef);
   
-  const { control, handleSubmit, reset, watch, formState: { errors } } = useForm<SettingsFormData>({
+  const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       companyName: '',
@@ -49,6 +55,60 @@ export default function SettingsPage() {
       reset(settingsData);
     }
   }, [settingsData, reset]);
+
+  const handleFileChange = (file: File) => {
+    if (!storage) {
+        toast({
+            variant: "destructive",
+            title: "Error de Storage",
+            description: "El servicio de almacenamiento no está disponible.",
+        });
+        return;
+    }
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        variant: "destructive",
+        title: "Tipo de archivo no permitido",
+        description: "Por favor, sube una imagen en formato JPG, JPEG o PNG.",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    const logoStorageRef = storageRef(storage, `logos/company_logo_${Date.now()}`);
+    const uploadTask = uploadBytesResumable(logoStorageRef, file);
+
+    uploadTask.on('state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setUploadProgress(progress);
+      },
+      (error) => {
+        console.error("Upload error", error);
+        toast({
+          variant: "destructive",
+          title: "Error al subir el logo",
+          description: "No se pudo subir el archivo. Inténtalo de nuevo.",
+        });
+        setIsUploading(false);
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          setValue('logoUrl', downloadURL, { shouldValidate: true });
+          setIsUploading(false);
+          toast({
+            title: "Logo subido",
+            description: "La imagen se ha subido correctamente. No olvides guardar los cambios.",
+          });
+        });
+      }
+    );
+  };
+
 
   const onSubmit = async (data: SettingsFormData) => {
     if (!settingsRef) return;
@@ -99,35 +159,27 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="flex items-start gap-6">
-              <div className="w-32 h-32 bg-muted rounded-lg flex items-center justify-center border-2 border-dashed">
-                {logoUrl ? (
-                  <Image src={logoUrl} alt="Logo" width={128} height={128} className="object-contain rounded-lg" />
-                ) : (
-                  <ImageIcon className="h-12 w-12 text-muted-foreground" />
-                )}
-              </div>
-              <div className="flex-1 space-y-2">
-                 <Label htmlFor="logoUrl">URL del Logo</Label>
-                 <div className="flex gap-2">
-                   <Controller
-                      name="logoUrl"
-                      control={control}
-                      render={({ field }) => (
-                        <Input 
-                          {...field}
-                          id="logoUrl" 
-                          placeholder="https://example.com/logo.png" 
-                        />
-                      )}
-                    />
-                    <Button type="button" variant="outline" disabled>
-                      <UploadCloud className="mr-2 h-4 w-4" /> Subir
-                    </Button>
-                 </div>
-                 <p className="text-xs text-muted-foreground">Pega la URL de una imagen alojada. La función de subida directa estará disponible próximamente.</p>
-                 {errors.logoUrl && <p className="text-sm text-destructive">{errors.logoUrl.message}</p>}
-              </div>
+            <div className="space-y-2">
+                <Label>Logo de la Empresa</Label>
+                <div className="flex items-start gap-6">
+                    <div className="w-32 h-32 bg-muted rounded-lg flex items-center justify-center border-2 border-dashed relative overflow-hidden">
+                    {logoUrl ? (
+                        <Image src={logoUrl} alt="Logo" fill className="object-contain" />
+                    ) : (
+                        <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                    )}
+                    </div>
+                    <div className="flex-1 space-y-3">
+                        <FileUpload onFileSelect={handleFileChange} disabled={isUploading} />
+                        {isUploading && (
+                            <div className="space-y-1">
+                                <p className="text-sm text-muted-foreground">Subiendo...</p>
+                                <Progress value={uploadProgress} className="w-full" />
+                            </div>
+                        )}
+                        {errors.logoUrl && <p className="text-sm text-destructive">{errors.logoUrl.message}</p>}
+                    </div>
+                </div>
             </div>
 
             <div className="space-y-2">
@@ -188,7 +240,7 @@ export default function SettingsPage() {
             </div>
           </CardContent>
           <div className="p-6 pt-0">
-             <Button type="submit" disabled={isSaving}>
+             <Button type="submit" disabled={isSaving || isUploading}>
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {isSaving ? 'Guardando...' : 'Guardar Cambios'}
               </Button>
