@@ -1,19 +1,20 @@
 /**
  * Core Philosophy: This ruleset implements a role-based security model with two primary roles: "Publishers" and "Admins".
- * Admins have broad permissions to manage the system, while Publishers are restricted to managing their own profile data.
+ * Admins have broad permissions to manage the system, while Publishers are restricted to managing their own profile and related data.
  *
  * Data Structure:
- * - /publishers/{publisherId}: Stores individual publisher profiles. Access is primarily controlled by ownership, where the document ID matches the user's Auth UID.
- * - /roles_admin/{uid}: A dedicated collection for managing administrator privileges. The existence of a document for a user's UID in this collection grants them admin rights system-wide.
- * - /offers/{offerId}: Stores all promotional offers. Admins manage them, while all users can read them.
+ * - /publishers/{publisherId}: Stores individual publisher profiles. Access is controlled by ownership, where the document ID matches the user's Auth UID.
+ * - /roles_admin/{uid}: A dedicated collection for managing administrator privileges. The existence of a document for a user's UID grants them admin rights.
+ * - /offers/{offerId}: Stores promotional offers. Admins manage them, while all authenticated users can read them.
  * - /leads/{leadId}: Stores records of generated leads. Admins have full control, while Publishers can only read their own lead records.
- * - /settings/{settingId}: Stores global company settings. Only admins have access.
+ * - /settings/{settingId}: Stores global company settings. Publicly readable, admin writable.
+ * - /payments/{paymentId}: Stores payment records for publishers. Admins have full control, publishers can only read their own paid records.
  *
  * Key Security Decisions:
  * - Admin Role Check: Admin status is efficiently determined by checking for the existence of a document in `/roles_admin/{request.auth.uid}`.
- * - Publisher Privacy: Listing all publishers is a privileged operation restricted to Admins to prevent data scraping and protect user privacy.
- * - Ownership Enforcement: A user can only access data under a path that matches their user ID (e.g., a publisher can only access `/publishers/{their-own-uid}`).
- * - Publisher Self-Creation: Any authenticated user can create their own publisher profile, which is essential for the public registration flow.
+ * - Publisher Privacy: Listing all publishers is a privileged operation restricted to Admins to prevent data scraping.
+ * - Ownership Enforcement: A user's access to their own data is enforced by checking if `request.auth.uid` matches the document ID or a `publisherId` field.
+ * - Publisher Self-Creation: Any authenticated user can create their own publisher profile.
  * - Default Secure: Access is denied by default. All permissions must be explicitly granted.
  */
 rules_version = '2';
@@ -40,26 +41,11 @@ service cloud.firestore {
     }
     
     /**
-     * Checks if the user is the designated super admin.
-     */
-    function isSuperAdmin() {
-      return isSignedIn() && request.auth.token.email == 'vallecondo@gmail.com';
-    }
-
-    /**
-     * Checks if there are no admins in the system yet.
-     * This is used to allow the very first admin to be created.
-     */
-    function noAdminsExist() {
-      return !exists(/databases/$(database)/documents/roles_admin);
-    }
-    
-    /**
      * Checks if the requesting user's UID matches the provided userId.
      * This is the foundation of the document ownership model.
      */
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
     }
     
     // ------------------------------------------------------------------------
@@ -67,53 +53,51 @@ service cloud.firestore {
     // ------------------------------------------------------------------------
 
     /**
-     * @description Manages publisher profiles. Publishers can read their own profile. Admins have full CRUD access.
+     * @description Manages publisher profiles. Publishers can create, read, and update their own profile. Admins have full CRUD access.
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
-      // Admins have unrestricted access.
       allow read, write: if isAdmin();
-      // Publishers can create their own profile and read it afterwards. They cannot update it.
-      allow read: if isSignedIn() && isOwner(publisherId);
-      allow create: if isSignedIn() && isOwner(publisherId);
-      // Publishers can update their own payment settings.
-      allow update: if isSignedIn() && isOwner(publisherId);
+      allow create, read, update: if isOwner(publisherId);
     }
 
     /**
-     * @description Manages admin roles. Existence of a document here grants admin privileges.
-     * @path /roles_admin/{adminId}
+     * @description Manages admin roles. Only existing admins can manage roles. The super admin has special privileges.
+     * @path /roles_admin/{uid}
      */
-    match /roles_admin/{adminId} {
-      // Admins and Super Admin have read/write access.
+    match /roles_admin/{uid} {
+      function isSuperAdmin() {
+        return request.auth.token.email == 'vallecondo@gmail.com';
+      }
+      // Allow full access to other admins or the super admin.
       allow read, write: if isAdmin() || isSuperAdmin();
-      // The very first admin can be created by anyone, subsequent admins can only be created by the super admin.
-      allow create: if isSignedIn() && ( (noAdminsExist() && isOwner(adminId)) || isSuperAdmin() );
-      // Only the super admin can list or delete admins.
-      allow list, delete: if isSuperAdmin();
+      // Allow creation only by the super admin.
+      allow create: if isSuperAdmin();
+      // Allow deletion only by the super admin, but they cannot delete themselves.
+      allow delete: if isSuperAdmin() && request.auth.uid != uid;
+      // Listing admins is a highly privileged operation.
+      allow list: if isSuperAdmin();
     }
 
     /**
-     * @description Manages promotional offers. Admins have full CRUD access. Authenticated users can read.
+     * @description Manages promotional offers. Admins have full write access. All authenticated users can read.
      * @path /offers/{offerId}
      */
     match /offers/{offerId} {
-      // Admins have unrestricted access.
       allow write: if isAdmin();
-      // All signed-in users can read/list.
       allow read: if isSignedIn();
     }
 
     /**
-     * @description Manages lead records. Admins have full control. Publishers can read their own records.
+     * @description Manages lead records. Admins have full control. Publishers can only read their own records.
      * @path /leads/{leadId}
      */
     match /leads/{leadId} {
-      // Admins have unrestricted access.
-      allow read, write: if isAdmin();
-      // Publishers can read their own records, and list only their own leads.
-      allow read: if isSignedIn() && isOwner(resource.data.publisherId);
-      allow list: if isSignedIn() && request.query.where[0][2] == request.auth.uid;
+      allow write: if isAdmin();
+      // A publisher can only read a lead document if the publisherId in the document matches their own UID.
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.publisherId);
+      // Listing is restricted to admins or publishers querying their own leads.
+      allow list: if isAdmin() || (isSignedIn() && request.query.where[0][2] == request.auth.uid);
     }
     
     /**
@@ -121,9 +105,7 @@ service cloud.firestore {
      * @path /settings/{settingId}
      */
     match /settings/{settingId} {
-      // Anyone can read the company settings (like company name).
       allow read: if true;
-      // Only admins can write/update the settings.
       allow write: if isAdmin();
     }
 
@@ -132,10 +114,8 @@ service cloud.firestore {
      * @path /payments/{paymentId}
      */
     match /payments/{paymentId} {
-      // Admins can read, write, create, and list all payments.
-      allow read, write, create, list: if isAdmin();
-      
-      // Publishers can only read their own payments, but only if the payment status is 'paid'.
+      allow read, write: if isAdmin();
+      // A publisher can only read a payment document if it belongs to them and its status is 'paid'.
       allow read: if isSignedIn() && isOwner(resource.data.publisherId) && resource.data.status == 'paid';
     }
   }
