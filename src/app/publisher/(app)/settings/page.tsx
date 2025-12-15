@@ -60,6 +60,7 @@ export default function SettingsPage() {
   const { data: publisherData, isLoading: isLoadingData } = useDoc<PublisherData>(publisherRef);
 
   const {
+    register,
     control,
     handleSubmit,
     watch,
