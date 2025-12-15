@@ -57,9 +57,8 @@ service cloud.firestore {
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
-      allow create, read: if isOwner(publisherId);
-      allow write: if isAdmin() || isOwner(publisherId);
-      allow list: if isAdmin();
+      allow read, write: if isOwner(publisherId);
+      allow write, list: if isAdmin();
     }
 
     /**
@@ -120,8 +119,8 @@ service cloud.firestore {
       allow write: if isAdmin();
       // A publisher can only read a payment document if it belongs to them and its status is 'paid'.
       allow read: if isAdmin() || (isSignedIn() && isOwner(resource.data.publisherId) && resource.data.status == 'paid');
-      // Publishers can list their own payments.
-      allow list: if isAdmin() || (isSignedIn() && request.query.where[0][2] == request.auth.uid);
+      // Publishers can list their own payments based on their publisherId.
+      allow list: if isAdmin() || (isSignedIn() && request.query.where.publisherId == request.auth.uid);
     }
   }
 }

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, where, orderBy, doc, getDocs, Timestamp } from 'firebase/firestore';
@@ -53,7 +53,14 @@ export default function ReceiptsPage() {
     );
   }, [firestore, user]);
 
-  const { data: paidPayments, isLoading } = useCollection<Payment>(paymentsQuery);
+  const { data: paidPayments, isLoading, error } = useCollection<Payment>(paymentsQuery);
+  
+  // This useEffect will help debug if there's a permission error from the hook
+  useEffect(() => {
+    if (error) {
+      console.error("Error fetching paid payments:", error);
+    }
+  }, [error]);
 
   return (
     <div>
@@ -81,6 +88,13 @@ export default function ReceiptsPage() {
             </TableHeader>
             <TableBody>
               {isLoading && <TableRow><TableCell colSpan={4} className="text-center">Cargando recibos...</TableCell></TableRow>}
+              {!isLoading && !paidPayments && error && (
+                <TableRow>
+                    <TableCell colSpan={4} className="text-center text-destructive py-8">
+                        Error al cargar los recibos. Revisa los permisos de Firestore.
+                    </TableCell>
+                </TableRow>
+              )}
               {!isLoading && paidPayments?.length === 0 ? (
                  <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No se encontraron recibos.</TableCell></TableRow>
               ) : (
@@ -93,7 +107,7 @@ export default function ReceiptsPage() {
         </CardContent>
       </Card>
       
-      {!isLoading && paidPayments?.length === 0 && (
+      {!isLoading && paidPayments?.length === 0 && !error && (
         <Alert className="mt-6">
             <Info className="h-4 w-4" />
             <AlertTitle>No hay recibos para mostrar</AlertTitle>
