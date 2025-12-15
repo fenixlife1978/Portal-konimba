@@ -12,13 +12,16 @@ import {
   BarChart3, 
   DollarSign, 
   ArrowRight,
-  UserPlus,
-  FilePlus,
-  CreditCard,
-  Tag,
-  LineChart,
-  FileText
 } from 'lucide-react';
+import {
+  IconPublisher,
+  IconLead,
+  IconPayment,
+  IconOffer,
+  IconReport,
+  IconReceipt as IconReceiptCustom,
+} from '@/components/custom-icons';
+
 
 // Types
 type Publisher = { id: string; };
@@ -107,12 +110,12 @@ export default function AdminDashboardPage() {
   const isLoading = isLoadingPublishers || isLoadingOffers || isLoadingLeads;
 
   const menuItems = [
-    { title: "Gestión de Publishers", href: "/admin/publishers", icon: <UserPlus /> },
-    { title: "Cargar Leads", href: "/admin/leads", icon: <FilePlus /> },
-    { title: "Gestión de Pagos", href: "/admin/payments", icon: <CreditCard /> },
-    { title: "Gestión de Ofertas", href: "/admin/offers", icon: <Tag /> },
-    { title: "Reportes", href: "/admin/reports", icon: <LineChart /> },
-    { title: "Recibos", href: "/admin/receipts", icon: <FileText /> },
+    { title: "Gestión de Publishers", href: "/admin/publishers", icon: <IconPublisher /> },
+    { title: "Cargar Leads", href: "/admin/leads", icon: <IconLead /> },
+    { title: "Gestión de Pagos", href: "/admin/payments", icon: <IconPayment /> },
+    { title: "Gestión de Ofertas", href: "/admin/offers", icon: <IconOffer /> },
+    { title: "Reportes", href: "/admin/reports", icon: <IconReport /> },
+    { title: "Recibos", href: "/admin/receipts", icon: <IconReceiptCustom /> },
   ];
 
   return (
@@ -164,7 +167,9 @@ export default function AdminDashboardPage() {
                     {menuItems.map((item) => (
                     <Button asChild key={item.title} variant="outline" className="w-full justify-start gap-3">
                         <Link href={item.href}>
-                            {item.icon}
+                            <div className="h-8 w-8 -ml-1.5 flex items-center justify-center">
+                               {item.icon}
+                            </div>
                             {item.title}
                             <ArrowRight className="h-4 w-4 ml-auto" />
                         </Link>
