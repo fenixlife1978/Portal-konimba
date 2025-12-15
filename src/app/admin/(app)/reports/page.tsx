@@ -121,6 +121,9 @@ export default function ReportsPage() {
   const publishersRef = useMemoFirebase(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
   const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
 
+  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -137,13 +140,13 @@ export default function ReportsPage() {
           <TabsTrigger value="inactivity-report">Reporte de Inactividad</TabsTrigger>
         </TabsList>
         <TabsContent value="publisher-report">
-            <PublisherReport publishers={publishers || []} isLoadingPublishers={isLoadingPublishers} />
+            <PublisherReport publishers={publishers || []} isLoadingPublishers={isLoadingPublishers} companyName={settingsData?.companyName} />
         </TabsContent>
         <TabsContent value="general-payment-report">
-            <GeneralPaymentReport publishers={publishers || []} />
+            <GeneralPaymentReport publishers={publishers || []} settingsData={settingsData} />
         </TabsContent>
         <TabsContent value="inactivity-report">
-            <InactivityReport publishers={publishers || []} />
+            <InactivityReport publishers={publishers || []} companyName={settingsData?.companyName} />
         </TabsContent>
       </Tabs>
     </div>
@@ -271,7 +274,7 @@ function ReportDisplay({ reportData, publisher, period, showExchangeRate = false
 // ## TAB 1: Reporte por Publisher
 // #################################################################################
 
-function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publisher[], isLoadingPublishers: boolean }) {
+function PublisherReport({ publishers, isLoadingPublishers, companyName }: { publishers: Publisher[], isLoadingPublishers: boolean, companyName?: string }) {
     const firestore = useFirestore();
     const { toast } = useToast();
     const { control, handleSubmit, watch, formState: { errors } } = useForm<ReportFormData>({
@@ -295,7 +298,7 @@ function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publ
         setIsExporting(true);
         const reportTitle = `Reporte de Publisher - ${selectedPublisher.firstName} ${selectedPublisher.lastName}`;
         const fileName = `Reporte_Publisher_${selectedPublisher.lastName}_${reportData.periodLabel.replace(' ','_')}.pdf`;
-        await exportToPDF('publisher-report-table', fileName, reportTitle);
+        await exportToPDF('publisher-report-table', fileName, reportTitle, companyName);
         setIsExporting(false);
     };
 
@@ -454,7 +457,7 @@ function SelectionModal<T extends string>({ open, onOpenChange, title, options, 
 // ## TAB 2: Reporte General de Pagos
 // #################################################################################
 
-function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
+function GeneralPaymentReport({ publishers, settingsData }: { publishers: Publisher[], settingsData?: CompanySettings | null }) {
     const firestore = useFirestore();
     const { toast } = useToast();
     const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<GeneralReportFormData>({
@@ -465,9 +468,6 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
             year: String(new Date().getFullYear()),
         }
     });
-    
-    const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
-    const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
     const [periodModalOpen, setPeriodModalOpen] = useState(false);
     const [monthModalOpen, setMonthModalOpen] = useState(false);
@@ -487,7 +487,7 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
         const periodLabel = reportData.publisherReports[0]?.reportData.periodLabel || "General";
         const reportTitle = `Reporte General de Pagos`;
         const fileName = `Reporte_General_Pagos_${periodLabel.replace(' ','_')}.pdf`;
-        await exportToPDF('general-payment-report-table', fileName, reportTitle);
+        await exportToPDF('general-payment-report-table', fileName, reportTitle, settingsData?.companyName);
         setIsExporting(false);
     };
 
@@ -755,7 +755,7 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
 // ## TAB 3: Reporte de Inactividad
 // #################################################################################
 
-function InactivityReport({ publishers }: { publishers: Publisher[] }) {
+function InactivityReport({ publishers, companyName }: { publishers: Publisher[], companyName?: string }) {
     const firestore = useFirestore();
     const { toast } = useToast();
     const { control, handleSubmit, formState: { errors }, watch } = useForm<InactivityReportFormData>({
@@ -780,7 +780,7 @@ function InactivityReport({ publishers }: { publishers: Publisher[] }) {
         const periodLabel = periodOptions.find(p => p.value === watchedPeriod)?.label || "Inactividad";
         const reportTitle = `Reporte de Inactividad de Publishers`;
         const fileName = `Reporte_Inactividad_${periodLabel.replace(' ','_')}.pdf`;
-        await exportToPDF('inactivity-report-table', fileName, reportTitle);
+        await exportToPDF('inactivity-report-table', fileName, reportTitle, companyName);
         setIsExporting(false);
     };
 

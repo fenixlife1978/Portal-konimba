@@ -5,13 +5,22 @@ import { useEffect } from 'react';
 import { LogOut } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
-import { useAuth, useUser } from '@/firebase';
+import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
+import { doc } from 'firebase/firestore';
+
+type CompanySettings = {
+  companyName?: string;
+};
 
 export default function PublisherAppLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
+
+  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -48,7 +57,7 @@ export default function PublisherAppLayout({ children }: { children: React.React
           <Link href="/publisher" className="flex items-center gap-3 group">
             <Logo className="h-10 w-10" />
             <span className="text-xl font-bold font-headline text-foreground hidden sm:inline">
-              Siren's Portal
+              {settingsData?.companyName || "Siren's Portal"}
             </span>
           </Link>
           

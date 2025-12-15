@@ -5,7 +5,7 @@ import { FirebaseClientProvider } from "@/firebase";
 
 export const metadata: Metadata = {
   title: "Siren's Portal",
-  description: "A portal for admins and publishers, inspired by Starbucks.",
+  description: "A portal for admins and publishers.",
 };
 
 export default function RootLayout({

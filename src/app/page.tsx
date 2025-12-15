@@ -1,9 +1,22 @@
+'use client';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Logo } from '@/components/logo';
 import { ArrowRight } from 'lucide-react';
+import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+
+
+type CompanySettings = {
+  companyName?: string;
+};
 
 export default function Home() {
+  const firestore = useFirestore();
+  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
+
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 text-center">
       <header className="mb-12">
@@ -11,7 +24,7 @@ export default function Home() {
           <Logo />
         </div>
         <h1 className="text-4xl md:text-5xl font-bold font-headline text-foreground animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-200">
-          Siren's Portal
+          {settingsData?.companyName || "Siren's Portal"}
         </h1>
         <p className="mt-2 text-lg text-muted-foreground animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-300">
           Bienvenido al portal para administradores y publishers.
@@ -34,7 +47,7 @@ export default function Home() {
       </main>
 
       <footer className="mt-12 text-sm text-muted-foreground animate-in fade-in-0 duration-500 delay-500">
-        <p>&copy; {new Date().getFullYear()} Siren's Portal. Todos los derechos reservados.</p>
+        <p>&copy; {new Date().getFullYear()} {settingsData?.companyName || "Siren's Portal"}. Todos los derechos reservados.</p>
       </footer>
     </div>
   );

@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-export const exportToPDF = async (elementId: string, fileName: string, reportTitle: string) => {
+export const exportToPDF = async (elementId: string, fileName: string, reportTitle: string, companyName: string = "Siren's Portal") => {
   const input = document.getElementById(elementId);
   if (!input) {
     console.error(`Element with id ${elementId} not found.`);
@@ -45,7 +45,7 @@ export const exportToPDF = async (elementId: string, fileName: string, reportTit
   // Title
   pdf.setFontSize(18);
   pdf.setFont('helvetica', 'bold');
-  pdf.text("Siren's Portal", margin + 15, margin + 8);
+  pdf.text(companyName, margin + 15, margin + 8);
 
   // Report Title
   pdf.setFontSize(12);

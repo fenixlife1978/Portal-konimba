@@ -19,7 +19,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 // Asegúrate de que estos imports personalizados funcionen en tu proyecto
-import { useAuth, useUser, useFirestore } from "@/firebase"; 
+import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase"; 
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo"; // Asumo que este componente existe
@@ -27,6 +27,9 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
+type CompanySettings = {
+  companyName?: string;
+};
 
 export default function PublisherAuthPage() {
   const [loginEmail, setLoginEmail] = useState('');
@@ -43,6 +46,10 @@ export default function PublisherAuthPage() {
   const { user, isUserLoading } = useUser(); // Hook personalizado que expone el usuario y el estado de carga
   const router = useRouter();
   const { toast } = useToast(); // Hook personalizado para notificaciones
+
+  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
+
 
   useEffect(() => {
     // 1. Esperamos a que el hook useUser termine de determinar si hay un usuario logueado o no.
@@ -200,7 +207,7 @@ export default function PublisherAuthPage() {
         <Link href="/" className="inline-block">
           <Logo />
         </Link>
-        <h1 className="text-3xl font-bold font-headline mt-4">Siren's Portal</h1>
+        <h1 className="text-3xl font-bold font-headline mt-4">{settingsData?.companyName || "Siren's Portal"}</h1>
         <p className="text-muted-foreground">Acceso de Publisher</p>
       </div>
       <Tabs defaultValue="login" className="w-full max-w-sm">

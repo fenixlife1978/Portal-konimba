@@ -4,12 +4,21 @@ import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/firebase';
+import { useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
+import { doc } from 'firebase/firestore';
+
+type CompanySettings = {
+  companyName?: string;
+};
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
+
+  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
   const handleLogout = () => {
     if (auth) {
@@ -26,7 +35,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin" className="flex items-center gap-3 group">
             <Logo className="h-10 w-10" />
             <span className="text-xl font-bold font-headline text-foreground hidden sm:inline">
-              Siren's Portal
+              {settingsData?.companyName || "Siren's Portal"}
             </span>
           </Link>
 

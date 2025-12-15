@@ -12,15 +12,18 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth, useUser } from "@/firebase";
+import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore } from "@/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+
+type CompanySettings = {
+  companyName?: string;
+};
 
 export default function AdminAuthPage() {
   const [loginEmail, setLoginEmail] = useState('');
@@ -36,6 +39,9 @@ export default function AdminAuthPage() {
   const router = useRouter();
   const { toast } = useToast();
 
+  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
+
   useEffect(() => {
     if (isUserLoading) {
       return;
@@ -47,6 +53,7 @@ export default function AdminAuthPage() {
 
     const checkAdminRole = async () => {
       setIsCheckingAdmin(true);
+      if (!firestore) return;
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
       try {
         const docSnap = await getDoc(adminRoleRef);
@@ -164,7 +171,7 @@ export default function AdminAuthPage() {
         <Link href="/" className="inline-block">
           <Logo />
         </Link>
-        <h1 className="text-3xl font-bold font-headline mt-4">Siren's Portal</h1>
+        <h1 className="text-3xl font-bold font-headline mt-4">{settingsData?.companyName || "Siren's Portal"}</h1>
         <p className="text-muted-foreground">Acceso de Administrador</p>
       </div>
 
