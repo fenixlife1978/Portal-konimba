@@ -22,9 +22,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Loader2, FileText } from 'lucide-react';
 import Link from 'next/link';
+import { Input } from '@/components/ui/input';
+
 
 // Types
-type Publisher = { id: string; firstName: string; lastName: string; email: string; };
+type Publisher = { id: string; firstName: string; lastName: string; email: string; paymentMethod?: string; country?: string; };
+type CompanySettings = { usdToVesRate?: number; usdToCopRate?: number };
 type Offer = { id: string; name: string; paymentAmount: number; };
 type Lead = { 
   id: string; 
@@ -83,6 +86,9 @@ export default function PerformancePage() {
 
   const publisherRef = useMemoFirebase(() => (firestore && user) ? doc(firestore, 'publishers', user.uid) : null, [firestore, user]);
   const { data: publisherData, isLoading: isLoadingPublisher } = useDoc<Publisher>(publisherRef);
+  
+  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
   
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -233,7 +239,7 @@ export default function PerformancePage() {
        )}
 
        {reportData && publisherData ? (
-           <ReportDisplay reportData={reportData} publisher={publisherData} period={reportData.periodLabel} />
+           <ReportDisplay reportData={reportData} publisher={publisherData} period={reportData.periodLabel} settings={settingsData} />
        ) : (
            !isGenerating && (
              <Card className="mt-8">
@@ -249,7 +255,8 @@ export default function PerformancePage() {
 }
 
 
-function ReportDisplay({ reportData, publisher, period }: { reportData: ReportData, publisher: Publisher, period: string }) {
+function ReportDisplay({ reportData, publisher, period, settings }: { reportData: ReportData, publisher: Publisher, period: string, settings: CompanySettings | null | undefined }) {
+    const [manualRate, setManualRate] = useState<number>(0);
     
     const processReport = () => {
         if (!reportData) return null;
@@ -290,6 +297,24 @@ function ReportDisplay({ reportData, publisher, period }: { reportData: ReportDa
     }
 
     const processed = processReport();
+    
+    const getConversion = () => {
+        if (!processed || !publisher) return { amount: processed?.totalEarnings || 0, currency: 'USD' };
+
+        if (publisher.paymentMethod === 'usdt') {
+            return { amount: processed.totalEarnings, currency: 'USDT' };
+        }
+        if (publisher.country === 'VE' && settings?.usdToVesRate) {
+            return { amount: processed.totalEarnings * settings.usdToVesRate, currency: 'VES' };
+        }
+        if (publisher.country === 'CO' && settings?.usdToCopRate) {
+            return { amount: processed.totalEarnings * settings.usdToCopRate, currency: 'COP' };
+        }
+        return { amount: processed.totalEarnings, currency: 'USD' };
+    };
+
+    const conversion = getConversion();
+    const manualConversion = processed ? processed.totalEarnings * manualRate : 0;
 
     if (!processed || processed.tableRows.length === 0) return (
          <Card className="mt-8">
@@ -342,6 +367,35 @@ function ReportDisplay({ reportData, publisher, period }: { reportData: ReportDa
                         </TableRow>
                     </TableFooter>
                 </Table>
+            </CardContent>
+             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+                <div className="p-4 bg-muted rounded-lg flex flex-col justify-center">
+                    <span className="text-sm font-semibold text-foreground mb-2">Total Estimado a Cobrar (Tasa oficial)</span>
+                    <span className="text-2xl font-extrabold text-primary">
+                        {conversion.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {conversion.currency}
+                    </span>
+                    <span className="text-xs text-muted-foreground mt-1">Basado en tu método de pago y la tasa del sistema.</span>
+                </div>
+                 <div className="space-y-3">
+                    <div className='space-y-2'>
+                        <Label htmlFor="manualRate">Simular con otra tasa de cambio</Label>
+                        <Input 
+                            id="manualRate" 
+                            type="number"
+                            placeholder="Ej: 39.50"
+                            value={manualRate || ''}
+                            onChange={(e) => setManualRate(parseFloat(e.target.value) || 0)}
+                        />
+                    </div>
+                    {manualConversion > 0 && (
+                         <div className="p-2 bg-secondary rounded-lg flex items-center justify-between">
+                            <span className="text-sm font-bold text-secondary-foreground">Simulación:</span>
+                            <span className="text-lg font-bold text-primary">
+                                {manualConversion.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                        </div>
+                    )}
+                </div>
             </CardContent>
         </Card>
     );

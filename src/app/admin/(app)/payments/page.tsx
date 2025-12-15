@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Loader2, Calculator, Check, Download, FileText, Trash2, FolderDown } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { exportToPDF } from '@/lib/export-pdf';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 // Types
+type Publisher = { id: string; firstName: string; lastName: string; paymentMethod?: 'pagoMovil' | 'transferencia' | 'usdt'; country?: 'VE' | 'CO'; };
 type Offer = { id: string; name: string; paymentAmount: number };
 type Lead = { publisherId: string; offerId: string; quantity: number; date: string; publisherName: string; };
 type CompanySettings = { usdToVesRate?: number; usdToCopRate?: number; companyName?: string };
@@ -41,6 +42,12 @@ type Payment = {
   amountCOP: number;
   status: 'pending' | 'paid';
   createdAt: Timestamp;
+};
+
+type PaymentTotals = {
+    totalUSD: number;
+    totalVES: number;
+    totalCOP: number;
 };
 
 // Schema
@@ -69,6 +76,7 @@ export default function PaymentsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [paymentPeriod, setPaymentPeriod] = useState<string | null>(null);
+  const [paymentTotals, setPaymentTotals] = useState<PaymentTotals | null>(null);
   
   const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
@@ -79,6 +87,9 @@ export default function PaymentsPage() {
   }, [firestore, paymentPeriod]);
   
   const { data: pendingPayments, isLoading: isLoadingPayments, error: paymentsError } = useCollection<Payment>(paymentsQuery);
+  
+  const publishersRef = useMemoFirebase(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
+  const { data: publishersData } = useCollection<Publisher>(publishersRef);
 
   const { control, handleSubmit, watch, formState: { errors } } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentFormSchema),
@@ -101,9 +112,24 @@ export default function PaymentsPage() {
     const endDate = `${year}-${month.padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
     return { currentPaymentPeriod, startDate, endDate };
   }
+  
+  const memoizedPaymentTotals = useMemo(() => {
+    if (!pendingPayments) return null;
+
+    return pendingPayments.reduce((totals, payment) => {
+        if(payment.amountUSD > 0 && (payment.amountVES === 0 && payment.amountCOP === 0) ) {
+            totals.totalUSD += payment.amountUSD;
+        } else if (payment.amountVES > 0) {
+            totals.totalVES += payment.amountVES;
+        } else if (payment.amountCOP > 0) {
+            totals.totalCOP += payment.amountCOP;
+        }
+        return totals;
+    }, { totalUSD: 0, totalVES: 0, totalCOP: 0 });
+  }, [pendingPayments]);
 
   const handleCalculateAndSave = async (data: PaymentFormData) => {
-     if (!firestore) return;
+     if (!firestore || !publishersData) return;
     setIsCalculating(true);
     setPaymentPeriod(null);
 
@@ -131,6 +157,7 @@ export default function PaymentsPage() {
         const offersQuery = query(collection(firestore, 'offers'));
         const offersSnapshot = await getDocs(offersQuery);
         const offersMap = new Map(offersSnapshot.docs.map(doc => [doc.id, doc.data() as Offer]));
+        const publishersMap = new Map(publishersData.map(p => [p.id, p]));
 
         const earningsByPublisher = new Map<string, { total: number, name: string }>();
 
@@ -158,13 +185,26 @@ export default function PaymentsPage() {
 
         for (const [publisherId, earnings] of earningsByPublisher.entries()) {
             const paymentRef = doc(collection(firestore, 'payments'));
+            const publisherInfo = publishersMap.get(publisherId);
+            
+            let amountVES = 0;
+            let amountCOP = 0;
+
+            if (publisherInfo?.paymentMethod === 'usdt') {
+                // Keep as USD, handled by totalUSD
+            } else if (publisherInfo?.country === 'VE' && (publisherInfo.paymentMethod === 'pagoMovil' || publisherInfo.paymentMethod === 'transferencia')) {
+                amountVES = earnings.total * usdToVes;
+            } else if (publisherInfo?.country === 'CO' && publisherInfo.paymentMethod === 'transferencia') {
+                amountCOP = earnings.total * usdToCop;
+            }
+
             const paymentData = {
                 publisherId,
                 publisherName: earnings.name,
                 paymentPeriod: currentPaymentPeriod,
                 amountUSD: earnings.total,
-                amountVES: earnings.total * usdToVes,
-                amountCOP: earnings.total * usdToCop,
+                amountVES: amountVES,
+                amountCOP: amountCOP,
                 status: 'pending',
                 createdAt: serverTimestamp(),
             };
@@ -244,7 +284,7 @@ export default function PaymentsPage() {
   const handleExport = async () => {
     if (!pendingPayments || pendingPayments.length === 0 || !paymentPeriod) return;
     setIsExporting(true);
-    const formattedPeriod = paymentPeriod.replace('fortnight-1', 'quincena 1').replace('fortnight-2', 'quincena 2');
+    const formattedPeriod = formatPaymentPeriod(paymentPeriod);
     const reportTitle = `Nómina de Pagos Pendientes - ${formattedPeriod}`;
     const fileName = `Nomina_Pagos_${paymentPeriod}.pdf`;
     await exportToPDF('payments-table', fileName, reportTitle, settingsData?.companyName);
@@ -374,22 +414,20 @@ export default function PaymentsPage() {
                 <TableRow>
                   <TableHead>Publisher</TableHead>
                   <TableHead className="text-right">Monto (USD)</TableHead>
-                  <TableHead className="text-right">Monto (USDT)</TableHead>
                   <TableHead className="text-right">Monto (COP)</TableHead>
                   <TableHead className="text-right">Monto (VES)</TableHead>
                   <TableHead className="text-center">Acción</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoadingPayments && <TableRow><TableCell colSpan={6} className="text-center">Cargando pagos pendientes...</TableCell></TableRow>}
-                {!isLoadingPayments && pendingPayments?.length === 0 && <TableRow><TableCell colSpan={6} className="text-center">No hay pagos pendientes para este período.</TableCell></TableRow>}
+                {isLoadingPayments && <TableRow><TableCell colSpan={5} className="text-center">Cargando pagos pendientes...</TableCell></TableRow>}
+                {!isLoadingPayments && pendingPayments?.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">No hay pagos pendientes para este período.</TableCell></TableRow>}
                 {pendingPayments?.map((payment) => (
                   <TableRow key={payment.id}>
                     <TableCell className="font-medium">{payment.publisherName}</TableCell>
                     <TableCell className="text-right">${payment.amountUSD.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">${payment.amountUSD.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{payment.amountCOP.toLocaleString('es-CO', {style: 'currency', currency: 'COP'})}</TableCell>
-                    <TableCell className="text-right">{payment.amountVES.toLocaleString('es-VE', {style: 'currency', currency: 'VES'})}</TableCell>
+                    <TableCell className="text-right">{payment.amountCOP > 0 ? payment.amountCOP.toLocaleString('es-CO', {style: 'currency', currency: 'COP'}) : '-'}</TableCell>
+                    <TableCell className="text-right">{payment.amountVES > 0 ? payment.amountVES.toLocaleString('es-VE', {style: 'currency', currency: 'VES'}) : '-'}</TableCell>
                     <TableCell className="text-center">
                       <Button size="sm" onClick={() => handleMarkAsPaid(payment.id)}>
                         <Check className="mr-2 h-4 w-4" />
@@ -399,6 +437,21 @@ export default function PaymentsPage() {
                   </TableRow>
                 ))}
               </TableBody>
+              {memoizedPaymentTotals && (
+                <TableFooter>
+                    <TableRow className="bg-muted/50 font-bold">
+                        <TableCell colSpan={2}>TOTAL A PAGAR</TableCell>
+                        <TableCell className="text-right">{memoizedPaymentTotals.totalCOP.toLocaleString('es-CO', {style: 'currency', currency: 'COP'})}</TableCell>
+                        <TableCell className="text-right">{memoizedPaymentTotals.totalVES.toLocaleString('es-VE', {style: 'currency', currency: 'VES'})}</TableCell>
+                        <TableCell />
+                    </TableRow>
+                    <TableRow className="bg-muted/50 font-bold">
+                        <TableCell colSpan={2}>TOTAL USDT</TableCell>
+                        <TableCell className="text-right" colSpan={2}>${memoizedPaymentTotals.totalUSD.toFixed(2)}</TableCell>
+                        <TableCell />
+                    </TableRow>
+                </TableFooter>
+              )}
             </Table>
           </CardContent>
         </Card>
