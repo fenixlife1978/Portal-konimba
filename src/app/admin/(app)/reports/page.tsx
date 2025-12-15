@@ -281,7 +281,7 @@ function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publ
     })) || [];
 
     const onSubmit = async (data: ReportFormData) => {
-        if (!firestore) return;
+        if (!firestore || !selectedPublisher) return;
         setIsGenerating(true);
         setReportData(null);
         
