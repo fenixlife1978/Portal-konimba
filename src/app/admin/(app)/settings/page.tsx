@@ -77,8 +77,8 @@ export default function SettingsPage() {
       return;
     }
 
-    setIsUploading(true);
     setUploadProgress(0);
+    setIsUploading(true);
     const logoStorageRef = storageRef(storage, `logos/company_logo_${Date.now()}`);
     const uploadTask = uploadBytesResumable(logoStorageRef, file);
 
@@ -99,11 +99,11 @@ export default function SettingsPage() {
       () => {
         getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
           setValue('logoUrl', downloadURL, { shouldValidate: true });
-          setIsUploading(false);
           toast({
             title: "Logo subido",
             description: "La imagen se ha subido correctamente. No olvides guardar los cambios.",
           });
+          setIsUploading(false);
         });
       }
     );
