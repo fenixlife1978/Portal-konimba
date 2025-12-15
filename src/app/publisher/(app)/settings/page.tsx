@@ -58,7 +58,7 @@ export default function SettingsPage() {
   const [formData, setFormData] = useState<FormData>({
     country: '', paymentMethod: '', bank: '', accountNumber: '',
     mobilePaymentBank: '', mobilePaymentPhoneCode: '', mobilePaymentPhoneNumber: '',
-    mobilePaymentIdPrefix: '', mobilePaymentIdNumber: '', usdtPlatform: '', usdtAddress: ''
+    mobilePaymentIdPrefix: '', mobilePaymentIdNumber: '', usdtPlatform: 'Binance', usdtAddress: ''
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -71,7 +71,7 @@ export default function SettingsPage() {
           bank: publisherData.bank || '',
           accountNumber: publisherData.accountNumber || '',
           mobilePaymentBank: publisherData.mobilePaymentBank || '',
-          usdtPlatform: publisherData.usdtPlatform || '',
+          usdtPlatform: publisherData.usdtPlatform || 'Binance',
           usdtAddress: publisherData.usdtAddress || '',
       };
       if (publisherData.mobilePaymentPhone) {
@@ -99,7 +99,7 @@ export default function SettingsPage() {
       setFormData({
         country: value, paymentMethod: '', bank: '', accountNumber: '',
         mobilePaymentBank: '', mobilePaymentPhoneCode: '', mobilePaymentPhoneNumber: '',
-        mobilePaymentIdPrefix: '', mobilePaymentIdNumber: '', usdtPlatform: '', usdtAddress: ''
+        mobilePaymentIdPrefix: '', mobilePaymentIdNumber: '', usdtPlatform: 'Binance', usdtAddress: ''
       });
       setErrors({});
   }
@@ -108,7 +108,7 @@ export default function SettingsPage() {
     const newErrors: FormErrors = {};
     const {
         country, paymentMethod, bank, accountNumber, mobilePaymentBank, mobilePaymentPhoneCode,
-        mobilePaymentPhoneNumber, mobilePaymentIdPrefix, mobilePaymentIdNumber, usdtPlatform, usdtAddress
+        mobilePaymentPhoneNumber, mobilePaymentIdPrefix, mobilePaymentIdNumber, usdtAddress
     } = formData;
 
     if (!country) newErrors.country = 'Debes seleccionar un país.';
@@ -128,8 +128,11 @@ export default function SettingsPage() {
         if (!mobilePaymentIdNumber) newErrors.mobilePaymentIdNumber = 'El número de ID es requerido.';
     }
     if (paymentMethod === 'usdt') {
-        if (!usdtPlatform) newErrors.usdtPlatform = 'La plataforma es requerida.';
-        if (!usdtAddress) newErrors.usdtAddress = 'La dirección/ID es requerida.';
+        if (!usdtAddress) {
+            newErrors.usdtAddress = 'El correo de Binance es requerido.';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(usdtAddress)) {
+            newErrors.usdtAddress = 'Por favor, introduce un correo electrónico válido.';
+        }
     }
     
     setErrors(newErrors);
@@ -156,32 +159,27 @@ export default function SettingsPage() {
         setIsSaving(false);
         return;
     }
-
-    const { country, paymentMethod, ...data } = formData;
     
     let dataToSave: PublisherDbData = {
-        country: country || undefined,
-        paymentMethod: paymentMethod || undefined,
+        country: formData.country || undefined,
+        paymentMethod: formData.paymentMethod || undefined,
     };
 
-    if (paymentMethod === 'transferencia') {
-        dataToSave.bank = data.bank;
-        dataToSave.accountNumber = data.accountNumber;
-    } else if (paymentMethod === 'pagoMovil') {
-        dataToSave.mobilePaymentBank = data.mobilePaymentBank;
-        dataToSave.mobilePaymentPhone = `${data.mobilePaymentPhoneCode}${data.mobilePaymentPhoneNumber}`;
-        dataToSave.mobilePaymentId = `${data.mobilePaymentIdPrefix}${data.mobilePaymentIdNumber}`;
-    } else if (paymentMethod === 'usdt') {
-        dataToSave.usdtPlatform = data.usdtPlatform;
-        dataToSave.usdtAddress = data.usdtAddress;
+    if (formData.paymentMethod === 'transferencia') {
+        dataToSave.bank = formData.bank;
+        dataToSave.accountNumber = formData.accountNumber;
+    } else if (formData.paymentMethod === 'pagoMovil') {
+        dataToSave.mobilePaymentBank = formData.mobilePaymentBank;
+        dataToSave.mobilePaymentPhone = `${formData.mobilePaymentPhoneCode}${formData.mobilePaymentPhoneNumber}`;
+        dataToSave.mobilePaymentId = `${formData.mobilePaymentIdPrefix}${formData.mobilePaymentIdNumber}`;
+    } else if (formData.paymentMethod === 'usdt') {
+        dataToSave.usdtPlatform = 'Binance';
+        dataToSave.usdtAddress = formData.usdtAddress;
     }
     
-    // Clean up undefined fields to avoid overwriting existing data with empty values
-    const finalData = Object.fromEntries(Object.entries(dataToSave).filter(([_, v]) => v !== undefined));
-
     try {
       await setDoc(publisherRef, { 
-        ...finalData, 
+        ...dataToSave, 
         updatedAt: serverTimestamp() 
       }, { merge: true });
       toast({ title: "Configuración guardada", description: "Tus datos de pago se han actualizado correctamente." });
@@ -316,19 +314,12 @@ export default function SettingsPage() {
                 <h3 className="font-semibold text-lg text-foreground">Detalles de USDT</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="usdtPlatform">Plataforma *</Label>
-                    <Select onValueChange={(val) => handleInputChange('usdtPlatform', val)} value={formData.usdtPlatform}>
-                      <SelectTrigger><SelectValue placeholder="Selecciona una plataforma" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="binance">Binance</SelectItem>
-                        <SelectItem value="otro">Otro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {errors.usdtPlatform && <p className="text-sm text-destructive">{errors.usdtPlatform}</p>}
+                    <Label htmlFor="usdtPlatform">Plataforma</Label>
+                    <Input id="usdtPlatform" value="Binance" readOnly className="bg-muted/50"/>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="usdtAddress">Dirección USDT (o ID de Pago) *</Label>
-                    <Input id="usdtAddress" value={formData.usdtAddress} onChange={(e) => handleInputChange('usdtAddress', e.target.value)} placeholder="Tu dirección o ID de pago" />
+                    <Label htmlFor="usdtAddress">Correo electrónico de Binance *</Label>
+                    <Input id="usdtAddress" value={formData.usdtAddress} onChange={(e) => handleInputChange('usdtAddress', e.target.value)} placeholder="tu.correo@email.com" />
                     {errors.usdtAddress && <p className="text-sm text-destructive">{errors.usdtAddress}</p>}
                   </div>
                 </div>
@@ -346,3 +337,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    
