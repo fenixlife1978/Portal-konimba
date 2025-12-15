@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Loader2 } from 'lucide-react';
@@ -48,7 +48,7 @@ type PublisherDbData = {
 
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   
@@ -159,7 +159,7 @@ export default function SettingsPage() {
 
     const { country, paymentMethod, ...data } = formData;
     
-    const dataToSave: PublisherDbData = {
+    let dataToSave: PublisherDbData = {
         country: country || undefined,
         paymentMethod: paymentMethod || undefined,
     };
@@ -176,8 +176,14 @@ export default function SettingsPage() {
         dataToSave.usdtAddress = data.usdtAddress;
     }
     
+    // Clean up undefined fields to avoid overwriting existing data with empty values
+    const finalData = Object.fromEntries(Object.entries(dataToSave).filter(([_, v]) => v !== undefined));
+
     try {
-      await setDoc(publisherRef, { ...dataToSave, updatedAt: serverTimestamp() }, { merge: true });
+      await setDoc(publisherRef, { 
+        ...finalData, 
+        updatedAt: serverTimestamp() 
+      }, { merge: true });
       toast({ title: "Configuración guardada", description: "Tus datos de pago se han actualizado correctamente." });
     } catch (error: any) {
       console.error("Firestore Save Error:", error);
