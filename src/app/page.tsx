@@ -23,9 +23,14 @@ export default function Home() {
         <div className="inline-block mb-4 animate-in fade-in zoom-in-95 duration-500">
           <Logo />
         </div>
-        <h1 className="text-4xl md:text-5xl font-bold font-headline text-foreground animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-200">
-          {settingsData?.companyName || "Portal Konimba"}
-        </h1>
+        <div className="animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-200">
+            <h1 className="text-4xl md:text-5xl font-bold font-headline text-foreground">
+              {settingsData?.companyName ? settingsData.companyName.split(' ')[0] : "Portal"}
+            </h1>
+            <h2 className="text-3xl md:text-4xl font-bold font-headline text-foreground/80">
+              {settingsData?.companyName ? settingsData.companyName.substring(settingsData.companyName.indexOf(' ') + 1) : "Konimba Group Marketing"}
+            </h2>
+          </div>
         <p className="mt-2 text-lg text-muted-foreground animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-300">
           Bienvenido al portal para administradores y publishers.
         </p>
@@ -47,7 +52,7 @@ export default function Home() {
       </main>
 
       <footer className="mt-12 text-sm text-muted-foreground animate-in fade-in-0 duration-500 delay-500">
-        <p>&copy; {new Date().getFullYear()} {settingsData?.companyName || "Portal Konimba"}. Todos los derechos reservados.</p>
+        <p>&copy; {new Date().getFullYear()} Portal Konimba. Todos los derechos reservados.</p>
       </footer>
     </div>
   );

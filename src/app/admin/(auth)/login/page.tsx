@@ -171,8 +171,11 @@ export default function AdminAuthPage() {
         <Link href="/" className="inline-block">
           <Logo className="h-12 w-auto" />
         </Link>
-        <h1 className="text-3xl font-bold font-headline mt-4">{settingsData?.companyName || "Portal Konimba"}</h1>
-        <p className="text-muted-foreground">Acceso de Administrador</p>
+        <div className="mt-4">
+          <h1 className="text-3xl font-bold font-headline">Portal</h1>
+          <h2 className="text-2xl font-bold font-headline text-foreground/80">Konimba Group Marketing</h2>
+        </div>
+        <p className="text-muted-foreground mt-2">Acceso de Administrador</p>
       </div>
 
       <Tabs defaultValue="login" className="w-full max-w-sm">

@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from "@/firebase";
 
 export const metadata: Metadata = {
-  title: "Portal Konimba",
+  title: "Portal | Konimba Group Marketing",
   description: "A portal for admins and publishers.",
 };
 
