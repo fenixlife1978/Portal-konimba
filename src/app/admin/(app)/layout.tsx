@@ -33,7 +33,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b">
         <div className="container mx-auto px-4 h-20 flex items-center justify-between">
           <Link href="/admin" className="flex items-center gap-3 group">
-            <Logo className="h-10 w-auto" />
+            <Logo className="h-12 w-auto" />
             <span className="text-xl font-bold font-headline text-foreground hidden sm:inline">
               {settingsData?.companyName || "Portal Konimba"}
             </span>
