@@ -11,12 +11,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, Building, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Loader2, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import { FileUpload } from '@/components/ui/file-upload';
 import { Progress } from '@/components/ui/progress';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from '@/components/ui/dialog';
 
 const settingsSchema = z.object({
   companyName: z.string().min(1, 'El nombre de la empresa es requerido.'),
@@ -27,6 +37,56 @@ const settingsSchema = z.object({
 });
 
 type SettingsFormData = z.infer<typeof settingsSchema>;
+
+// URL Dialog Component
+function UrlUploadDialog({ onSave }: { onSave: (url: string) => void }) {
+  const [url, setUrl] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const handleSave = () => {
+    // Basic URL validation
+    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+      onSave(url);
+      setOpen(false);
+    } else {
+      // You can add a toast here for invalid URL
+      console.error("Invalid URL");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <LinkIcon className="mr-2 h-4 w-4" />
+          Usar URL
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Subir Logo desde URL</DialogTitle>
+          <DialogDescription>
+            Pega la dirección URL de la imagen que quieres usar como logo.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <Label htmlFor="logo-url-input">URL de la Imagen</Label>
+          <Input 
+            id="logo-url-input" 
+            value={url} 
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://ejemplo.com/logo.png"
+          />
+        </div>
+        <DialogFooter>
+          <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
+          <Button onClick={handleSave}>Guardar URL</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 export default function SettingsPage() {
   const firestore = useFirestore();
@@ -110,6 +170,14 @@ export default function SettingsPage() {
     );
   };
 
+  const handleUrlSave = (url: string) => {
+    setValue('logoUrl', url, { shouldValidate: true });
+    toast({
+        title: "URL del logo actualizada",
+        description: "La nueva URL ha sido asignada. No olvides guardar los cambios.",
+    });
+  };
+
 
   const onSubmit = async (data: SettingsFormData) => {
     if (!settingsRef) return;
@@ -172,6 +240,13 @@ export default function SettingsPage() {
                     </div>
                     <div className="flex-1 space-y-3">
                         <FileUpload onFileSelect={handleFileChange} disabled={isUploading} />
+                        <div className="flex items-center gap-2">
+                          <Separator className="flex-1" />
+                          <span className="text-xs text-muted-foreground">O</span>
+                          <Separator className="flex-1" />
+                        </div>
+                        <UrlUploadDialog onSave={handleUrlSave} />
+
                         {isUploading && (
                             <div className="space-y-1">
                                 <p className="text-sm text-muted-foreground">Subiendo...</p>
