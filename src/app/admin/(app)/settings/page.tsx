@@ -92,9 +92,10 @@ export default function SettingsPage() {
         toast({
           variant: "destructive",
           title: "Error al subir el logo",
-          description: "No se pudo subir el archivo. Inténtalo de nuevo.",
+          description: error.message || "No se pudo subir el archivo. Revisa las reglas de Storage.",
         });
         setIsUploading(false);
+        setUploadProgress(0);
       },
       () => {
         getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
