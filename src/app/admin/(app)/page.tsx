@@ -20,6 +20,7 @@ import {
   IconOffer,
   IconReport,
   IconReceipt as IconReceiptCustom,
+  IconSettings,
 } from '@/components/custom-icons';
 
 
@@ -116,6 +117,7 @@ export default function AdminDashboardPage() {
     { title: "Gestión de Ofertas", href: "/admin/offers", icon: <IconOffer /> },
     { title: "Reportes", href: "/admin/reports", icon: <IconReport /> },
     { title: "Recibos", href: "/admin/receipts", icon: <IconReceiptCustom /> },
+    { title: "Configuración", href: "/admin/settings", icon: <IconSettings /> },
   ];
 
   return (
