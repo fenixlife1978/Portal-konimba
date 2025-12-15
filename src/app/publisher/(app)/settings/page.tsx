@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -23,8 +23,6 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { Progress } from '@/components/ui/progress';
-
 
 import banksVe from '@/lib/banks-ve.json';
 import banksCo from '@/lib/banks-co.json';
@@ -57,11 +55,144 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+const renderBankList = (country: string) => {
+    if (country === 'VE') {
+      return banksVe.map((bank) => (
+        <SelectItem key={bank.id} value={bank.name}>{bank.name}</SelectItem>
+      ));
+    }
+    if (country === 'CO') {
+      return banksCo.map((bank) => (
+        <SelectItem key={bank.code} value={bank.name}>{bank.name}</SelectItem>
+      ));
+    }
+    return null;
+};
+
+// Form Component
+function PaymentForm({
+    form,
+    country,
+    paymentMethod,
+    onSubmit,
+    onCancel,
+    isSaving,
+}: {
+    form: UseFormReturn<FormData>;
+    country: string;
+    paymentMethod: string;
+    onSubmit: (data: FormData) => void;
+    onCancel: () => void;
+    isSaving: boolean;
+}) {
+    const { control, handleSubmit, formState: { errors } } = form;
+
+    return (
+        <form onSubmit={handleSubmit(onSubmit)}>
+            <DialogHeader>
+                <DialogTitle>Configurar Método de Pago</DialogTitle>
+                <DialogDescription>
+                    Completa los detalles para recibir tus ganancias. Los campos con * son requeridos.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
+                {paymentMethod === 'pagoMovil' && country === 'VE' && (
+                    <>
+                        <div className="space-y-2">
+                            <Label htmlFor="bank">Banco *</Label>
+                            <Controller
+                                name="bank"
+                                control={control}
+                                render={({ field }) => (
+                                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                                        <SelectTrigger><SelectValue placeholder="Selecciona un banco" /></SelectTrigger>
+                                        <SelectContent>{renderBankList(country)}</SelectContent>
+                                    </Select>
+                                )}
+                            />
+                            {errors.bank && <p className="text-sm text-destructive">{errors.bank.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="mobilePaymentPhone">Número de Teléfono *</Label>
+                            <Controller name="mobilePaymentPhone" control={control} render={({ field }) => <Input {...field} id="mobilePaymentPhone" placeholder="04XX-XXXXXXX" value={field.value || ''} />} />
+                            {errors.mobilePaymentPhone && <p className="text-sm text-destructive">{errors.mobilePaymentPhone.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="mobilePaymentId">Cédula o RIF *</Label>
+                            <Controller name="mobilePaymentId" control={control} render={({ field }) => <Input {...field} id="mobilePaymentId" placeholder="V-12345678" value={field.value || ''} />} />
+                            {errors.mobilePaymentId && <p className="text-sm text-destructive">{errors.mobilePaymentId.message}</p>}
+                        </div>
+                    </>
+                )}
+
+                {paymentMethod === 'transferencia' && (country === 'VE' || country === 'CO') && (
+                    <>
+                        <div className="space-y-2">
+                            <Label htmlFor="bank">Banco *</Label>
+                            <Controller
+                                name="bank"
+                                control={control}
+                                render={({ field }) => (
+                                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                                        <SelectTrigger><SelectValue placeholder="Selecciona un banco" /></SelectTrigger>
+                                        <SelectContent>{renderBankList(country)}</SelectContent>
+                                    </Select>
+                                )}
+                            />
+                            {errors.bank && <p className="text-sm text-destructive">{errors.bank.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="accountNumber">Número de Cuenta *</Label>
+                            <Controller name="accountNumber" control={control} render={({ field }) => <Input {...field} id="accountNumber" placeholder="0102..." value={field.value || ''} />} />
+                            {errors.accountNumber && <p className="text-sm text-destructive">{errors.accountNumber.message}</p>}
+                        </div>
+                    </>
+                )}
+
+                {paymentMethod === 'usdt' && (
+                    <>
+                        <div className="space-y-2">
+                            <Label htmlFor="usdtPlatform">Plataforma *</Label>
+                            <Controller
+                                name="usdtPlatform"
+                                control={control}
+                                render={({ field }) => (
+                                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                                        <SelectTrigger><SelectValue placeholder="Selecciona una plataforma" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="binance">Binance</SelectItem>
+                                            <SelectItem value="otro">Otro</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            />
+                            {errors.usdtPlatform && <p className="text-sm text-destructive">{errors.usdtPlatform.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="usdtAddress">Dirección USDT (o ID de Pago) *</Label>
+                            <Controller name="usdtAddress" control={control} render={({ field }) => <Input {...field} id="usdtAddress" placeholder="Tu dirección o ID de pago" value={field.value || ''} />} />
+                            {errors.usdtAddress && <p className="text-sm text-destructive">{errors.usdtAddress.message}</p>}
+                        </div>
+                    </>
+                )}
+            </div>
+            <DialogFooter>
+                <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>Cancelar</Button>
+                <Button type="submit" disabled={isSaving}>
+                    {isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</>) : 'Guardar Cambios'}
+                </Button>
+            </DialogFooter>
+        </form>
+    );
+}
+
+
 export default function SettingsPage() {
   const { user } = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const publisherRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -70,7 +201,7 @@ export default function SettingsPage() {
 
   const { data: publisherData, isLoading: isLoadingData } = useDoc(publisherRef);
 
-  const { control, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm<FormData>({
+  const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       country: '',
@@ -83,6 +214,8 @@ export default function SettingsPage() {
       usdtAddress: '',
     },
   });
+
+  const { control, watch, reset, setValue } = form;
 
   useEffect(() => {
     if (publisherData) {
@@ -106,8 +239,6 @@ export default function SettingsPage() {
     setValue('paymentMethod', '');
   }, [country, setValue]);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  
   const onSubmit = async (data: FormData) => {
     if (!publisherRef) return;
     setIsSaving(true);
@@ -132,22 +263,8 @@ export default function SettingsPage() {
     }
   };
   
-  const renderBankList = () => {
-    if (country === 'VE') {
-      return banksVe.map((bank) => (
-        <SelectItem key={bank.id} value={bank.name}>{bank.name}</SelectItem>
-      ));
-    }
-    if (country === 'CO') {
-      return banksCo.map((bank) => (
-        <SelectItem key={bank.code} value={bank.name}>{bank.name}</SelectItem>
-      ));
-    }
-    return null;
-  };
-
   if (isLoadingData) {
-    return <p>Cargando configuración...</p>;
+    return <div className="flex items-center justify-center pt-16"><Loader2 className="h-8 w-8 animate-spin" /> <span className="ml-2">Cargando configuración...</span></div>;
   }
 
   return (
@@ -189,7 +306,7 @@ export default function SettingsPage() {
                   </Select>
                 )}
               />
-              {errors.country && <p className="text-sm text-destructive">{errors.country.message}</p>}
+              {form.formState.errors.country && <p className="text-sm text-destructive">{form.formState.errors.country.message}</p>}
             </div>
 
             {country && (
@@ -211,7 +328,7 @@ export default function SettingsPage() {
                     </Select>
                   )}
                 />
-                {errors.paymentMethod && <p className="text-sm text-destructive">{errors.paymentMethod.message}</p>}
+                {form.formState.errors.paymentMethod && <p className="text-sm text-destructive">{form.formState.errors.paymentMethod.message}</p>}
               </div>
             )}
 
@@ -222,117 +339,14 @@ export default function SettingsPage() {
                     <Button type="button">Configurar Detalles de Pago</Button>
                   </DialogTrigger>
                   <DialogContent>
-                    <form onSubmit={handleSubmit(onSubmit)}>
-                      <DialogHeader>
-                        <DialogTitle>Configurar Método de Pago</DialogTitle>
-                        <DialogDescription>
-                          Completa los detalles para recibir tus ganancias. Los campos con * son requeridos.
-                        </DialogDescription>
-                        {isSaving && <Progress value={33} className="w-[100%] mt-2 animate-pulse" />}
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        {paymentMethod === 'pagoMovil' && country === 'VE' && (
-                          <>
-                            <div className="space-y-2">
-                              <Label htmlFor="bank">Banco *</Label>
-                               <Controller
-                                name="bank"
-                                control={control}
-                                render={({ field }) => (
-                                  <Select onValueChange={field.onChange} value={field.value || ''}>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Selecciona un banco" />
-                                    </SelectTrigger>
-                                    <SelectContent>{renderBankList()}</SelectContent>
-                                  </Select>
-                                )}
-                              />
-                               {errors.bank && <p className="text-sm text-destructive">{errors.bank.message}</p>}
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="mobilePaymentPhone">Número de Teléfono *</Label>
-                              <Controller name="mobilePaymentPhone" control={control} render={({ field }) => <Input {...field} id="mobilePaymentPhone" placeholder="04XX-XXXXXXX" value={field.value || ''} />} />
-                               {errors.mobilePaymentPhone && <p className="text-sm text-destructive">{errors.mobilePaymentPhone.message}</p>}
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="mobilePaymentId">Cédula o RIF *</Label>
-                              <Controller name="mobilePaymentId" control={control} render={({ field }) => <Input {...field} id="mobilePaymentId" placeholder="V-12345678" value={field.value || ''} />} />
-                               {errors.mobilePaymentId && <p className="text-sm text-destructive">{errors.mobilePaymentId.message}</p>}
-                            </div>
-                          </>
-                        )}
-
-                        {paymentMethod === 'transferencia' && (country === 'VE' || country === 'CO') && (
-                          <>
-                            <div className="space-y-2">
-                              <Label htmlFor="bank">Banco *</Label>
-                              <Controller
-                                name="bank"
-                                control={control}
-                                render={({ field }) => (
-                                  <Select onValueChange={field.onChange} value={field.value || ''}>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Selecciona un banco" />
-                                    </SelectTrigger>
-                                    <SelectContent>{renderBankList()}</SelectContent>
-                                  </Select>
-                                )}
-                              />
-                               {errors.bank && <p className="text-sm text-destructive">{errors.bank.message}</p>}
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="accountNumber">Número de Cuenta *</Label>
-                              <Controller name="accountNumber" control={control} render={({ field }) => <Input {...field} id="accountNumber" placeholder="0102..." value={field.value || ''} />} />
-                               {errors.accountNumber && <p className="text-sm text-destructive">{errors.accountNumber.message}</p>}
-                            </div>
-                          </>
-                        )}
-                        
-                        {paymentMethod === 'usdt' && (
-                          <>
-                             <div className="space-y-2">
-                              <Label htmlFor="usdtPlatform">Plataforma *</Label>
-                              <Controller
-                                name="usdtPlatform"
-                                control={control}
-                                render={({ field }) => (
-                                  <Select onValueChange={field.onChange} value={field.value || ''}>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Selecciona una plataforma" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="binance">Binance</SelectItem>
-                                      <SelectItem value="otro">Otro</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                )}
-                              />
-                               {errors.usdtPlatform && <p className="text-sm text-destructive">{errors.usdtPlatform.message}</p>}
-                            </div>
-                             <div className="space-y-2">
-                              <Label htmlFor="usdtAddress">Dirección USDT (o ID de Pago) *</Label>
-                              <Controller name="usdtAddress" control={control} render={({ field }) => <Input {...field} id="usdtAddress" placeholder="Tu dirección o ID de pago" value={field.value || ''} />} />
-                               {errors.usdtAddress && <p className="text-sm text-destructive">{errors.usdtAddress.message}</p>}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      <DialogFooter>
-                         <DialogClose asChild>
-                            <Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button>
-                          </DialogClose>
-                        <Button type="submit" disabled={isSaving}>
-                          {isSaving ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Guardando...
-                            </>
-                          ) : (
-                            'Guardar Cambios'
-                          )}
-                        </Button>
-                      </DialogFooter>
-                    </form>
+                    <PaymentForm
+                        form={form}
+                        country={country}
+                        paymentMethod={paymentMethod}
+                        onSubmit={onSubmit}
+                        onCancel={() => setIsModalOpen(false)}
+                        isSaving={isSaving}
+                    />
                   </DialogContent>
                 </Dialog>
                 
