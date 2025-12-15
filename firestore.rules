@@ -7,6 +7,7 @@
  * - /roles_admin/{uid}: A dedicated collection for managing administrator privileges. The existence of a document for a user's UID in this collection grants them admin rights system-wide.
  * - /offers/{offerId}: Stores all promotional offers. Admins manage them, while all users can read them.
  * - /leads/{leadId}: Stores records of generated leads. Admins have full control, while Publishers can only read their own lead records.
+ * - /settings/{settingId}: Stores global company settings. Only admins have access.
  *
  * Key Security Decisions:
  * - Admin Role Check: Admin status is efficiently determined by checking for the existence of a document in `/roles_admin/{request.auth.uid}`.
@@ -75,6 +76,8 @@ service cloud.firestore {
       // Publishers can create their own profile and read it afterwards. They cannot update it.
       allow read: if isSignedIn() && isOwner(publisherId);
       allow create: if isSignedIn() && isOwner(publisherId);
+      // Publishers can update their own payment settings.
+      allow update: if isSignedIn() && isOwner(publisherId);
     }
 
     /**
@@ -111,6 +114,15 @@ service cloud.firestore {
       // Publishers can read their own records, and list only their own leads.
       allow read: if isSignedIn() && isOwner(resource.data.publisherId);
       allow list: if isSignedIn() && request.query.where[0][2] == request.auth.uid;
+    }
+    
+    /**
+     * @description Manages global company settings. Only admins have access.
+     * @path /settings/{settingId}
+     */
+    match /settings/{settingId} {
+      // Admins have full read and write access.
+      allow read, write: if isAdmin();
     }
   }
 }

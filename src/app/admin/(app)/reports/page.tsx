@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, query, where, getDocs, orderBy, Timestamp, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -43,6 +43,14 @@ type Lead = {
   quantity: number; 
   createdAt: Timestamp;
 };
+type CompanySettings = {
+  companyName?: string;
+  companyAddress?: string;
+  logoUrl?: string;
+  usdToVesRate?: number;
+  usdToCopRate?: number;
+};
+
 
 // Schemas
 const reportFormSchema = z.object({
@@ -457,6 +465,9 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
             year: String(new Date().getFullYear()),
         }
     });
+    
+    const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+    const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
     const [periodModalOpen, setPeriodModalOpen] = useState(false);
     const [monthModalOpen, setMonthModalOpen] = useState(false);
@@ -699,7 +710,7 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
                                         </TableBody>
                                         <TableFooter>
                                             <TableRow className="bg-primary/90 text-primary-foreground hover:bg-primary/90">
-                                                <TableCell className="font-bold">TOTAL LEADS</TableCell>
+                                                <TableCell className="font-bold">TOTALES</TableCell>
                                                 <TableCell className="text-right font-extrabold text-lg">{reportData.grandTotalLeads}</TableCell>
                                             </TableRow>
                                         </TableFooter>
@@ -709,6 +720,25 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
                                         <span className="text-lg font-bold">TOTAL NÓMINA (USD)</span>
                                         <span className="text-2xl font-extrabold">${reportData.grandTotalEarnings.toFixed(2)}</span>
                                     </div>
+                                    {settingsData && (
+                                    <Card className="mt-4">
+                                        <CardHeader><CardTitle>Nómina en Moneda Local</CardTitle></CardHeader>
+                                        <CardContent className="space-y-2">
+                                            {settingsData.usdToVesRate && (
+                                                <div className="flex justify-between items-center p-2 bg-background rounded">
+                                                    <span className="font-bold">Total en Bolívares (VES)</span>
+                                                    <span className="font-mono text-primary">{(reportData.grandTotalEarnings * settingsData.usdToVesRate).toLocaleString('es-VE', { style: 'currency', currency: 'VES' })}</span>
+                                                </div>
+                                            )}
+                                            {settingsData.usdToCopRate && (
+                                                <div className="flex justify-between items-center p-2 bg-background rounded">
+                                                    <span className="font-bold">Total en Pesos (COP)</span>
+                                                    <span className="font-mono text-primary">{(reportData.grandTotalEarnings * settingsData.usdToCopRate).toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}</span>
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                    )}
                                 </CardContent>
                             </Card>
                             </>

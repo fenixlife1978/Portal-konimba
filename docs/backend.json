@@ -143,6 +143,36 @@
         }
       },
       "required": ["id", "publisherId", "offerId", "date", "quantity"]
+    },
+    "CompanySettings": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Company Settings",
+      "type": "object",
+      "description": "Stores global settings for the company.",
+      "properties": {
+        "companyName": {
+          "type": "string",
+          "description": "The name of the company."
+        },
+        "companyAddress": {
+          "type": "string",
+          "description": "The physical address of the company."
+        },
+        "logoUrl": {
+          "type": "string",
+          "description": "URL for the company logo.",
+          "format": "uri"
+        },
+        "usdToVesRate": {
+          "type": "number",
+          "description": "Conversion rate from USD to Venezuelan Bolívares."
+        },
+        "usdToCopRate": {
+          "type": "number",
+          "description": "Conversion rate from USD to Colombian Pesos."
+        }
+      },
+      "required": ["companyName", "companyAddress"]
     }
   },
   "auth": {
@@ -201,6 +231,15 @@
           "schema": { "$ref": "#/backend/entities/Lead" },
           "description": "Stores lead generation records. Only admins can create, update, or delete lead records. Publishers can only read their own leads.",
           "params": [{ "name": "leadId", "description": "The unique ID for the lead record." }]
+        }
+      },
+      {
+        "path": "/settings/{settingId}",
+        "definition": {
+          "entityName": "CompanySettings",
+          "schema": { "$ref": "#/backend/entities/CompanySettings" },
+          "description": "Stores global company settings, like name, address, and conversion rates. Typically a singleton document (e.g., /settings/company). Only accessible by admins.",
+          "params": [{ "name": "settingId", "description": "The unique ID for the settings document (e.g., 'company')." }]
         }
       }
     ],
