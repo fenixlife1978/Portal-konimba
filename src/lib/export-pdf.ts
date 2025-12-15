@@ -1,6 +1,5 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Logo } from '@/components/logo';
 
 export const exportToPDF = async (elementId: string, fileName: string, reportTitle: string) => {
   const input = document.getElementById(elementId);
@@ -16,16 +15,32 @@ export const exportToPDF = async (elementId: string, fileName: string, reportTit
   const margin = 15;
 
   // --- Add Header ---
-  // Logo (as a data URL)
-  const logoSvg = `<svg width="24" height="24" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="32" cy="32" r="30" fill="hsl(215 70% 30%)" />
-      <path
-        d="M32 17.5L35.5 28.5L46.5 32L35.5 35.5L32 46.5L28.5 35.5L17.5 32L28.5 28.5L32 17.5Z"
-        fill="hsl(210 40% 98%)"
-      />
-    </svg>`;
-  const logoDataUrl = 'data:image/svg+xml;base64,' + btoa(logoSvg);
-  pdf.addImage(logoDataUrl, 'SVG', margin, margin, 12, 12);
+  // Create a canvas for the logo
+  const logoCanvas = document.createElement('canvas');
+  logoCanvas.width = 64;
+  logoCanvas.height = 64;
+  const ctx = logoCanvas.getContext('2d');
+  
+  if (ctx) {
+    const logoSvg = `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="32" cy="32" r="30" fill="hsl(215 70% 30%)" />
+        <path
+          d="M32 17.5L35.5 28.5L46.5 32L35.5 35.5L32 46.5L28.5 35.5L17.5 32L28.5 28.5L32 17.5Z"
+          fill="hsl(210 40% 98%)"
+        />
+      </svg>`;
+    const logoImg = new Image();
+    logoImg.src = 'data:image/svg+xml;base64,' + btoa(logoSvg);
+    
+    await new Promise(resolve => {
+        logoImg.onload = () => {
+            ctx.drawImage(logoImg, 0, 0);
+            const logoDataUrl = logoCanvas.toDataURL('image/png');
+            pdf.addImage(logoDataUrl, 'PNG', margin, margin, 12, 12);
+            resolve(null);
+        };
+    });
+  }
   
   // Title
   pdf.setFontSize(18);
