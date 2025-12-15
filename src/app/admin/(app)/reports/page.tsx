@@ -224,7 +224,7 @@ function ReportDisplay({ reportData, publisher, period, showExchangeRate = false
                     </TableBody>
                     <TableFooter>
                         <TableRow className="bg-primary/90 text-primary-foreground hover:bg-primary/90">
-                        <TableCell className="font-bold">TOTALES PUBLISHER</TableCell>
+                        <TableCell className="font-bold">TOTALES</TableCell>
                         <TableCell colSpan={processed.dayColumns.length}></TableCell>
                         <TableCell className="text-center font-extrabold text-lg bg-chart-1/20">{processed.totalLeads}</TableCell>
                         <TableCell className="bg-chart-3/20"></TableCell>

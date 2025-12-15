@@ -334,7 +334,7 @@ function ReportDisplay({ reportData, publisher, period }: { reportData: ReportDa
                     </TableBody>
                     <TableFooter>
                         <TableRow className="bg-primary/90 text-primary-foreground hover:bg-primary/90">
-                        <TableCell className="font-bold">GANANCIA DEL PERIODO</TableCell>
+                        <TableCell className="font-bold">TOTALES</TableCell>
                         <TableCell colSpan={processed.dayColumns.length}></TableCell>
                         <TableCell className="text-center font-extrabold text-lg bg-chart-1/20">{processed.totalLeads}</TableCell>
                         <TableCell className="bg-chart-3/20"></TableCell>
