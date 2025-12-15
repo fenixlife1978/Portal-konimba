@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -39,19 +39,18 @@ const paymentSchema = z.object({
 }).superRefine((data, ctx) => {
   if (data.paymentMethod === 'transferencia') {
     if (!data.bank) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El banco es requerido.", path: ['bank'] });
-    if (!data.accountNumber || data.accountNumber.length < 20) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La cuenta debe tener 20 dígitos.", path: ['accountNumber'] });
+    if (!data.accountNumber || !/^\d{20}$/.test(data.accountNumber)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La cuenta debe tener 20 dígitos.", path: ['accountNumber'] });
   }
-  if (data.paymentMethod === 'pagoMovil') {
-    if (data.country !== 'VE') ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Pago Móvil solo para Venezuela.", path: ['country'] });
+  if (data.paymentMethod === 'pagoMovil' && data.country === 'VE') {
     if (!data.mobilePaymentBank) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El banco es requerido.", path: ['mobilePaymentBank'] });
     if (!data.mobilePaymentPhoneCode) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Selecciona un código.", path: ['mobilePaymentPhoneCode'] });
-    if (!data.mobilePaymentPhoneNumber || data.mobilePaymentPhoneNumber.length < 7) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El número debe tener 7 dígitos.", path: ['mobilePaymentPhoneNumber'] });
+    if (!data.mobilePaymentPhoneNumber || !/^\d{7}$/.test(data.mobilePaymentPhoneNumber)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El número debe tener 7 dígitos.", path: ['mobilePaymentPhoneNumber'] });
     if (!data.mobilePaymentIdPrefix) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Selecciona un prefijo.", path: ['mobilePaymentIdPrefix'] });
-    if (!data.mobilePaymentIdNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El número es requerido.", path: ['mobilePaymentIdNumber'] });
+    if (!data.mobilePaymentIdNumber || !/^\d+$/.test(data.mobilePaymentIdNumber)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El número es requerido.", path: ['mobilePaymentIdNumber'] });
   }
   if (data.paymentMethod === 'usdt') {
     if (!data.usdtPlatform) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La plataforma es requerida.", path: ['usdtPlatform'] });
-    if (!data.usdtAddress) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La dirección o ID es requerida.", path: ['usdtAddress'] });
+    if (!data.usdtAddress || data.usdtAddress.length < 5) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La dirección o ID es requerida.", path: ['usdtAddress'] });
   }
 });
 
@@ -82,7 +81,6 @@ export default function SettingsPage() {
   const { data: publisherData, isLoading: isLoadingData } = useDoc<PublisherDbData>(publisherRef);
 
   const {
-    register,
     control,
     handleSubmit,
     watch,
@@ -109,8 +107,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (publisherData) {
-      // Logic to transform flat DB data to structured form data
-      const formData: PublisherFormData = {
+      const formData: Partial<PublisherFormData> = {
           country: publisherData.country,
           paymentMethod: publisherData.paymentMethod,
           bank: publisherData.bank,
@@ -121,17 +118,25 @@ export default function SettingsPage() {
       };
 
       if (publisherData.mobilePaymentPhone) {
-          formData.mobilePaymentPhoneCode = publisherData.mobilePaymentPhone.substring(0, 4);
-          formData.mobilePaymentPhoneNumber = publisherData.mobilePaymentPhone.substring(4);
+          const code = publisherData.mobilePaymentPhone.substring(0, 4);
+          if (phoneCodes.includes(code)) {
+            formData.mobilePaymentPhoneCode = code;
+            formData.mobilePaymentPhoneNumber = publisherData.mobilePaymentPhone.substring(4);
+          }
       }
        if (publisherData.mobilePaymentId) {
           const parts = publisherData.mobilePaymentId.split('-');
-          if (parts.length > 1) {
+          if (parts.length > 1 && idPrefixes.includes(parts[0])) {
             formData.mobilePaymentIdPrefix = parts[0];
             formData.mobilePaymentIdNumber = parts.slice(1).join('-');
           } else {
-            formData.mobilePaymentIdPrefix = isNaN(parseInt(parts[0][0])) ? parts[0][0] : undefined;
-            formData.mobilePaymentIdNumber = isNaN(parseInt(parts[0][0])) ? parts[0].substring(1) : parts[0];
+            const firstChar = parts[0][0];
+            if (idPrefixes.includes(firstChar)) {
+                 formData.mobilePaymentIdPrefix = firstChar;
+                 formData.mobilePaymentIdNumber = parts[0].substring(1);
+            } else {
+                formData.mobilePaymentIdNumber = parts[0];
+            }
           }
       }
       reset(formData);
@@ -142,32 +147,13 @@ export default function SettingsPage() {
   const paymentMethod = watch('paymentMethod');
   
   const handleCountryChange = (value: 'VE' | 'CO') => {
-      setValue('country', value);
+      setValue('country', value, { shouldValidate: true });
       setValue('paymentMethod', undefined);
-      trigger('country');
+      reset({ ...watch(), country: value, paymentMethod: undefined, bank: '', accountNumber: '', mobilePaymentBank: '', mobilePaymentPhoneCode: '', mobilePaymentPhoneNumber: '', mobilePaymentIdPrefix: '', mobilePaymentIdNumber: '' });
   }
   
   const handlePaymentMethodChange = (value: 'transferencia' | 'pagoMovil' | 'usdt') => {
-      setValue('paymentMethod', value);
-      // Clear fields of other methods
-      const fieldsToKeep: (keyof PublisherFormData)[] = ['country', 'paymentMethod'];
-      if(value === 'transferencia') {
-        fieldsToKeep.push('bank', 'accountNumber');
-      } else if (value === 'pagoMovil') {
-        fieldsToKeep.push('mobilePaymentBank', 'mobilePaymentPhoneCode', 'mobilePaymentPhoneNumber', 'mobilePaymentIdPrefix', 'mobilePaymentIdNumber');
-      } else if (value === 'usdt') {
-        fieldsToKeep.push('usdtPlatform', 'usdtAddress');
-      }
-
-      const currentValues = watch();
-      const newValues = { ...currentValues };
-      (Object.keys(newValues) as (keyof PublisherFormData)[]).forEach(key => {
-        if (!fieldsToKeep.includes(key)) {
-            (newValues as any)[key] = undefined;
-        }
-      });
-      reset(newValues);
-      trigger('paymentMethod');
+      setValue('paymentMethod', value, { shouldValidate: true });
   }
 
   const onSubmit = async (data: PublisherFormData) => {
@@ -176,18 +162,16 @@ export default function SettingsPage() {
     const dataToSave: PublisherDbData = {
         country: data.country,
         paymentMethod: data.paymentMethod,
+        bank: data.bank || undefined,
+        accountNumber: data.accountNumber || undefined,
+        mobilePaymentBank: data.mobilePaymentBank || undefined,
+        usdtPlatform: data.usdtPlatform || undefined,
+        usdtAddress: data.usdtAddress || undefined,
     };
 
-    if (data.paymentMethod === 'transferencia') {
-        dataToSave.bank = data.bank;
-        dataToSave.accountNumber = data.accountNumber;
-    } else if (data.paymentMethod === 'pagoMovil') {
-        dataToSave.mobilePaymentBank = data.mobilePaymentBank;
+    if (data.paymentMethod === 'pagoMovil') {
         dataToSave.mobilePaymentPhone = `${data.mobilePaymentPhoneCode}${data.mobilePaymentPhoneNumber}`;
         dataToSave.mobilePaymentId = `${data.mobilePaymentIdPrefix}-${data.mobilePaymentIdNumber}`;
-    } else if (data.paymentMethod === 'usdt') {
-        dataToSave.usdtPlatform = data.usdtPlatform;
-        dataToSave.usdtAddress = data.usdtAddress;
     }
 
     try {
@@ -201,6 +185,7 @@ export default function SettingsPage() {
         description: "Tus datos de pago se han actualizado correctamente.",
       });
     } catch (error: any) {
+      console.error("Firestore Save Error:", error);
       toast({
         variant: 'destructive',
         title: "Error al guardar",
@@ -294,7 +279,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="accountNumber">Número de Cuenta (20 dígitos) *</Label>
-                    <Input {...register('accountNumber')} id="accountNumber" placeholder="0102..." maxLength={20} />
+                    <Controller name="accountNumber" control={control} render={({ field }) => <Input {...field} id="accountNumber" placeholder="0102..." maxLength={20} />} />
                     {errors.accountNumber && <p className="text-sm text-destructive">{errors.accountNumber.message}</p>}
                   </div>
                 </div>
@@ -336,9 +321,9 @@ export default function SettingsPage() {
                                 </Select>
                             )}
                         />
-                        <Input {...register('mobilePaymentPhoneNumber')} id="mobilePaymentPhoneNumber" placeholder="XXXXXXX" maxLength={7} />
+                        <Controller name="mobilePaymentPhoneNumber" control={control} render={({ field }) => <Input {...field} id="mobilePaymentPhoneNumber" placeholder="XXXXXXX" maxLength={7} />} />
                       </div>
-                      {errors.mobilePaymentPhoneCode && <p className="text-sm text-destructive">{errors.mobilePaymentPhoneCode.message}</p>}
+                      {errors.mobilePaymentPhoneCode && !errors.mobilePaymentPhoneNumber && <p className="text-sm text-destructive">{errors.mobilePaymentPhoneCode.message}</p>}
                       {errors.mobilePaymentPhoneNumber && <p className="text-sm text-destructive">{errors.mobilePaymentPhoneNumber.message}</p>}
                   </div>
                   <div className="space-y-2 col-span-1 md:col-span-2">
@@ -356,9 +341,9 @@ export default function SettingsPage() {
                                 </Select>
                             )}
                         />
-                        <Input {...register('mobilePaymentIdNumber')} id="mobilePaymentIdNumber" placeholder="12345678" />
+                         <Controller name="mobilePaymentIdNumber" control={control} render={({ field }) => <Input {...field} id="mobilePaymentIdNumber" placeholder="12345678" />} />
                     </div>
-                     {errors.mobilePaymentIdPrefix && <p className="text-sm text-destructive">{errors.mobilePaymentIdPrefix.message}</p>}
+                     {errors.mobilePaymentIdPrefix && !errors.mobilePaymentIdNumber && <p className="text-sm text-destructive">{errors.mobilePaymentIdPrefix.message}</p>}
                      {errors.mobilePaymentIdNumber && <p className="text-sm text-destructive">{errors.mobilePaymentIdNumber.message}</p>}
                   </div>
                 </div>
@@ -388,7 +373,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="usdtAddress">Dirección USDT (o ID de Pago) *</Label>
-                    <Input {...register('usdtAddress')} id="usdtAddress" placeholder="Tu dirección o ID de pago" />
+                    <Controller name="usdtAddress" control={control} render={({ field }) => <Input {...field} id="usdtAddress" placeholder="Tu dirección o ID de pago" />} />
                     {errors.usdtAddress && <p className="text-sm text-destructive">{errors.usdtAddress.message}</p>}
                   </div>
                 </div>
