@@ -312,9 +312,9 @@ function ReportDisplay({ reportData, publisher, period }: { reportData: ReportDa
                         <TableRow>
                             <TableHead className="font-bold min-w-[150px]">Ofertas</TableHead>
                             {processed.dayColumns.map(day => <TableHead key={day} className="text-center">{day}</TableHead>)}
-                            <TableHead className="text-center font-bold min-w-[100px] bg-secondary">Total Leads</TableHead>
-                            <TableHead className="text-center font-bold min-w-[100px] bg-secondary">Precio (USD)</TableHead>
-                            <TableHead className="text-right font-bold min-w-[120px] bg-secondary">Ganancia (USD)</TableHead>
+                            <TableHead className="text-center font-bold min-w-[100px] bg-chart-1/20">Total Leads</TableHead>
+                            <TableHead className="text-center font-bold min-w-[100px] bg-chart-3/20">Precio (USD)</TableHead>
+                            <TableHead className="text-right font-bold min-w-[120px] bg-chart-2/20">Ganancia (USD)</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -326,9 +326,9 @@ function ReportDisplay({ reportData, publisher, period }: { reportData: ReportDa
                                     {row.days.get(day) || ''}
                                 </TableCell>
                             ))}
-                            <TableCell className="text-center font-bold bg-secondary">{row.totalOfferLeads}</TableCell>
-                            <TableCell className="text-center font-medium bg-secondary">${row.offerPayment.toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-bold bg-secondary">${row.offerEarnings.toFixed(2)}</TableCell>
+                            <TableCell className="text-center font-bold bg-chart-1/20">{row.totalOfferLeads}</TableCell>
+                            <TableCell className="text-center font-medium bg-chart-3/20">${row.offerPayment.toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-bold bg-chart-2/20">${row.offerEarnings.toFixed(2)}</TableCell>
                         </TableRow>
                     ))}
                     </TableBody>
@@ -336,9 +336,9 @@ function ReportDisplay({ reportData, publisher, period }: { reportData: ReportDa
                         <TableRow className="bg-primary/90 text-primary-foreground hover:bg-primary/90">
                         <TableCell className="font-bold">GANANCIA DEL PERIODO</TableCell>
                         <TableCell colSpan={processed.dayColumns.length}></TableCell>
-                        <TableCell className="text-center font-extrabold text-lg">{processed.totalLeads}</TableCell>
-                        <TableCell></TableCell>
-                        <TableCell className="text-right font-extrabold text-lg">${processed.totalEarnings.toFixed(2)}</TableCell>
+                        <TableCell className="text-center font-extrabold text-lg bg-chart-1/20">{processed.totalLeads}</TableCell>
+                        <TableCell className="bg-chart-3/20"></TableCell>
+                        <TableCell className="text-right font-extrabold text-lg bg-chart-2/20">${processed.totalEarnings.toFixed(2)}</TableCell>
                         </TableRow>
                     </TableFooter>
                 </Table>
