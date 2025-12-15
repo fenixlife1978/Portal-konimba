@@ -181,12 +181,20 @@ export default function PaymentsPage() {
   };
 
   const handleExport = async () => {
-    if (!pendingPayments || pendingPayments.length === 0) return;
+    if (!pendingPayments || pendingPayments.length === 0 || !paymentPeriod) return;
     setIsExporting(true);
-    const reportTitle = `Nómina de Pagos Pendientes - ${paymentPeriod}`;
+    const formattedPeriod = paymentPeriod.replace('fortnight-1', 'quincena 1').replace('fortnight-2', 'quincena 2');
+    const reportTitle = `Nómina de Pagos Pendientes - ${formattedPeriod}`;
     const fileName = `Nomina_Pagos_${paymentPeriod}.pdf`;
     await exportToPDF('payments-table', fileName, reportTitle, settingsData?.companyName);
     setIsExporting(false);
+  };
+  
+  const formatPaymentPeriod = (period: string | null) => {
+    if (!period) return '';
+    return period
+      .replace('fortnight-1', ' - quincena 1')
+      .replace('fortnight-2', ' - quincena 2');
   };
 
   return (
@@ -257,7 +265,7 @@ export default function PaymentsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
                 <div>
-                    <CardTitle>Pagos Pendientes para el Período: {paymentPeriod}</CardTitle>
+                    <CardTitle>Pagos Pendientes para el Período: {formatPaymentPeriod(paymentPeriod)}</CardTitle>
                     <CardDescription>Lista de publishers con pagos por procesar para el período seleccionado.</CardDescription>
                 </div>
                  <Button onClick={handleExport} variant="outline" disabled={isExporting || !pendingPayments || pendingPayments.length === 0}>
