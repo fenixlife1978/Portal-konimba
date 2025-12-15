@@ -165,9 +165,9 @@ export default function AdminDashboardPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                     {menuItems.map((item) => (
-                    <Button asChild key={item.title} variant="outline" className="w-full justify-start gap-3">
+                    <Button asChild key={item.title} variant="outline" className="w-full justify-start gap-3 text-base py-6">
                         <Link href={item.href}>
-                            <div className="h-8 w-8 -ml-1.5 flex items-center justify-center">
+                            <div className="h-10 w-10 -ml-1.5 flex items-center justify-center">
                                {item.icon}
                             </div>
                             {item.title}
