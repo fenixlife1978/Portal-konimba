@@ -21,42 +21,59 @@ import banksCo from '@/lib/banks-co.json';
 const phoneCodes = ["0412", "0414", "0416", "0424", "0426"];
 const idPrefixes = ["V", "E", "J", "G", "P"];
 
-// Base schema for all methods
 const baseSchema = z.object({
   country: z.enum(['VE', 'CO', '']),
   paymentMethod: z.enum(['transferencia', 'pagoMovil', 'usdt', '']),
+  bank: z.string().optional(),
+  accountNumber: z.string().optional(),
+  mobilePaymentBank: z.string().optional(),
+  mobilePaymentPhoneCode: z.string().optional(),
+  mobilePaymentPhoneNumber: z.string().optional(),
+  mobilePaymentIdPrefix: z.string().optional(),
+  mobilePaymentIdNumber: z.string().optional(),
+  usdtPlatform: z.string().optional(),
+  usdtAddress: z.string().optional(),
 });
 
-// Conditional validation schema
 const formSchema = baseSchema.superRefine((data, ctx) => {
   if (data.paymentMethod === 'transferencia') {
-    if (!data.bank) ctx.addIssue({ code: 'custom', path: ['bank'], message: 'El banco es requerido.' });
-    if (!data.accountNumber) ctx.addIssue({ code: 'custom', path: ['accountNumber'], message: 'El número de cuenta es requerido.' });
-    else if (!/^\d{20}$/.test(data.accountNumber)) ctx.addIssue({ code: 'custom', path: ['accountNumber'], message: 'La cuenta debe tener 20 dígitos.' });
+    if (!data.bank) {
+      ctx.addIssue({ code: 'custom', path: ['bank'], message: 'El banco es requerido.' });
+    }
+    if (!data.accountNumber) {
+      ctx.addIssue({ code: 'custom', path: ['accountNumber'], message: 'El número de cuenta es requerido.' });
+    } else if (data.country === 'VE' && !/^\d{20}$/.test(data.accountNumber)) {
+      ctx.addIssue({ code: 'custom', path: ['accountNumber'], message: 'La cuenta debe tener 20 dígitos.' });
+    }
   } else if (data.paymentMethod === 'pagoMovil' && data.country === 'VE') {
-    if (!data.mobilePaymentBank) ctx.addIssue({ code: 'custom', path: ['mobilePaymentBank'], message: 'El banco es requerido.' });
-    if (!data.mobilePaymentPhoneCode) ctx.addIssue({ code: 'custom', path: ['mobilePaymentPhoneCode'], message: 'El código es requerido.' });
-    if (!data.mobilePaymentPhoneNumber) ctx.addIssue({ code: 'custom', path: ['mobilePaymentPhoneNumber'], message: 'El número es requerido.' });
-    else if (!/^\d{7}$/.test(data.mobilePaymentPhoneNumber)) ctx.addIssue({ code: 'custom', path: ['mobilePaymentPhoneNumber'], message: 'El número debe tener 7 dígitos.' });
-    if (!data.mobilePaymentIdPrefix) ctx.addIssue({ code: 'custom', path: ['mobilePaymentIdPrefix'], message: 'El prefijo es requerido.' });
-    if (!data.mobilePaymentIdNumber) ctx.addIssue({ code: 'custom', path: ['mobilePaymentIdNumber'], message: 'El número de ID es requerido.' });
+    if (!data.mobilePaymentBank) {
+      ctx.addIssue({ code: 'custom', path: ['mobilePaymentBank'], message: 'El banco es requerido.' });
+    }
+    if (!data.mobilePaymentPhoneCode) {
+      ctx.addIssue({ code: 'custom', path: ['mobilePaymentPhoneCode'], message: 'El código es requerido.' });
+    }
+    if (!data.mobilePaymentPhoneNumber) {
+      ctx.addIssue({ code: 'custom', path: ['mobilePaymentPhoneNumber'], message: 'El número es requerido.' });
+    } else if (!/^\d{7}$/.test(data.mobilePaymentPhoneNumber)) {
+      ctx.addIssue({ code: 'custom', path: ['mobilePaymentPhoneNumber'], message: 'El número debe tener 7 dígitos.' });
+    }
+    if (!data.mobilePaymentIdPrefix) {
+      ctx.addIssue({ code: 'custom', path: ['mobilePaymentIdPrefix'], message: 'El prefijo es requerido.' });
+    }
+    if (!data.mobilePaymentIdNumber) {
+      ctx.addIssue({ code: 'custom', path: ['mobilePaymentIdNumber'], message: 'El número de ID es requerido.' });
+    }
   } else if (data.paymentMethod === 'usdt') {
-    if (!data.usdtAddress) ctx.addIssue({ code: 'custom', path: ['usdtAddress'], message: 'El correo de Binance es requerido.' });
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.usdtAddress)) ctx.addIssue({ code: 'custom', path: ['usdtAddress'], message: 'Por favor, introduce un correo electrónico válido.' });
+    if (!data.usdtAddress) {
+      ctx.addIssue({ code: 'custom', path: ['usdtAddress'], message: 'El correo de Binance es requerido.' });
+    } else if (!z.string().email().safeParse(data.usdtAddress).success) {
+      ctx.addIssue({ code: 'custom', path: ['usdtAddress'], message: 'Por favor, introduce un correo electrónico válido.' });
+    }
   }
 });
 
-type FormData = z.infer<typeof formSchema> & {
-    bank: string;
-    accountNumber: string;
-    mobilePaymentBank: string;
-    mobilePaymentPhoneCode: string;
-    mobilePaymentPhoneNumber: string;
-    mobilePaymentIdPrefix: string;
-    mobilePaymentIdNumber: string;
-    usdtPlatform: string;
-    usdtAddress: string;
-};
+
+type FormData = z.infer<typeof formSchema>;
 
 type PublisherDbData = {
   country?: 'VE' | 'CO';
@@ -101,18 +118,21 @@ export default function SettingsPage() {
             usdtPlatform: publisherData.usdtPlatform || 'Binance',
             usdtAddress: publisherData.usdtAddress || '',
         };
+
         if (publisherData.mobilePaymentPhone) {
-            const code = publisherData.mobilePaymentPhone.substring(0, 4);
+            const phoneString = String(publisherData.mobilePaymentPhone);
+            const code = phoneString.substring(0, 4);
             if (phoneCodes.includes(code)) {
                 data.mobilePaymentPhoneCode = code;
-                data.mobilePaymentPhoneNumber = publisherData.mobilePaymentPhone.substring(4);
+                data.mobilePaymentPhoneNumber = phoneString.substring(4);
             }
         }
         if (publisherData.mobilePaymentId) {
-            const prefix = publisherData.mobilePaymentId.charAt(0);
+            const idString = String(publisherData.mobilePaymentId);
+            const prefix = idString.charAt(0).toUpperCase();
             if (idPrefixes.includes(prefix)) {
                 data.mobilePaymentIdPrefix = prefix;
-                data.mobilePaymentIdNumber = publisherData.mobilePaymentId.substring(1);
+                data.mobilePaymentIdNumber = idString.substring(1);
             }
         }
       reset(data);
@@ -125,7 +145,7 @@ export default function SettingsPage() {
   const handleCountryChange = (value: 'VE' | 'CO' | '') => {
       setValue('country', value);
       setValue('paymentMethod', '');
-      // Clear all payment method specific fields
+      // Clear all payment method specific fields to avoid carrying over old data
       setValue('bank', '');
       setValue('accountNumber', '');
       setValue('mobilePaymentBank', '');
@@ -144,15 +164,17 @@ export default function SettingsPage() {
         return;
     }
     
+    // Create a clean object with only the base fields
     let dataToSave: PublisherDbData = {
         country: formData.country || undefined,
         paymentMethod: formData.paymentMethod || undefined,
     };
 
+    // Conditionally add fields based on the selected payment method
     if (formData.paymentMethod === 'transferencia') {
         dataToSave.bank = formData.bank;
         dataToSave.accountNumber = formData.accountNumber;
-    } else if (formData.paymentMethod === 'pagoMovil') {
+    } else if (formData.paymentMethod === 'pagoMovil' && formData.country === 'VE') {
         dataToSave.mobilePaymentBank = formData.mobilePaymentBank;
         dataToSave.mobilePaymentPhone = `${formData.mobilePaymentPhoneCode}${formData.mobilePaymentPhoneNumber}`;
         dataToSave.mobilePaymentId = `${formData.mobilePaymentIdPrefix}${formData.mobilePaymentIdNumber}`;
@@ -177,10 +199,11 @@ export default function SettingsPage() {
   
   const onInvalid = (errors: any) => {
       console.error("Validation Errors:", errors);
-       toast({
+      const errorCount = Object.keys(errors).length;
+      toast({
         variant: 'destructive',
         title: "Formulario incompleto",
-        description: "Por favor, revisa los campos marcados en rojo.",
+        description: `Por favor, revisa ${errorCount > 1 ? 'los campos marcados' : 'el campo marcado'} en rojo.`,
       });
   }
 
@@ -202,7 +225,7 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Método de Pago</CardTitle>
             <CardDescription>
-              Selecciona tu país y método de pago, y luego completa los campos requeridos.
+              Selecciona tu país y método de pago. Luego, completa los campos requeridos para ese método.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
@@ -268,8 +291,8 @@ export default function SettingsPage() {
                     {errors.bank && <p className="text-sm text-destructive">{errors.bank.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="accountNumber">Número de Cuenta (20 dígitos) *</Label>
-                    <Controller name="accountNumber" control={control} render={({ field }) => <Input {...field} id="accountNumber" placeholder="0102..." maxLength={20} />} />
+                    <Label htmlFor="accountNumber">Número de Cuenta *</Label>
+                    <Controller name="accountNumber" control={control} render={({ field }) => <Input {...field} id="accountNumber" placeholder={watchedCountry === 'VE' ? '20 dígitos para Venezuela' : 'Número de cuenta para Colombia'} maxLength={watchedCountry === 'VE' ? 20 : undefined} />} />
                     {errors.accountNumber && <p className="text-sm text-destructive">{errors.accountNumber.message}</p>}
                   </div>
                 </div>
@@ -313,7 +336,7 @@ export default function SettingsPage() {
                         />
                         <Controller name="mobilePaymentPhoneNumber" control={control} render={({ field }) => <Input {...field} placeholder="XXXXXXX" maxLength={7} />} />
                       </div>
-                      {errors.mobilePaymentPhoneCode && <p className="text-sm text-destructive">{errors.mobilePaymentPhoneCode.message}</p>}
+                      {errors.mobilePaymentPhoneCode && !errors.mobilePaymentPhoneNumber && <p className="text-sm text-destructive">{errors.mobilePaymentPhoneCode.message}</p>}
                       {errors.mobilePaymentPhoneNumber && <p className="text-sm text-destructive">{errors.mobilePaymentPhoneNumber.message}</p>}
                   </div>
                   <div className="space-y-2 col-span-1 md:col-span-2">
@@ -333,7 +356,7 @@ export default function SettingsPage() {
                         />
                         <Controller name="mobilePaymentIdNumber" control={control} render={({ field }) => <Input {...field} placeholder="12345678" />} />
                     </div>
-                     {errors.mobilePaymentIdPrefix && <p className="text-sm text-destructive">{errors.mobilePaymentIdPrefix.message}</p>}
+                     {errors.mobilePaymentIdPrefix && !errors.mobilePaymentIdNumber && <p className="text-sm text-destructive">{errors.mobilePaymentIdPrefix.message}</p>}
                      {errors.mobilePaymentIdNumber && <p className="text-sm text-destructive">{errors.mobilePaymentIdNumber.message}</p>}
                   </div>
                 </div>
