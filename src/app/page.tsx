@@ -21,14 +21,14 @@ export default function Home() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 text-center">
       <header className="mb-12">
         <div className="inline-block mb-4 animate-in fade-in zoom-in-95 duration-500">
-          <Logo />
+          <Logo className="h-24 w-24" />
         </div>
         <div className="animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-200">
             <h1 className="text-4xl md:text-5xl font-bold font-headline text-foreground">
-              {settingsData?.companyName ? settingsData.companyName.split(' ')[0] : "Portal"}
+              Portal
             </h1>
             <h2 className="text-3xl md:text-4xl font-bold font-headline text-foreground/80">
-              {settingsData?.companyName ? settingsData.companyName.substring(settingsData.companyName.indexOf(' ') + 1) : "Konimba Group Marketing"}
+              Konimba Group Marketing
             </h2>
           </div>
         <p className="mt-2 text-lg text-muted-foreground animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-300">

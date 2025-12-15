@@ -205,7 +205,7 @@ export default function PublisherAuthPage() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
        <div className="mb-8 text-center">
         <Link href="/" className="inline-block">
-          <Logo className="h-16 w-auto" />
+          <Logo className="h-24 w-24" />
         </Link>
         <div className="mt-4">
           <h1 className="text-3xl font-bold font-headline">Portal</h1>
