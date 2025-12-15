@@ -58,7 +58,7 @@ service cloud.firestore {
      */
     match /publishers/{publisherId} {
       allow create, read, update: if isOwner(publisherId);
-      allow write: if isAdmin(); // Admins can create, update, delete
+      allow write: if isAdmin() || isOwner(publisherId);
       allow list: if isAdmin();
     }
 
