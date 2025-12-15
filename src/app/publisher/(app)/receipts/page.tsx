@@ -7,15 +7,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Loader2, Download, FileText } from 'lucide-react';
+import { ArrowLeft, Loader2, Download, FileText, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { exportToPDF } from '@/lib/export-pdf';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 type Payment = {
   id: string;
+  publisherId: string;
   paymentPeriod: string;
   amountUSD: number;
   status: 'pending' | 'paid';
@@ -23,6 +25,7 @@ type Payment = {
 };
 
 type Lead = { 
+  offerId: string;
   offerName: string;
   quantity: number; 
   date: string;
@@ -78,14 +81,28 @@ export default function ReceiptsPage() {
             </TableHeader>
             <TableBody>
               {isLoading && <TableRow><TableCell colSpan={4} className="text-center">Cargando recibos...</TableCell></TableRow>}
-              {!isLoading && paidPayments?.length === 0 && <TableRow><TableCell colSpan={4} className="text-center">No tienes pagos completados para mostrar.</TableCell></TableRow>}
-              {paidPayments?.map((payment) => (
-                <ReceiptRow key={payment.id} payment={payment} />
-              ))}
+              {!isLoading && paidPayments?.length === 0 ? (
+                 <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No se encontraron recibos.</TableCell></TableRow>
+              ) : (
+                paidPayments?.map((payment) => (
+                  <ReceiptRow key={payment.id} payment={payment} />
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+      
+      {!isLoading && paidPayments?.length === 0 && (
+        <Alert className="mt-6">
+            <Info className="h-4 w-4" />
+            <AlertTitle>No hay recibos para mostrar</AlertTitle>
+            <AlertDescription>
+                Aún no has recibido ningún pago. Una vez que se complete un pago, tu recibo aparecerá aquí.
+            </AlertDescription>
+        </Alert>
+      )}
+
     </div>
   );
 }
@@ -130,43 +147,50 @@ function ReceiptDetailsDialog({ payment }: { payment: Payment }) {
 
 
     useEffect(() => {
-        if (!firestore) return;
+        if (!firestore || !user) return;
         
         const fetchDetails = async () => {
             setIsLoading(true);
-            const [year, month, period] = payment.paymentPeriod.split('-');
-            let startDay = 1, endDay = 15;
-            if (period === 'fortnight-2') {
-                startDay = 16;
-                endDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-            }
-            const startDate = `${year}-${month.padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
-            const endDate = `${year}-${month.padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
-            
-            const leadsQuery = query(
-                collection(firestore, 'leads'),
-                where('publisherId', '==', payment.publisherId),
-                where('date', '>=', startDate),
-                where('date', '<=', endDate)
-            );
-            const leadsSnapshot = await getDocs(leadsQuery);
-            const leads = leadsSnapshot.docs.map(doc => doc.data() as Lead);
+            try {
+                const [year, month, periodType] = payment.paymentPeriod.split('-');
+                const period = periodType === 'fortnight' ? `${periodType}-${payment.paymentPeriod.split('-')[2]}` : periodType;
 
-            const offerIds = [...new Set(leads.map(lead => lead.offerId))];
-            const offers = new Map<string, Offer>();
-            if(offerIds.length > 0) {
-                const offersQuery = query(collection(firestore, 'offers'), where('__name__', 'in', offerIds));
-                const offersSnapshot = await getDocs(offersQuery);
-                offersSnapshot.forEach(doc => offers.set(doc.id, { id: doc.id, ...doc.data() } as Offer));
+                let startDay = 1, endDay = 15;
+                if (period === 'fortnight-2') {
+                    startDay = 16;
+                    endDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+                }
+                const startDate = `${year}-${month.padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
+                const endDate = `${year}-${month.padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+                
+                const leadsQuery = query(
+                    collection(firestore, 'leads'),
+                    where('publisherId', '==', user.uid),
+                    where('date', '>=', startDate),
+                    where('date', '<=', endDate)
+                );
+                const leadsSnapshot = await getDocs(leadsQuery);
+                const leads = leadsSnapshot.docs.map(doc => doc.data() as Lead);
+
+                const offerIds = [...new Set(leads.map(lead => lead.offerId))];
+                const offers = new Map<string, Offer>();
+                if(offerIds.length > 0) {
+                    const offersQuery = query(collection(firestore, 'offers'), where('__name__', 'in', offerIds));
+                    const offersSnapshot = await getDocs(offersQuery);
+                    offersSnapshot.forEach(doc => offers.set(doc.id, { id: doc.id, ...doc.data() } as Offer));
+                }
+                
+                setDetails({ leads, offers });
+            } catch (error) {
+                console.error("Error fetching receipt details: ", error);
+            } finally {
+                setIsLoading(false);
             }
-            
-            setDetails({ leads, offers });
-            setIsLoading(false);
         };
 
         fetchDetails();
 
-    }, [firestore, payment]);
+    }, [firestore, user, payment.paymentPeriod, payment.publisherId]);
 
     const handleExport = async () => {
         if (!details || !publisherData) return;
