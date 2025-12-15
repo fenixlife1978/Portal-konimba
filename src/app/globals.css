@@ -8,77 +8,77 @@ body {
 
 @layer base {
   :root {
-    --background: 48 33% 95%; /* Off-white/Cream */
-    --foreground: 0 0% 13%; /* Near-black for text */
+    --background: 210 40% 98%; /* Light Sky Blue */
+    --foreground: 222.2 84% 4.9%;
     
-    --card: 48 40% 98%; /* Slightly lighter cream for cards */
-    --card-foreground: 0 0% 13%;
+    --card: 210 40% 100%; /* White cards */
+    --card-foreground: 222.2 84% 4.9%;
     
-    --popover: 48 33% 95%;
-    --popover-foreground: 0 0% 13%;
+    --popover: 210 40% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
     
-    --primary: 158 100% 22%; /* Starbucks Green */
-    --primary-foreground: 0 0% 98%;
+    --primary: 215 70% 30%; /* Mercantil Blue */
+    --primary-foreground: 210 40% 98%;
     
-    --secondary: 158 30% 90%; /* Light green for secondary elements */
-    --secondary-foreground: 158 100% 15%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
     
-    --muted: 158 20% 93%;
-    --muted-foreground: 0 0% 40%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
     
-    --accent: 158 80% 30%; /* Lighter green for hover/accent */
-    --accent-foreground: 0 0% 98%;
+    --accent: 25 90% 50%; /* Orange Accent */
+    --accent-foreground: 210 40% 98%;
     
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive-foreground: 210 40% 98%;
     
-    --border: 158 20% 80%;
-    --input: 158 25% 96%;
-    --ring: 158 100% 22%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 215 70% 30%;
     
     --radius: 0.5rem;
 
-    --chart-1: 158 100% 22%; /* Starbucks Green */
-    --chart-2: 158 80% 30%;  /* Lighter Green */
-    --chart-3: 30 5% 50%;   /* Muted Gray-Brown */
-    --chart-4: 0 0% 40%;     /* Dark Gray */
-    --chart-5: 0 0% 20%;     /* Near Black */
+    --chart-1: 215 70% 30%;
+    --chart-2: 25 90% 50%;
+    --chart-3: 25 80% 60%;
+    --chart-4: 215 50% 50%;
+    --chart-5: 25 70% 40%;
   }
   
   .dark {
-    --background: 0 0% 8%;
-    --foreground: 0 0% 98%;
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
     
-    --card: 0 0% 12%;
-    --card-foreground: 0 0% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
     
-    --popover: 0 0% 8%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
     
-    --primary: 158 80% 30%; /* Lighter Starbucks Green for dark mode */
-    --primary-foreground: 0 0% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
     
-    --secondary: 0 0% 15%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
     
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 63%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
     
-    --accent: 158 60% 40%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 25 90% 50%;
+    --accent-foreground: 210 40% 98%;
     
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive-foreground: 210 40% 98%;
     
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-    --ring: 158 80% 30%;
-
-    --chart-1: 158 80% 30%;
-    --chart-2: 158 60% 40%;
-    --chart-3: 30 5% 70%;
-    --chart-4: 0 0% 60%;
-    --chart-5: 0 0% 80%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 215 70% 30%;
+    
+    --chart-1: 215 70% 40%;
+    --chart-2: 25 90% 60%;
+    --chart-3: 25 80% 70%;
+    --chart-4: 215 50% 60%;
+    --chart-5: 25 70% 50%;
   }
 }
 
