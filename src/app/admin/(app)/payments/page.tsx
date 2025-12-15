@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useDoc, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, writeBatch, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -70,13 +70,13 @@ const months = [
 
 export default function PaymentsPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
 
   const [isCalculating, setIsCalculating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [paymentPeriod, setPaymentPeriod] = useState<string | null>(null);
-  const [paymentTotals, setPaymentTotals] = useState<PaymentTotals | null>(null);
   
   const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
@@ -88,7 +88,7 @@ export default function PaymentsPage() {
   
   const { data: pendingPayments, isLoading: isLoadingPayments, error: paymentsError } = useCollection<Payment>(paymentsQuery);
   
-  const publishersRef = useMemoFirebase(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
+  const publishersRef = useMemoFirebase(() => (firestore && user) ? collection(firestore, 'publishers') : null, [firestore, user]);
   const { data: publishersData } = useCollection<Publisher>(publishersRef);
 
   const { control, handleSubmit, watch, formState: { errors } } = useForm<PaymentFormData>({
@@ -296,8 +296,8 @@ export default function PaymentsPage() {
     const parts = period.split('-');
     const year = parts[0];
     const month = months.find(m => m.value === parts[1])?.label;
-    const fortnight = parts[2].replace('fortnight-1', '1ra Quincena').replace('fortnight-2', '2da Quincena');
-    return `${month} ${year} - ${fortnight}`;
+    const fortnight = period.endsWith('fortnight-1') ? 'quincena 1' : 'quincena 2';
+    return `${year}-${month} - ${fortnight}`;
   };
 
   const watchedValues = watch();
