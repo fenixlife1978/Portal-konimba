@@ -205,9 +205,9 @@ export default function PublisherAuthPage() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
        <div className="mb-8 text-center">
         <Link href="/" className="inline-block">
-          <Logo />
+          <Logo className="h-12 w-auto" />
         </Link>
-        <h1 className="text-3xl font-bold font-headline mt-4">{settingsData?.companyName || "Siren's Portal"}</h1>
+        <h1 className="text-3xl font-bold font-headline mt-4">{settingsData?.companyName || "Portal Konimba"}</h1>
         <p className="text-muted-foreground">Acceso de Publisher</p>
       </div>
       <Tabs defaultValue="login" className="w-full max-w-sm">

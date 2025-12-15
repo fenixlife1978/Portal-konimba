@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-export const exportToPDF = async (elementId: string, fileName: string, reportTitle: string, companyName: string = "Siren's Portal") => {
+export const exportToPDF = async (elementId: string, fileName: string, reportTitle: string, companyName: string = "Portal Konimba") => {
   const input = document.getElementById(elementId);
   if (!input) {
     console.error(`Element with id ${elementId} not found.`);
@@ -15,42 +15,31 @@ export const exportToPDF = async (elementId: string, fileName: string, reportTit
   const margin = 15;
 
   // --- Add Header ---
-  // Create a canvas for the logo
-  const logoCanvas = document.createElement('canvas');
-  logoCanvas.width = 64;
-  logoCanvas.height = 64;
-  const ctx = logoCanvas.getContext('2d');
-  
-  if (ctx) {
-    const logoSvg = `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="32" cy="32" r="30" fill="hsl(215 70% 30%)" />
-        <path
-          d="M32 17.5L35.5 28.5L46.5 32L35.5 35.5L32 46.5L28.5 35.5L17.5 32L28.5 28.5L32 17.5Z"
-          fill="hsl(210 40% 98%)"
-        />
-      </svg>`;
-    const logoImg = new Image();
-    logoImg.src = 'data:image/svg+xml;base64,' + btoa(logoSvg);
-    
-    await new Promise(resolve => {
-        logoImg.onload = () => {
-            ctx.drawImage(logoImg, 0, 0);
-            const logoDataUrl = logoCanvas.toDataURL('image/png');
-            pdf.addImage(logoDataUrl, 'PNG', margin, margin, 12, 12);
-            resolve(null);
-        };
+  // Since we cannot load external images easily, we'll use text or a placeholder
+  const logoUrl = '/logo.png'; // Assuming the logo is in the public folder
+
+  try {
+    const response = await fetch(logoUrl);
+    const blob = await response.blob();
+    const reader = new FileReader();
+    await new Promise((resolve, reject) => {
+      reader.onload = resolve;
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
     });
+    const logoDataUrl = reader.result as string;
+    pdf.addImage(logoDataUrl, 'PNG', margin, margin, 30, 10); // Adjust size as needed
+  } catch (error) {
+    console.error("Could not load logo for PDF, using text fallback.", error);
+    pdf.setFontSize(18);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(companyName, margin, margin + 8);
   }
   
   // Title
-  pdf.setFontSize(18);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(companyName, margin + 15, margin + 8);
-
-  // Report Title
   pdf.setFontSize(12);
   pdf.setFont('helvetica', 'normal');
-  pdf.text(reportTitle, margin + 15, margin + 14);
+  pdf.text(reportTitle, margin, margin + 18);
 
   // Date
   pdf.setFontSize(10);
@@ -60,7 +49,7 @@ export const exportToPDF = async (elementId: string, fileName: string, reportTit
 
   // Line separator
   pdf.setDrawColor(221, 221, 221); // A light grey
-  pdf.line(margin, margin + 20, pdfWidth - margin, margin + 20);
+  pdf.line(margin, margin + 25, pdfWidth - margin, margin + 25);
 
   // --- Add Content ---
   // Use html2canvas to render the element
@@ -77,7 +66,7 @@ export const exportToPDF = async (elementId: string, fileName: string, reportTit
 
   let contentHeight = imgHeight;
   let heightLeft = contentHeight;
-  let position = margin + 25; // Initial y position after header
+  let position = margin + 30; // Initial y position after header
 
   // Add the first page
   pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);

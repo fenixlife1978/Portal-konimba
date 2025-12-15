@@ -24,7 +24,7 @@ export default function Home() {
           <Logo />
         </div>
         <h1 className="text-4xl md:text-5xl font-bold font-headline text-foreground animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-200">
-          {settingsData?.companyName || "Siren's Portal"}
+          {settingsData?.companyName || "Portal Konimba"}
         </h1>
         <p className="mt-2 text-lg text-muted-foreground animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-300">
           Bienvenido al portal para administradores y publishers.
@@ -47,7 +47,7 @@ export default function Home() {
       </main>
 
       <footer className="mt-12 text-sm text-muted-foreground animate-in fade-in-0 duration-500 delay-500">
-        <p>&copy; {new Date().getFullYear()} {settingsData?.companyName || "Siren's Portal"}. Todos los derechos reservados.</p>
+        <p>&copy; {new Date().getFullYear()} {settingsData?.companyName || "Portal Konimba"}. Todos los derechos reservados.</p>
       </footer>
     </div>
   );
