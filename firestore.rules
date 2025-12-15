@@ -117,12 +117,14 @@ service cloud.firestore {
     }
     
     /**
-     * @description Manages global company settings. Only admins have access.
+     * @description Manages global company settings. Publicly readable, admin writable.
      * @path /settings/{settingId}
      */
     match /settings/{settingId} {
-      // Admins have full read and write access.
-      allow read, write: if isAdmin();
+      // Anyone can read the company settings (like company name).
+      allow read: if true;
+      // Only admins can write/update the settings.
+      allow write: if isAdmin();
     }
 
     /**
