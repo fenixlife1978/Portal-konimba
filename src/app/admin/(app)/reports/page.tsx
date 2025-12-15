@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox } from '@/components/ui/combobox';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, FileText, Calendar as CalendarIcon } from 'lucide-react';
+import { ArrowLeft, FileText, Calendar as CalendarIcon, Download, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -28,6 +28,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { exportToPDF } from '@/lib/export-pdf';
 
 // Types
 type Publisher = { id: string; firstName: string; lastName: string; email: string; };
@@ -144,7 +145,7 @@ export default function ReportsPage() {
 // #################################################################################
 // ## SHARED: Report Display Component
 // #################################################################################
-function ReportDisplay({ reportData, publisher, period, showExchangeRate = false }: { reportData: ReportData, publisher: Publisher, period: string, showExchangeRate?: boolean}) {
+function ReportDisplay({ reportData, publisher, period, showExchangeRate = false, tableId }: { reportData: ReportData, publisher: Publisher, period: string, showExchangeRate?: boolean, tableId: string}) {
     const [exchangeRate, setExchangeRate] = useState<number>(0);
     
     const processReport = () => {
@@ -191,7 +192,7 @@ function ReportDisplay({ reportData, publisher, period, showExchangeRate = false
     const totalInLocalCurrency = processed.totalEarnings * exchangeRate;
 
     return (
-        <Card className="mt-8 border-t pt-4">
+        <Card className="mt-8 border-t pt-4" id={tableId}>
             <CardHeader>
                 <CardTitle>Reporte para {publisher.firstName} {publisher.lastName}</CardTitle>
                 <CardDescription>Período: {period}</CardDescription>
@@ -271,6 +272,7 @@ function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publ
 
     const [reportData, setReportData] = useState<ReportData | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     
     const publisherId = watch('publisherId');
     const selectedPublisher = publishers?.find(p => p.id === publisherId);
@@ -279,6 +281,15 @@ function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publ
         value: p.id,
         label: `${p.firstName} ${p.lastName} (${p.email})`,
     })) || [];
+
+    const handleExport = async () => {
+        if (!reportData || !selectedPublisher) return;
+        setIsExporting(true);
+        const reportTitle = `Reporte de Publisher - ${selectedPublisher.firstName} ${selectedPublisher.lastName}`;
+        const fileName = `Reporte_Publisher_${selectedPublisher.lastName}_${reportData.periodLabel.replace(' ','_')}.pdf`;
+        await exportToPDF('publisher-report-table', fileName, reportTitle);
+        setIsExporting(false);
+    };
 
     const onSubmit = async (data: ReportFormData) => {
         if (!firestore || !selectedPublisher) return;
@@ -375,15 +386,21 @@ function PublisherReport({ publishers, isLoadingPublishers }: { publishers: Publ
                     {errors.year && <p className="text-sm text-destructive">{errors.year.message}</p>}
                 </div>
                 </div>
-                <Button type="submit" disabled={isGenerating}>
-                <FileText className="mr-2 h-4 w-4" />
-                {isGenerating ? 'Generando...' : 'Generar Reporte'}
-                </Button>
+                <div className="flex gap-2">
+                    <Button type="submit" disabled={isGenerating}>
+                        {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                        {isGenerating ? 'Generando...' : 'Generar Reporte'}
+                    </Button>
+                     <Button type="button" variant="outline" onClick={handleExport} disabled={!reportData || isExporting}>
+                        {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Exportar a PDF
+                    </Button>
+                </div>
             </form>
             </CardContent>
 
              {reportData && selectedPublisher && (
-                <ReportDisplay reportData={reportData} publisher={selectedPublisher} period={reportData.periodLabel} showExchangeRate={true} />
+                <ReportDisplay tableId="publisher-report-table" reportData={reportData} publisher={selectedPublisher} period={reportData.periodLabel} showExchangeRate={true} />
             )}
         </Card>
     );
@@ -447,10 +464,21 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
 
     const [reportData, setReportData] = useState<GeneralReportResult | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     const watchedPeriod = watch('period');
     const watchedMonth = watch('month');
     const watchedYear = watch('year');
+    
+    const handleExport = async () => {
+        if (!reportData) return;
+        setIsExporting(true);
+        const periodLabel = reportData.publisherReports[0]?.reportData.periodLabel || "General";
+        const reportTitle = `Reporte General de Pagos`;
+        const fileName = `Reporte_General_Pagos_${periodLabel.replace(' ','_')}.pdf`;
+        await exportToPDF('general-payment-report-table', fileName, reportTitle);
+        setIsExporting(false);
+    };
 
     const onSubmit = async (data: GeneralReportFormData) => {
         if (!firestore) return;
@@ -592,10 +620,16 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
                             {errors.year && <p className="text-sm text-destructive">{errors.year.message}</p>}
                         </div>
                     </div>
-                    <Button type="submit" disabled={isGenerating}>
-                        <FileText className="mr-2 h-4 w-4" />
-                        {isGenerating ? 'Generando...' : 'Generar Reporte'}
-                    </Button>
+                     <div className="flex gap-2">
+                        <Button type="submit" disabled={isGenerating}>
+                             {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                            {isGenerating ? 'Generando...' : 'Generar Reporte'}
+                        </Button>
+                        <Button type="button" variant="outline" onClick={handleExport} disabled={!reportData || isExporting}>
+                            {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                            Exportar a PDF
+                        </Button>
+                    </div>
                 </form>
 
                  <SelectionModal
@@ -630,55 +664,57 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
             </CardContent>
 
             {reportData && (
-                <CardContent className="mt-6 space-y-8">
-                     {reportData.publisherReports.length === 0 ? (
-                        <p className="text-center text-muted-foreground">No hay datos para este período.</p>
-                     ) : (
-                        <>
-                        {reportData.publisherReports.map(({ publisherInfo, reportData }, index) => (
-                           <ReportDisplay key={publisherInfo.id} publisher={publisherInfo} reportData={reportData} period={reportData.periodLabel} />
-                        ))}
-                        
-                        <Separator className="my-8" />
-                        
-                        <Card className="bg-muted/50">
-                             <CardHeader>
-                                <CardTitle>Resumen General de la Nómina</CardTitle>
-                                <CardDescription>Totales para el período seleccionado: {reportData.publisherReports[0].reportData.periodLabel}</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                 <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Oferta</TableHead>
-                                            <TableHead className="text-right">Total Leads Generados</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {Array.from(reportData.totalLeadsByOffer.entries()).map(([offerId, data]) => (
-                                            <TableRow key={offerId}>
-                                                <TableCell className="font-medium">{data.offerName}</TableCell>
-                                                <TableCell className="text-right">{data.totalLeads}</TableCell>
+                <div id="general-payment-report-table">
+                    <CardContent className="mt-6 space-y-8">
+                        {reportData.publisherReports.length === 0 ? (
+                            <p className="text-center text-muted-foreground">No hay datos para este período.</p>
+                        ) : (
+                            <>
+                            {reportData.publisherReports.map(({ publisherInfo, reportData }, index) => (
+                            <ReportDisplay key={publisherInfo.id} tableId={`general-report-sub-table-${index}`} publisher={publisherInfo} reportData={reportData} period={reportData.periodLabel} />
+                            ))}
+                            
+                            <Separator className="my-8" />
+                            
+                            <Card className="bg-muted/50">
+                                <CardHeader>
+                                    <CardTitle>Resumen General de la Nómina</CardTitle>
+                                    <CardDescription>Totales para el período seleccionado: {reportData.publisherReports[0].reportData.periodLabel}</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Oferta</TableHead>
+                                                <TableHead className="text-right">Total Leads Generados</TableHead>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                    <TableFooter>
-                                        <TableRow className="bg-primary/90 text-primary-foreground hover:bg-primary/90">
-                                            <TableCell className="font-bold">TOTAL LEADS</TableCell>
-                                            <TableCell className="text-right font-extrabold text-lg">{reportData.grandTotalLeads}</TableCell>
-                                        </TableRow>
-                                    </TableFooter>
-                                 </Table>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {Array.from(reportData.totalLeadsByOffer.entries()).map(([offerId, data]) => (
+                                                <TableRow key={offerId}>
+                                                    <TableCell className="font-medium">{data.offerName}</TableCell>
+                                                    <TableCell className="text-right">{data.totalLeads}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                        <TableFooter>
+                                            <TableRow className="bg-primary/90 text-primary-foreground hover:bg-primary/90">
+                                                <TableCell className="font-bold">TOTAL LEADS</TableCell>
+                                                <TableCell className="text-right font-extrabold text-lg">{reportData.grandTotalLeads}</TableCell>
+                                            </TableRow>
+                                        </TableFooter>
+                                    </Table>
 
-                                 <div className="mt-6 p-4 bg-primary/90 text-primary-foreground rounded-lg flex items-center justify-between">
-                                    <span className="text-lg font-bold">TOTAL NÓMINA (USD)</span>
-                                    <span className="text-2xl font-extrabold">${reportData.grandTotalEarnings.toFixed(2)}</span>
-                                 </div>
-                            </CardContent>
-                        </Card>
-                        </>
-                     )}
-                </CardContent>
+                                    <div className="mt-6 p-4 bg-primary/90 text-primary-foreground rounded-lg flex items-center justify-between">
+                                        <span className="text-lg font-bold">TOTAL NÓMINA (USD)</span>
+                                        <span className="text-2xl font-extrabold">${reportData.grandTotalEarnings.toFixed(2)}</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            </>
+                        )}
+                    </CardContent>
+                </div>
             )}
         </Card>
     );
@@ -692,11 +728,12 @@ function GeneralPaymentReport({ publishers }: { publishers: Publisher[] }) {
 function InactivityReport({ publishers }: { publishers: Publisher[] }) {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const { control, handleSubmit, formState: { errors } } = useForm<InactivityReportFormData>({
+    const { control, handleSubmit, formState: { errors }, watch } = useForm<InactivityReportFormData>({
         resolver: zodResolver(inactivityReportSchema),
     });
     const [reportData, setReportData] = useState<InactivePublisher[] | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     const periodOptions = [
         { value: '1', label: '1 Mes' },
@@ -704,6 +741,18 @@ function InactivityReport({ publishers }: { publishers: Publisher[] }) {
         { value: '3-6', label: '3 a 6 Meses' },
         { value: '6+', label: 'Más de 6 Meses' },
     ];
+    
+    const watchedPeriod = watch('period');
+    
+    const handleExport = async () => {
+        if (!reportData) return;
+        setIsExporting(true);
+        const periodLabel = periodOptions.find(p => p.value === watchedPeriod)?.label || "Inactividad";
+        const reportTitle = `Reporte de Inactividad de Publishers`;
+        const fileName = `Reporte_Inactividad_${periodLabel.replace(' ','_')}.pdf`;
+        await exportToPDF('inactivity-report-table', fileName, reportTitle);
+        setIsExporting(false);
+    };
 
     const onSubmit = async (data: InactivityReportFormData) => {
         if (!firestore || publishers.length === 0) return;
@@ -789,15 +838,21 @@ function InactivityReport({ publishers }: { publishers: Publisher[] }) {
                             {errors.period && <p className="text-sm text-destructive">{errors.period.message}</p>}
                         </div>
                     </div>
-                    <Button type="submit" disabled={isGenerating}>
-                        <FileText className="mr-2 h-4 w-4" />
-                        {isGenerating ? 'Generando...' : 'Generar Reporte'}
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button type="submit" disabled={isGenerating}>
+                            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                            {isGenerating ? 'Generando...' : 'Generar Reporte'}
+                        </Button>
+                        <Button type="button" variant="outline" onClick={handleExport} disabled={!reportData || isExporting}>
+                           {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                           Exportar a PDF
+                        </Button>
+                    </div>
                 </form>
             </CardContent>
 
              {reportData && (
-                <CardContent className="mt-6">
+                <CardContent className="mt-6" id="inactivity-report-table">
                     <Table>
                         <TableHeader>
                             <TableRow>
