@@ -37,17 +37,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState<PublisherData>({
-    country: '',
-    paymentMethod: '',
-    bank: '',
-    accountNumber: '',
-    mobilePaymentBank: '',
-    mobilePaymentPhone: '',
-    mobilePaymentId: '',
-    usdtPlatform: '',
-    usdtAddress: '',
-  });
+  const [formData, setFormData] = useState<PublisherData>({});
   const [errors, setErrors] = useState<FormErrors>({});
 
   const publisherRef = useMemoFirebase(() => {
@@ -59,12 +49,13 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (publisherData) {
-      setFormData(prev => ({ ...prev, ...publisherData }));
+      setFormData(publisherData);
     }
   }, [publisherData]);
   
   const handleInputChange = (field: keyof PublisherData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error for the field being edited
     if (errors[field]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -74,28 +65,29 @@ export default function SettingsPage() {
     }
   };
 
-  const validateForm = (): boolean => {
+  const validateForm = () => {
     const newErrors: FormErrors = {};
     const { paymentMethod, country } = formData;
 
-    if (!paymentMethod) {
-      newErrors.paymentMethod = "Debes seleccionar un método de pago.";
-    }
     if (!country) {
       newErrors.country = "Debes seleccionar un país.";
     }
 
-    if (paymentMethod === 'transferencia') {
-      if (!formData.bank) newErrors.bank = "El banco es requerido.";
-      if (!formData.accountNumber) newErrors.accountNumber = "El número de cuenta es requerido.";
-    } else if (paymentMethod === 'pagoMovil') {
-      if (country !== 'VE') newErrors.country = "Pago Móvil solo está disponible para Venezuela.";
-      if (!formData.mobilePaymentBank) newErrors.mobilePaymentBank = "El banco es requerido.";
-      if (!formData.mobilePaymentPhone) newErrors.mobilePaymentPhone = "El teléfono es requerido.";
-      if (!formData.mobilePaymentId) newErrors.mobilePaymentId = "La cédula/RIF es requerida.";
-    } else if (paymentMethod === 'usdt') {
-      if (!formData.usdtPlatform) newErrors.usdtPlatform = "La plataforma es requerida.";
-      if (!formData.usdtAddress) newErrors.usdtAddress = "La dirección o ID es requerida.";
+    if (!paymentMethod) {
+      newErrors.paymentMethod = "Debes seleccionar un método de pago.";
+    } else {
+        if (paymentMethod === 'transferencia') {
+            if (!formData.bank) newErrors.bank = "El banco es requerido.";
+            if (!formData.accountNumber) newErrors.accountNumber = "El número de cuenta es requerido.";
+        } else if (paymentMethod === 'pagoMovil') {
+            if (country !== 'VE') newErrors.country = "Pago Móvil solo está disponible para Venezuela.";
+            if (!formData.mobilePaymentBank) newErrors.mobilePaymentBank = "El banco es requerido.";
+            if (!formData.mobilePaymentPhone) newErrors.mobilePaymentPhone = "El teléfono es requerido.";
+            if (!formData.mobilePaymentId) newErrors.mobilePaymentId = "La cédula/RIF es requerida.";
+        } else if (paymentMethod === 'usdt') {
+            if (!formData.usdtPlatform) newErrors.usdtPlatform = "La plataforma es requerida.";
+            if (!formData.usdtAddress) newErrors.usdtAddress = "La dirección o ID es requerida.";
+        }
     }
     
     setErrors(newErrors);
@@ -104,44 +96,27 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     if (!validateForm()) {
-      toast({
-        variant: 'destructive',
-        title: "Formulario incompleto",
-        description: "Por favor, corrige los errores antes de guardar.",
-      });
-      return;
+        toast({
+            variant: 'destructive',
+            title: "Formulario incompleto",
+            description: "Por favor, corrige los errores antes de guardar.",
+        });
+        return;
     }
     
     if (!publisherRef) return;
     setIsSaving(true);
 
     try {
-      const dataToSave: any = {
-        country: formData.country,
-        paymentMethod: formData.paymentMethod,
-        updatedAt: serverTimestamp()
-      };
+        await setDoc(publisherRef, {
+            ...formData, // Save all fields from the form state
+            updatedAt: serverTimestamp()
+        }, { merge: true });
 
-      if (formData.paymentMethod === 'transferencia') {
-        dataToSave.bank = formData.bank;
-        dataToSave.accountNumber = formData.accountNumber;
-      }
-      if (formData.paymentMethod === 'pagoMovil') {
-        dataToSave.mobilePaymentBank = formData.mobilePaymentBank;
-        dataToSave.mobilePaymentPhone = formData.mobilePaymentPhone;
-        dataToSave.mobilePaymentId = formData.mobilePaymentId;
-      }
-      if (formData.paymentMethod === 'usdt') {
-        dataToSave.usdtPlatform = formData.usdtPlatform;
-        dataToSave.usdtAddress = formData.usdtAddress;
-      }
-
-      await setDoc(publisherRef, dataToSave, { merge: true });
-      toast({
-        title: "Configuración guardada",
-        description: "Tus datos de pago se han actualizado correctamente.",
-      });
-
+        toast({
+            title: "Configuración guardada",
+            description: "Tus datos de pago se han actualizado correctamente.",
+        });
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -152,7 +127,7 @@ export default function SettingsPage() {
       setIsSaving(false);
     }
   };
-
+  
   const currentCountry = formData.country;
   const paymentMethod = formData.paymentMethod;
 
@@ -177,11 +152,11 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
-          {/* --- SELECCIÓN PRINCIPAL --- */}
+          {/* --- MAIN SELECTION --- */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-muted/30">
             <div className="space-y-2">
               <Label htmlFor="country">País de Residencia *</Label>
-              <Select onValueChange={(value: 'VE' | 'CO' | '' ) => handleInputChange('country', value)} value={formData.country}>
+              <Select onValueChange={(value: 'VE' | 'CO' | '' ) => handleInputChange('country', value)} value={formData.country || ''}>
                 <SelectTrigger id="country"><SelectValue placeholder="Selecciona tu país" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="VE">Venezuela</SelectItem>
@@ -192,7 +167,7 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="paymentMethod">Método de Pago Principal *</Label>
-              <Select onValueChange={(value: 'transferencia' | 'pagoMovil' | 'usdt' | '') => handleInputChange('paymentMethod', value)} value={formData.paymentMethod} disabled={!currentCountry}>
+              <Select onValueChange={(value: 'transferencia' | 'pagoMovil' | 'usdt' | '') => handleInputChange('paymentMethod', value)} value={formData.paymentMethod || ''} disabled={!currentCountry}>
                 <SelectTrigger id="paymentMethod"><SelectValue placeholder="Selecciona un método" /></SelectTrigger>
                 <SelectContent>
                   {currentCountry === 'VE' && <SelectItem value="pagoMovil">Pago Móvil</SelectItem>}
@@ -206,7 +181,7 @@ export default function SettingsPage() {
 
           {paymentMethod && <Separator />}
 
-          {/* --- SECCIÓN TRANSFERENCIA BANCARIA --- */}
+          {/* --- BANK TRANSFER SECTION --- */}
           {paymentMethod === 'transferencia' && (
             <div className='space-y-4 animate-in fade-in-0 duration-300'>
               <h3 className="font-semibold text-lg text-foreground">Detalles de Transferencia Bancaria</h3>
@@ -224,14 +199,14 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="accountNumber">Número de Cuenta *</Label>
-                  <Input id="accountNumber" value={formData.accountNumber} onChange={(e) => handleInputChange('accountNumber', e.target.value)} placeholder="0102..." />
+                  <Input id="accountNumber" value={formData.accountNumber || ''} onChange={(e) => handleInputChange('accountNumber', e.target.value)} placeholder="0102..." />
                   {errors.accountNumber && <p className="text-sm text-destructive">{errors.accountNumber}</p>}
                 </div>
               </div>
             </div>
           )}
 
-          {/* --- SECCIÓN PAGO MÓVIL --- */}
+          {/* --- MOBILE PAYMENT SECTION --- */}
           {paymentMethod === 'pagoMovil' && currentCountry === 'VE' && (
             <div className='space-y-4 animate-in fade-in-0 duration-300'>
               <h3 className="font-semibold text-lg text-foreground">Detalles de Pago Móvil (Solo Venezuela)</h3>
@@ -248,19 +223,19 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="mobilePaymentPhone">Número de Teléfono *</Label>
-                  <Input id="mobilePaymentPhone" value={formData.mobilePaymentPhone} onChange={(e) => handleInputChange('mobilePaymentPhone', e.target.value)} placeholder="04XX-XXXXXXX" />
+                  <Input id="mobilePaymentPhone" value={formData.mobilePaymentPhone || ''} onChange={(e) => handleInputChange('mobilePaymentPhone', e.target.value)} placeholder="04XX-XXXXXXX" />
                   {errors.mobilePaymentPhone && <p className="text-sm text-destructive">{errors.mobilePaymentPhone}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="mobilePaymentId">Cédula o RIF *</Label>
-                  <Input id="mobilePaymentId" value={formData.mobilePaymentId} onChange={(e) => handleInputChange('mobilePaymentId', e.target.value)} placeholder="V-12345678" />
+                  <Input id="mobilePaymentId" value={formData.mobilePaymentId || ''} onChange={(e) => handleInputChange('mobilePaymentId', e.target.value)} placeholder="V-12345678" />
                   {errors.mobilePaymentId && <p className="text-sm text-destructive">{errors.mobilePaymentId}</p>}
                 </div>
               </div>
             </div>
           )}
 
-          {/* --- SECCIÓN USDT --- */}
+          {/* --- USDT SECTION --- */}
           {paymentMethod === 'usdt' && (
             <div className='space-y-4 animate-in fade-in-0 duration-300'>
               <h3 className="font-semibold text-lg text-foreground">Detalles de USDT</h3>
@@ -278,7 +253,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="usdtAddress">Dirección USDT (o ID de Pago) *</Label>
-                  <Input id="usdtAddress" value={formData.usdtAddress} onChange={(e) => handleInputChange('usdtAddress', e.target.value)} placeholder="Tu dirección o ID de pago" />
+                  <Input id="usdtAddress" value={formData.usdtAddress || ''} onChange={(e) => handleInputChange('usdtAddress', e.target.value)} placeholder="Tu dirección o ID de pago" />
                   {errors.usdtAddress && <p className="text-sm text-destructive">{errors.usdtAddress}</p>}
                 </div>
               </div>
