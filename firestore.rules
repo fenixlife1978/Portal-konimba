@@ -118,10 +118,10 @@ service cloud.firestore {
      */
     match /payments/{paymentId} {
       allow write: if isAdmin();
-      // Admins can read any payment
-      allow read: if isAdmin();
       // A publisher can only read a payment document if it belongs to them and its status is 'paid'.
-      allow read: if isSignedIn() && isOwner(resource.data.publisherId) && resource.data.status == 'paid';
+      allow read: if isAdmin() || (isSignedIn() && isOwner(resource.data.publisherId) && resource.data.status == 'paid');
+      // Publishers can list their own payments.
+      allow list: if isAdmin() || (isSignedIn() && request.query.where[0][2] == request.auth.uid);
     }
   }
 }
