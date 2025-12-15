@@ -5,16 +5,27 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, writeBatch, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, Calculator, Check, Download, FileText } from 'lucide-react';
+import { ArrowLeft, Loader2, Calculator, Check, Download, FileText, Trash2, FolderDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { exportToPDF } from '@/lib/export-pdf';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 // Types
 type Offer = { id: string; name: string; paymentAmount: number };
@@ -55,6 +66,7 @@ export default function PaymentsPage() {
   const { toast } = useToast();
 
   const [isCalculating, setIsCalculating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [paymentPeriod, setPaymentPeriod] = useState<string | null>(null);
   
@@ -68,7 +80,7 @@ export default function PaymentsPage() {
   
   const { data: pendingPayments, isLoading: isLoadingPayments, error: paymentsError } = useCollection<Payment>(paymentsQuery);
 
-  const { control, handleSubmit, formState: { errors } } = useForm<PaymentFormData>({
+  const { control, handleSubmit, watch, formState: { errors } } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentFormSchema),
     defaultValues: {
       period: 'fortnight-1',
@@ -77,94 +89,143 @@ export default function PaymentsPage() {
     },
   });
 
-  const onSubmit = async (data: PaymentFormData) => {
-    if (!firestore) return;
-    setIsCalculating(true);
-    
+  const getPeriodData = (data: PaymentFormData) => {
     const { month, year, period } = data;
     const currentPaymentPeriod = `${year}-${month}-${period}`;
-    setPaymentPeriod(currentPaymentPeriod);
-
-    try {
-      // Check if payments for this period are already generated
-      const existingPaymentsQuery = query(collection(firestore, "payments"), where("paymentPeriod", "==", currentPaymentPeriod), where("status", "==", "pending"));
-      const existingPaymentsSnapshot = await getDocs(existingPaymentsQuery);
-
-      if (!existingPaymentsSnapshot.empty) {
-        toast({ title: "Cálculo Omitido", description: "Los pagos para este período ya han sido calculados y están pendientes." });
-        setIsCalculating(false);
-        return;
-      }
-      
-      let startDay = 1;
-      let endDay = 15;
-      if (period === 'fortnight-2') {
+    let startDay = 1, endDay = 15;
+    if (period === 'fortnight-2') {
         startDay = 16;
         endDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-      }
-      const startDate = `${year}-${month.padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
-      const endDate = `${year}-${month.padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
-      
-      const leadsQuery = query(collection(firestore, 'leads'), where('date', '>=', startDate), where('date', '<=', endDate));
-      const leadsSnapshot = await getDocs(leadsQuery);
-      const leads = leadsSnapshot.docs.map(doc => doc.data() as Lead);
+    }
+    const startDate = `${year}-${month.padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
+    const endDate = `${year}-${month.padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+    return { currentPaymentPeriod, startDate, endDate };
+  }
 
-      if (leads.length === 0) {
-        toast({ title: "Sin Resultados", description: "No se encontraron leads para el período seleccionado." });
-        setIsCalculating(false);
-        return;
-      }
+  const handleCalculateAndSave = async (data: PaymentFormData) => {
+     if (!firestore) return;
+    setIsCalculating(true);
+    setPaymentPeriod(null);
 
-      const offersQuery = query(collection(firestore, 'offers'));
-      const offersSnapshot = await getDocs(offersQuery);
-      const offersMap = new Map(offersSnapshot.docs.map(doc => [doc.id, doc.data() as Offer]));
-
-      const earningsByPublisher = new Map<string, { total: number, name: string }>();
-
-      leads.forEach(lead => {
-        const offer = offersMap.get(lead.offerId);
-        if (offer) {
-          const earning = lead.quantity * offer.paymentAmount;
-          const currentEarning = earningsByPublisher.get(lead.publisherId) || { total: 0, name: lead.publisherName };
-          earningsByPublisher.set(lead.publisherId, {
-            total: currentEarning.total + earning,
-            name: currentEarning.name,
-          });
+    const { currentPaymentPeriod, startDate, endDate } = getPeriodData(data);
+    
+    try {
+        const existingPaymentsQuery = query(collection(firestore, "payments"), where("paymentPeriod", "==", currentPaymentPeriod));
+        const existingPaymentsSnapshot = await getDocs(existingPaymentsQuery);
+        if (!existingPaymentsSnapshot.empty) {
+            toast({ title: "Cálculo Omitido", description: "Ya existe una nómina (pagada o pendiente) para este período. Puede eliminar la nómina pendiente si desea recalcular." });
+            setIsCalculating(false);
+            return;
         }
-      });
-      
-      if (earningsByPublisher.size === 0) {
-          toast({ title: "Cálculo completado", description: "No se generaron pagos. Puede que las ofertas asociadas no tengan monto de pago." });
-          setIsCalculating(false);
-          return;
-      }
 
-      const usdToVes = settingsData?.usdToVesRate || 0;
-      const usdToCop = settingsData?.usdToCopRate || 0;
+        const leadsQuery = query(collection(firestore, 'leads'), where('date', '>=', startDate), where('date', '<=', endDate));
+        const leadsSnapshot = await getDocs(leadsQuery);
+        const leads = leadsSnapshot.docs.map(doc => doc.data() as Lead);
 
-      for (const [publisherId, earnings] of earningsByPublisher.entries()) {
-        const paymentData = {
-          publisherId,
-          publisherName: earnings.name,
-          paymentPeriod: currentPaymentPeriod,
-          amountUSD: earnings.total,
-          amountVES: earnings.total * usdToVes,
-          amountCOP: earnings.total * usdToCop,
-          status: 'pending',
-          createdAt: serverTimestamp(),
-        };
-        await addDoc(collection(firestore, 'payments'), paymentData);
-      }
+        if (leads.length === 0) {
+            toast({ title: "Sin Resultados", description: "No se encontraron leads para el período seleccionado." });
+            setIsCalculating(false);
+            return;
+        }
 
-      toast({ title: "Cálculo de Pagos Exitoso", description: `Se han generado ${earningsByPublisher.size} pagos pendientes.` });
+        const offersQuery = query(collection(firestore, 'offers'));
+        const offersSnapshot = await getDocs(offersQuery);
+        const offersMap = new Map(offersSnapshot.docs.map(doc => [doc.id, doc.data() as Offer]));
+
+        const earningsByPublisher = new Map<string, { total: number, name: string }>();
+
+        leads.forEach(lead => {
+            const offer = offersMap.get(lead.offerId);
+            if (offer) {
+                const earning = lead.quantity * offer.paymentAmount;
+                const currentEarning = earningsByPublisher.get(lead.publisherId) || { total: 0, name: lead.publisherName };
+                earningsByPublisher.set(lead.publisherId, {
+                    total: currentEarning.total + earning,
+                    name: currentEarning.name,
+                });
+            }
+        });
+        
+        if (earningsByPublisher.size === 0) {
+            toast({ title: "Cálculo completado", description: "No se generaron pagos. Puede que las ofertas asociadas no tengan monto de pago." });
+            setIsCalculating(false);
+            return;
+        }
+
+        const usdToVes = settingsData?.usdToVesRate || 0;
+        const usdToCop = settingsData?.usdToCopRate || 0;
+        const batch = writeBatch(firestore);
+
+        for (const [publisherId, earnings] of earningsByPublisher.entries()) {
+            const paymentRef = doc(collection(firestore, 'payments'));
+            const paymentData = {
+                publisherId,
+                publisherName: earnings.name,
+                paymentPeriod: currentPaymentPeriod,
+                amountUSD: earnings.total,
+                amountVES: earnings.total * usdToVes,
+                amountCOP: earnings.total * usdToCop,
+                status: 'pending',
+                createdAt: serverTimestamp(),
+            };
+            batch.set(paymentRef, paymentData);
+        }
+
+        await batch.commit();
+        toast({ title: "Nómina Calculada y Guardada", description: `Se han generado ${earningsByPublisher.size} pagos pendientes. Ahora puede cargarlos para procesar.` });
 
     } catch (error: any) {
-      console.error("Payment calculation error", error);
-      toast({ variant: "destructive", title: "Error al Calcular Pagos", description: error.message });
+        console.error("Payment calculation error", error);
+        toast({ variant: "destructive", title: "Error al Calcular", description: error.message });
     } finally {
-      setIsCalculating(false);
+        setIsCalculating(false);
     }
   };
+
+  const handleLoadPeriod = (data: PaymentFormData) => {
+    const { currentPaymentPeriod } = getPeriodData(data);
+    setPaymentPeriod(currentPaymentPeriod);
+    toast({
+        title: "Cargando Nómina",
+        description: `Buscando pagos pendientes para el período ${formatPaymentPeriod(currentPaymentPeriod)}.`
+    })
+  };
+  
+  const handleDeletePeriod = async () => {
+    if (!firestore || !paymentPeriod) {
+        toast({ variant: "destructive", title: "Error", description: "No hay un período seleccionado para eliminar." });
+        return;
+    }
+    setIsDeleting(true);
+
+    try {
+        const paymentsToDeleteQuery = query(collection(firestore, "payments"), where("paymentPeriod", "==", paymentPeriod), where("status", "==", "pending"));
+        const snapshot = await getDocs(paymentsToDeleteQuery);
+
+        if(snapshot.empty) {
+            toast({ title: "Sin Cambios", description: "No se encontraron pagos pendientes para eliminar en este período." });
+            setIsDeleting(false);
+            return;
+        }
+
+        const batch = writeBatch(firestore);
+        snapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+
+        toast({ title: "Nómina Eliminada", description: `Se eliminaron ${snapshot.size} pagos pendientes.` });
+        setPaymentPeriod(null); // Clear the view
+
+    } catch (error: any) {
+        console.error("Delete error", error);
+        toast({ variant: "destructive", title: "Error al Eliminar", description: error.message });
+    } finally {
+        setIsDeleting(false);
+    }
+  }
+
   
   const handleMarkAsPaid = async (paymentId: string) => {
     if (!firestore) return;
@@ -192,10 +253,14 @@ export default function PaymentsPage() {
   
   const formatPaymentPeriod = (period: string | null) => {
     if (!period) return '';
-    return period
-      .replace('fortnight-1', ' - quincena 1')
-      .replace('fortnight-2', ' - quincena 2');
+    const parts = period.split('-');
+    const year = parts[0];
+    const month = months.find(m => m.value === parts[1])?.label;
+    const fortnight = parts[2].replace('fortnight-1', '1ra Quincena').replace('fortnight-2', '2da Quincena');
+    return `${month} ${year} - ${fortnight}`;
   };
+
+  const watchedValues = watch();
 
   return (
     <div>
@@ -208,13 +273,13 @@ export default function PaymentsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Calcular Pagos de Quincena</CardTitle>
+          <CardTitle>Nómina de Pagos de Quincena</CardTitle>
           <CardDescription>
-            Selecciona un período para calcular y generar los pagos pendientes de los publishers.
+            Calcula, carga o elimina una nómina de pagos para un período específico.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="grid md:grid-cols-4 gap-4 items-end">
+          <div className="grid md:grid-cols-3 gap-4 items-end">
             <div className="space-y-2">
               <Label htmlFor="year">Año</Label>
               <Controller name="year" control={control} render={({ field }) => (
@@ -245,11 +310,40 @@ export default function PaymentsPage() {
                 </Select>
               )} />
             </div>
-            <Button type="submit" disabled={isCalculating}>
-              {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
-              {isCalculating ? 'Calculando...' : 'Calcular Pagos'}
+           </div>
+           <div className="flex flex-wrap gap-2 mt-4">
+             <Button onClick={handleSubmit(handleCalculateAndSave)} disabled={isCalculating}>
+                {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
+                {isCalculating ? 'Calculando...' : 'Calcular y Guardar Nómina'}
             </Button>
-          </form>
+             <Button onClick={handleSubmit(handleLoadPeriod)} variant="secondary">
+                <FolderDown className="mr-2 h-4 w-4" />
+                Cargar Nómina Pendiente
+            </Button>
+             <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={!paymentPeriod || (pendingPayments && pendingPayments.length === 0)}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Eliminar Nómina Pendiente
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                    <AlertDialogTitle>¿Estás seguro de que deseas eliminar esta nómina?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Esta acción eliminará todos los pagos pendientes para el período <span className="font-bold">{formatPaymentPeriod(paymentPeriod)}</span>. Esta operación no se puede deshacer.
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeletePeriod} disabled={isDeleting}>
+                        {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Sí, eliminar nómina
+                    </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+           </div>
         </CardContent>
       </Card>
       
