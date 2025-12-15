@@ -57,7 +57,7 @@ service cloud.firestore {
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
-      allow create, read, update: if isOwner(publisherId);
+      allow create, read: if isOwner(publisherId);
       allow write: if isAdmin() || isOwner(publisherId);
       allow list: if isAdmin();
     }
