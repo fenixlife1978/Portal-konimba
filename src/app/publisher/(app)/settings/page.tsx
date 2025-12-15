@@ -72,20 +72,18 @@ const renderBankList = (country: string) => {
 // Form Component
 function PaymentForm({
     form,
-    country,
-    paymentMethod,
     onSubmit,
     onCancel,
     isSaving,
 }: {
     form: UseFormReturn<FormData>;
-    country: string;
-    paymentMethod: string;
     onSubmit: (data: FormData) => void;
     onCancel: () => void;
     isSaving: boolean;
 }) {
-    const { control, handleSubmit, formState: { errors } } = form;
+    const { control, handleSubmit, watch, formState: { errors } } = form;
+    const country = watch('country');
+    const paymentMethod = watch('paymentMethod');
 
     return (
         <form onSubmit={handleSubmit(onSubmit)}>
@@ -199,7 +197,7 @@ export default function SettingsPage() {
     return doc(firestore, 'publishers', user.uid);
   }, [firestore, user]);
 
-  const { data: publisherData, isLoading: isLoadingData } = useDoc(publisherRef);
+  const { data: publisherData, isLoading: isLoadingData } = useDoc<FormData>(publisherRef);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -215,29 +213,31 @@ export default function SettingsPage() {
     },
   });
 
-  const { control, watch, reset, setValue } = form;
+  const { control, watch, reset, setValue, trigger } = form;
 
   useEffect(() => {
     if (publisherData) {
-      reset({
-        country: publisherData.country || '',
-        paymentMethod: publisherData.paymentMethod || '',
-        bank: publisherData.bank || '',
-        accountNumber: publisherData.accountNumber || '',
-        mobilePaymentPhone: publisherData.mobilePaymentPhone || '',
-        mobilePaymentId: publisherData.mobilePaymentId || '',
-        usdtPlatform: publisherData.usdtPlatform || '',
-        usdtAddress: publisherData.usdtAddress || '',
-      });
+      reset(publisherData);
     }
   }, [publisherData, reset]);
 
   const country = watch('country');
   const paymentMethod = watch('paymentMethod');
 
-  useEffect(() => {
+  const handleCountryChange = (value: string) => {
+    setValue('country', value);
     setValue('paymentMethod', '');
-  }, [country, setValue]);
+    setValue('bank', '');
+    setValue('accountNumber', '');
+    setValue('mobilePaymentPhone', '');
+    setValue('mobilePaymentId', '');
+    setValue('usdtPlatform', '');
+    setValue('usdtAddress', '');
+  };
+
+  const handlePaymentMethodChange = (value: string) => {
+      setValue('paymentMethod', value);
+  }
 
   const onSubmit = async (data: FormData) => {
     if (!publisherRef) return;
@@ -291,44 +291,30 @@ export default function SettingsPage() {
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="country">País de Origen</Label>
-              <Controller
-                name="country"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger id="country">
-                      <SelectValue placeholder="Selecciona tu país" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="VE">Venezuela</SelectItem>
-                      <SelectItem value="CO">Colombia</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {form.formState.errors.country && <p className="text-sm text-destructive">{form.formState.errors.country.message}</p>}
+              <Select onValueChange={handleCountryChange} value={country}>
+                <SelectTrigger id="country">
+                  <SelectValue placeholder="Selecciona tu país" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="VE">Venezuela</SelectItem>
+                  <SelectItem value="CO">Colombia</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {country && (
               <div className="space-y-2">
                 <Label htmlFor="paymentMethod">Método de Pago</Label>
-                 <Controller
-                  name="paymentMethod"
-                  control={control}
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value} disabled={!country}>
-                      <SelectTrigger id="paymentMethod">
-                        <SelectValue placeholder="Selecciona un método" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {country === 'VE' && <SelectItem value="pagoMovil">Pago Móvil</SelectItem>}
-                        <SelectItem value="transferencia">Transferencia Bancaria</SelectItem>
-                        <SelectItem value="usdt">USDT</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {form.formState.errors.paymentMethod && <p className="text-sm text-destructive">{form.formState.errors.paymentMethod.message}</p>}
+                 <Select onValueChange={handlePaymentMethodChange} value={paymentMethod} disabled={!country}>
+                  <SelectTrigger id="paymentMethod">
+                    <SelectValue placeholder="Selecciona un método" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {country === 'VE' && <SelectItem value="pagoMovil">Pago Móvil</SelectItem>}
+                    <SelectItem value="transferencia">Transferencia Bancaria</SelectItem>
+                    <SelectItem value="usdt">USDT</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
@@ -336,13 +322,14 @@ export default function SettingsPage() {
               <div className="pt-4">
                 <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                   <DialogTrigger asChild>
-                    <Button type="button">Configurar Detalles de Pago</Button>
+                    <Button type="button" onClick={async () => {
+                       const isValid = await trigger(['country', 'paymentMethod']);
+                       if(isValid) setIsModalOpen(true);
+                    }}>Configurar Detalles de Pago</Button>
                   </DialogTrigger>
                   <DialogContent>
                     <PaymentForm
                         form={form}
-                        country={country}
-                        paymentMethod={paymentMethod}
                         onSubmit={onSubmit}
                         onCancel={() => setIsModalOpen(false)}
                         isSaving={isSaving}
