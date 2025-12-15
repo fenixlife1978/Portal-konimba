@@ -9,6 +9,7 @@ import { doc } from 'firebase/firestore';
 
 type CompanySettings = {
   companyName?: string;
+  logoUrl?: string;
 };
 
 export default function Home() {
@@ -21,14 +22,14 @@ export default function Home() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 text-center">
       <header className="mb-12">
         <div className="inline-block mb-4 animate-in fade-in zoom-in-95 duration-500">
-          <Logo className="h-24 w-24" />
+          <Logo className="h-24 w-24" src={settingsData?.logoUrl} />
         </div>
         <div className="animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-200">
             <h1 className="text-4xl md:text-5xl font-bold font-headline text-foreground">
               Portal
             </h1>
             <h2 className="text-3xl md:text-4xl font-bold font-headline text-foreground/80">
-              Konimba Group Marketing
+              {settingsData?.companyName || "Konimba Group Marketing"}
             </h2>
           </div>
         <p className="mt-2 text-lg text-muted-foreground animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-300">

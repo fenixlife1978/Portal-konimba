@@ -29,6 +29,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 type CompanySettings = {
   companyName?: string;
+  logoUrl?: string;
 };
 
 export default function PublisherAuthPage() {
@@ -205,11 +206,11 @@ export default function PublisherAuthPage() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
        <div className="mb-8 text-center">
         <Link href="/" className="inline-block">
-          <Logo className="h-24 w-24" />
+          <Logo className="h-24 w-24" src={settingsData?.logoUrl} />
         </Link>
         <div className="mt-4">
           <h1 className="text-3xl font-bold font-headline">Portal</h1>
-          <h2 className="text-2xl font-bold font-headline text-foreground/80">Konimba Group Marketing</h2>
+          <h2 className="text-2xl font-bold font-headline text-foreground/80">{settingsData?.companyName || "Konimba Group Marketing"}</h2>
         </div>
         <p className="text-muted-foreground mt-2">Acceso de Publisher</p>
       </div>

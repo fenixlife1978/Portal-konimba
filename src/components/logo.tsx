@@ -2,15 +2,15 @@
 import Image from 'next/image';
 import { cn } from "@/lib/utils";
 
-export function Logo({ className }: { className?: string }) {
+export function Logo({ className, src }: { className?: string; src?: string | null }) {
   return (
     <div className={cn("relative rounded-full overflow-hidden", className)}>
       <Image 
-        src="/logo.png" 
+        src={src || "/logo.png"} 
         alt="Konimba Logo" 
         fill
         className="object-contain"
-        sizes="96px"
+        sizes="(max-width: 768px) 50vw, 96px"
         priority
       />
     </div>
