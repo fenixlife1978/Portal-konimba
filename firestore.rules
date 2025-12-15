@@ -57,8 +57,9 @@ service cloud.firestore {
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
-      allow read, write: if isAdmin();
+      allow write: if isAdmin();
       allow create, read, update: if isOwner(publisherId);
+      allow list: if isAdmin();
     }
 
     /**
@@ -69,8 +70,10 @@ service cloud.firestore {
       function isSuperAdmin() {
         return request.auth.token.email == 'vallecondo@gmail.com';
       }
-      // Allow full access to other admins or the super admin.
-      allow read, write: if isAdmin() || isSuperAdmin();
+      // Allow read for any signed-in user for role verification purposes (prevents admins logging into publisher portal).
+      allow get: if isSignedIn(); 
+      // Allow full write access to other admins or the super admin.
+      allow write: if isAdmin() || isSuperAdmin();
       // Allow creation only by the super admin.
       allow create: if isSuperAdmin();
       // Allow deletion only by the super admin, but they cannot delete themselves.
@@ -114,7 +117,9 @@ service cloud.firestore {
      * @path /payments/{paymentId}
      */
     match /payments/{paymentId} {
-      allow read, write: if isAdmin();
+      allow write: if isAdmin();
+      // Admins can read any payment
+      allow read: if isAdmin();
       // A publisher can only read a payment document if it belongs to them and its status is 'paid'.
       allow read: if isSignedIn() && isOwner(resource.data.publisherId) && resource.data.status == 'paid';
     }
