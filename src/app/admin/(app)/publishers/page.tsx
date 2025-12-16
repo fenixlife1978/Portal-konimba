@@ -27,7 +27,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { MoreHorizontal, Pencil, Trash2, ArrowLeft, CaseSensitive } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2, ArrowLeft, CaseSensitive, Eye } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -160,7 +160,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                 <DialogHeader>
                   <DialogTitle>Detalles del Publisher</DialogTitle>
                   <DialogDescription>
-                    Edita la información básica y de pago del publisher.
+                    Ver y editar la información básica. La información de pago es de solo lectura.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-6 py-4 max-h-[70vh] overflow-y-auto pr-4">
@@ -187,95 +187,59 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
 
                   <Separator className="my-4" />
 
-                  <h3 className="font-semibold text-foreground text-lg">Información de Pago</h3>
+                  <h3 className="font-semibold text-foreground text-lg">Información de Pago (Solo Lectura)</h3>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-muted/30">
                         <div className="space-y-2">
                             <Label htmlFor="country">País de Residencia</Label>
-                            <Select onValueChange={(val: 'VE' | 'CO' | '') => handleSelectChange('country', val)} value={editedPublisher.country}>
-                            <SelectTrigger id="country"><SelectValue placeholder="Selecciona un país" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="VE">Venezuela</SelectItem>
-                                <SelectItem value="CO">Colombia</SelectItem>
-                            </SelectContent>
-                            </Select>
+                            <Input id="country" value={publisher.country || 'No especificado'} readOnly disabled />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="paymentMethod">Método de Pago Principal</Label>
-                            <Select onValueChange={(val) => handleSelectChange('paymentMethod', val)} value={editedPublisher.paymentMethod} disabled={!editedPublisher.country}>
-                                <SelectTrigger id="paymentMethod"><SelectValue placeholder="Selecciona un método" /></SelectTrigger>
-                                <SelectContent>
-                                    {editedPublisher.country === 'VE' && <SelectItem value="pagoMovil">Pago Móvil</SelectItem>}
-                                    {(editedPublisher.country === 'VE' || editedPublisher.country === 'CO') && <SelectItem value="transferencia">Transferencia Bancaria</SelectItem>}
-                                    <SelectItem value="usdt">USDT (Binance)</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <Input id="paymentMethod" value={publisher.paymentMethod || 'No especificado'} readOnly disabled />
                         </div>
                     </div>
 
-                    {editedPublisher.paymentMethod === 'transferencia' && (
+                    {publisher.paymentMethod === 'transferencia' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="bank">Banco</Label>
-                                <Select onValueChange={(val) => handleSelectChange('bank', val)} value={editedPublisher.bank}>
-                                    <SelectTrigger><SelectValue placeholder="Selecciona un banco" /></SelectTrigger>
-                                    <SelectContent>
-                                        {editedPublisher.country === 'VE' && banksVe.map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
-                                        {editedPublisher.country === 'CO' && banksCo.map(b => <SelectItem key={b.code} value={b.name}>{b.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
+                                <Input id="bank" value={publisher.bank || ''} readOnly disabled />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="accountNumber">Número de Cuenta</Label>
-                                <Input id="accountNumber" value={editedPublisher.accountNumber || ''} onChange={handleInputChange} placeholder={editedPublisher.country === 'VE' ? '20 dígitos para Venezuela' : 'Número de cuenta'} maxLength={editedPublisher.country === 'VE' ? 20 : undefined} />
+                                <Input id="accountNumber" value={publisher.accountNumber || ''} readOnly disabled />
                             </div>
                         </div>
                     )}
 
-                    {editedPublisher.paymentMethod === 'pagoMovil' && editedPublisher.country === 'VE' && (
+                    {publisher.paymentMethod === 'pagoMovil' && publisher.country === 'VE' && (
                         <>
                          <div className="space-y-2">
-                            <Label htmlFor="mobilePaymentBank">Banco</Label>
-                            <Select onValueChange={(val) => handleSelectChange('mobilePaymentBank', val)} value={editedPublisher.mobilePaymentBank}>
-                                <SelectTrigger><SelectValue placeholder="Selecciona un banco" /></SelectTrigger>
-                                <SelectContent>
-                                    {banksVe.map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
+                            <Label htmlFor="mobilePaymentBank">Banco (Pago Móvil)</Label>
+                            <Input id="mobilePaymentBank" value={publisher.mobilePaymentBank || ''} readOnly disabled />
                          </div>
                          <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-2">
-                                <Label>Número de Teléfono</Label>
-                                <div className="flex gap-2">
-                                    <Select onValueChange={(val) => handleSelectChange('mobilePaymentPhoneCode', val)} value={editedPublisher.mobilePaymentPhoneCode}>
-                                        <SelectTrigger className="w-[120px]"><SelectValue placeholder="Código"/></SelectTrigger>
-                                        <SelectContent>{phoneCodes.map(code => <SelectItem key={code} value={code}>{code}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                    <Input id="mobilePaymentPhoneNumber" value={editedPublisher.mobilePaymentPhoneNumber || ''} onChange={handleInputChange} placeholder="XXXXXXX" maxLength={7} />
-                                </div>
+                                <Label>Teléfono (Pago Móvil)</Label>
+                                <Input value={`${publisher.mobilePaymentPhoneCode || ''}${publisher.mobilePaymentPhoneNumber || ''}`} readOnly disabled />
                             </div>
                             <div className="space-y-2">
-                                <Label>Cédula o RIF</Label>
-                                <div className="flex gap-2">
-                                    <Select onValueChange={(val) => handleSelectChange('mobilePaymentIdPrefix', val)} value={editedPublisher.mobilePaymentIdPrefix}>
-                                        <SelectTrigger className="w-[100px]"><SelectValue placeholder="Tipo"/></SelectTrigger>
-                                        <SelectContent>{idPrefixes.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                    <Input id="mobilePaymentIdNumber" value={editedPublisher.mobilePaymentIdNumber || ''} onChange={handleInputChange} placeholder="12345678" />
-                                </div>
+                                <Label>Cédula o RIF (Pago Móvil)</Label>
+                                 <Input value={`${publisher.mobilePaymentIdPrefix || ''}${publisher.mobilePaymentIdNumber || ''}`} readOnly disabled />
                             </div>
                          </div>
                         </>
                     )}
                     
-                    {editedPublisher.paymentMethod === 'usdt' && (
+                    {publisher.paymentMethod === 'usdt' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Plataforma</Label>
-                                <Input value="Binance" readOnly className="bg-muted/50" />
+                                <Input value="Binance" readOnly disabled />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="usdtAddress">Correo electrónico de Binance</Label>
-                                <Input id="usdtAddress" type="email" value={editedPublisher.usdtAddress || ''} onChange={handleInputChange} placeholder="tu.correo@email.com" />
+                                <Input id="usdtAddress" type="email" value={publisher.usdtAddress || ''} readOnly disabled />
                             </div>
                         </div>
                     )}
@@ -342,21 +306,20 @@ export default function PublishersPage() {
     if (!firestore) return;
     const publisherRef = doc(firestore, 'publishers', id);
     
-    // Prepare data for saving
-    const { mobilePaymentPhoneCode, mobilePaymentPhoneNumber, mobilePaymentIdPrefix, mobilePaymentIdNumber, ...restOfData } = data;
-    const dataToSave: Partial<Publisher> & { updatedAt: any } = {
-        ...restOfData,
+    // Prepare data for saving - ensure we only send what's allowed
+    const { 
+      firstName, lastName, phone, address, subId, status
+    } = data;
+    
+    const dataToSave = {
+        firstName,
+        lastName,
+        phone,
+        address,
+        subId,
+        status,
         updatedAt: serverTimestamp()
     };
-    
-    if (data.paymentMethod === 'pagoMovil') {
-        if (mobilePaymentPhoneCode && mobilePaymentPhoneNumber) {
-            (dataToSave as any).mobilePaymentPhone = `${mobilePaymentPhoneCode}${mobilePaymentPhoneNumber}`;
-        }
-        if (mobilePaymentIdPrefix && mobilePaymentIdNumber) {
-            (dataToSave as any).mobilePaymentId = `${mobilePaymentIdPrefix}${mobilePaymentIdNumber}`;
-        }
-    }
 
 
     try {

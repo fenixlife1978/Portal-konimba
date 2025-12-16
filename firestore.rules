@@ -53,14 +53,19 @@ service cloud.firestore {
     // ------------------------------------------------------------------------
 
     /**
-     * @description Manages publisher profiles. Publishers can read and update their own profile. Admins have full CRUD access.
+     * @description Manages publisher profiles. Publishers can read and update their own profile. Admins can read all profiles and update non-payment info.
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
-      // Admins have full read, write, and list permissions.
-      allow read, write, list: if isAdmin();
-      // Publishers can only read their own data and write to it. They cannot create it here (creation is in auth flow).
+      // Admins can read any publisher profile and list all of them.
+      allow get, list: if isAdmin();
+      
+      // Admins can update a publisher's profile, but CANNOT touch payment-related fields.
+      allow update: if isAdmin() && !('country' in request.resource.data) && !('paymentMethod' in request.resource.data) && !('bank' in request.resource.data) && !('accountNumber' in request.resource.data) && !('mobilePaymentBank' in request.resource.data) && !('mobilePaymentPhone' in request.resource.data) && !('mobilePaymentId' in request.resource.data) && !('usdtAddress' in request.resource.data);
+
+      // Publishers can only read and update their own data.
       allow read, update: if isOwner(publisherId);
+      
       // Allow any authenticated user to create their own publisher profile.
       allow create: if isOwner(publisherId);
     }
