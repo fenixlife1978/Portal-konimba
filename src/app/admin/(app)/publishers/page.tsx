@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -26,8 +26,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { MoreHorizontal, Pencil, Trash2, ArrowLeft } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { MoreHorizontal, Pencil, Trash2, ArrowLeft, CaseSensitive } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -62,9 +62,47 @@ type Publisher = {
   usdtAddress?: string;
 };
 
+// Modal exclusivo para el SUB ID
+function SubIdModal({ publisher, onSave, onOpenChange }: { publisher: Publisher; onSave: (data: { subId: string }) => Promise<void>; onOpenChange: (open: boolean) => void }) {
+  const [subId, setSubId] = useState(publisher.subId || '');
+
+  const handleSaveSubId = async () => {
+    await onSave({ subId });
+    onOpenChange(false);
+  };
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Asignar/Modificar SUB ID</DialogTitle>
+        <DialogDescription>
+          Establece el SUB ID para el publisher {publisher.firstName} {publisher.lastName}.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="py-4">
+        <Label htmlFor="subIdModalInput">SUB ID</Label>
+        <Input
+          id="subIdModalInput"
+          value={subId}
+          onChange={(e) => setSubId(e.target.value)}
+          placeholder="Ej: KON-123"
+        />
+      </div>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">Cancelar</Button>
+        </DialogClose>
+        <Button onClick={handleSaveSubId}>Guardar SUB ID</Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+
 function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; onSave: (data: Partial<Publisher>) => Promise<void>; onDelete: () => Promise<void> }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSubIdModalOpen, setIsSubIdModalOpen] = useState(false);
   const [editedPublisher, setEditedPublisher] = useState<Publisher>(publisher);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -80,6 +118,10 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
     await onSave(editedPublisher);
     setIsEditing(false);
   };
+  
+  const handleSaveSubIdWrapper = async (data: { subId: string }) => {
+    await onSave(data);
+  };
 
   const handleDeleteConfirm = async () => {
     await onDelete();
@@ -91,6 +133,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
       <TableCell className="font-medium">{publisher.firstName}</TableCell>
       <TableCell>{publisher.lastName}</TableCell>
       <TableCell>{publisher.email}</TableCell>
+      <TableCell>{publisher.subId || 'N/A'}</TableCell>
       <TableCell>
         <Badge variant={publisher.status === 'active' ? 'default' : 'secondary'}>
           {publisher.status}
@@ -109,7 +152,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
               <DialogTrigger asChild>
                 <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setEditedPublisher(publisher); }}>
                   <Pencil className="mr-2 h-4 w-4" />
-                  Ver / Editar
+                  Ver / Editar Detalles
                 </DropdownMenuItem>
               </DialogTrigger>
               <DialogContent className="max-w-3xl">
@@ -121,7 +164,6 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                 </DialogHeader>
                 <div className="grid gap-6 py-4 max-h-[70vh] overflow-y-auto pr-4">
                   
-                  {/* --- Personal Information --- */}
                   <h3 className="font-semibold text-foreground text-lg">Información Personal</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -131,10 +173,6 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                      <div className="space-y-2">
                       <Label htmlFor="lastName">Apellido</Label>
                       <Input id="lastName" value={editedPublisher.lastName} onChange={handleInputChange} />
-                    </div>
-                     <div className="space-y-2">
-                      <Label htmlFor="subId">SUB ID</Label>
-                      <Input id="subId" value={editedPublisher.subId || ''} onChange={handleInputChange} />
                     </div>
                      <div className="space-y-2">
                       <Label htmlFor="phone">Teléfono</Label>
@@ -148,7 +186,6 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
 
                   <Separator className="my-4" />
 
-                  {/* --- Payment Information --- */}
                   <h3 className="font-semibold text-foreground text-lg">Información de Pago</h3>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-muted/30">
                         <div className="space-y-2">
@@ -174,7 +211,6 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                         </div>
                     </div>
 
-                    {/* --- Bank Transfer Fields --- */}
                     {editedPublisher.paymentMethod === 'transferencia' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
@@ -193,7 +229,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                             </div>
                         </div>
                     )}
-                    {/* --- Pago Movil Fields --- */}
+
                     {editedPublisher.paymentMethod === 'pagoMovil' && editedPublisher.country === 'VE' && (
                         <>
                          <div className="space-y-2">
@@ -229,7 +265,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                          </div>
                         </>
                     )}
-                    {/* --- USDT Fields --- */}
+                    
                     {editedPublisher.paymentMethod === 'usdt' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
@@ -242,7 +278,6 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                             </div>
                         </div>
                     )}
-
                 </div>
                 <DialogFooter>
                   <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
@@ -250,6 +285,19 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            <DropdownMenuSeparator />
+            <Dialog open={isSubIdModalOpen} onOpenChange={setIsSubIdModalOpen}>
+              <DialogTrigger asChild>
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                  <CaseSensitive className="mr-2 h-4 w-4" />
+                  Asignar SUB ID
+                </DropdownMenuItem>
+              </DialogTrigger>
+              <DialogContent>
+                <SubIdModal publisher={publisher} onSave={handleSaveSubIdWrapper} onOpenChange={setIsSubIdModalOpen} />
+              </DialogContent>
+            </Dialog>
+            <DropdownMenuSeparator />
             <Dialog open={isDeleting} onOpenChange={setIsDeleting}>
                <DialogTrigger asChild>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
@@ -300,7 +348,6 @@ export default function PublishersPage() {
         updatedAt: serverTimestamp()
     };
     
-    // Combine phone and id numbers if they exist
     if (mobilePaymentPhoneCode && mobilePaymentPhoneNumber) {
         (dataToSave as any).mobilePaymentPhone = `${mobilePaymentPhoneCode}${mobilePaymentPhoneNumber}`;
     }
@@ -309,7 +356,7 @@ export default function PublishersPage() {
     }
 
     try {
-      await updateDoc(publisherRef, dataToSave);
+      await updateDoc(publisherRef, dataToSave, { merge: true });
       toast({
         title: "Publisher actualizado",
         description: "Los datos del publisher se han guardado.",
@@ -363,6 +410,7 @@ export default function PublishersPage() {
                 <TableHead>Nombre</TableHead>
                 <TableHead>Apellido</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>SUB ID</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -370,14 +418,14 @@ export default function PublishersPage() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center">
+                  <TableCell colSpan={6} className="text-center">
                     Cargando publishers...
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && publishers?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center">
+                  <TableCell colSpan={6} className="text-center">
                     No se encontraron publishers.
                   </TableCell>
                 </TableRow>
