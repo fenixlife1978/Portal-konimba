@@ -2,8 +2,6 @@
 
 import { DashboardCard } from '@/components/dashboard-card';
 import { 
-  IconPending,
-  IconHistory,
   IconReceipt,
   IconPerformance,
   IconSettings
@@ -11,9 +9,9 @@ import {
 
 export default function PublisherDashboardPage() {
   const menuItems = [
-    { title: "Mis Recibos", description: "Accede y descarga tus recibos de pago.", href: "/publisher/receipts", icon: <IconReceipt />, color: "bg-chart-3" },
-    { title: "Mi Reporte", description: "Monitorea tu rendimiento actual.", href: "/publisher/performance", icon: <IconPerformance />, color: "bg-chart-4" },
-    { title: "Configuración", description: "Ajusta la configuración de tu cuenta y notificaciones.", href: "/publisher/settings", icon: <IconSettings />, color: "bg-chart-5" },
+    { title: "Mis Recibos", description: "Accede y descarga tus recibos de pago.", href: "/publisher/receipts", icon: <IconReceipt className="h-full w-full" />, color: "bg-chart-3" },
+    { title: "Mi Reporte", description: "Monitorea tu rendimiento actual.", href: "/publisher/performance", icon: <IconPerformance className="h-full w-full" />, color: "bg-chart-4" },
+    { title: "Configuración", description: "Ajusta la configuración de tu cuenta y notificaciones.", href: "/publisher/settings", icon: <IconSettings className="h-full w-full" />, color: "bg-chart-5" },
   ];
 
   return (

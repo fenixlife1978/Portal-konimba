@@ -13,80 +13,65 @@ const IconWrapper = ({ children, className }: { children: React.ReactNode, class
 );
 
 
-export const IconPublisher = () => (
-  <IconWrapper>
-    <circle cx="24" cy="24" r="22" fill="white" opacity="0.1" />
+export const IconPublisher = ({ className }: { className?: string }) => (
+  <IconWrapper className={className}>
+    <circle cx="24" cy="24" r="24" className="fill-current opacity-20" />
     <path d="M24 15C21.2386 15 19 17.2386 19 20C19 22.7614 21.2386 25 24 25C26.7614 25 29 22.7614 29 20C29 17.2386 26.7614 15 24 15Z" fill="hsl(var(--primary-foreground))" />
     <path d="M16 34C16 30.134 19.5817 27 24 27C28.4183 27 32 30.134 32 34H16Z" fill="hsl(var(--primary-foreground))" />
   </IconWrapper>
 );
 
-export const IconLead = () => (
-  <IconWrapper>
-    <circle cx="24" cy="24" r="22" fill="white" opacity="0.1" />
+export const IconLead = ({ className }: { className?: string }) => (
+  <IconWrapper className={className}>
+    <circle cx="24" cy="24" r="24" className="fill-current opacity-20" />
     <circle cx="24" cy="24" r="9" stroke="hsl(var(--primary-foreground))" strokeWidth="3" />
     <circle cx="24" cy="24" r="3" fill="hsl(var(--primary-foreground))" />
   </IconWrapper>
 );
 
-export const IconPayment = () => (
-  <IconWrapper>
-    <circle cx="24" cy="24" r="22" fill="white" opacity="0.1" />
+export const IconPayment = ({ className }: { className?: string }) => (
+  <IconWrapper className={className}>
+    <circle cx="24" cy="24" r="24" className="fill-current opacity-20" />
     <rect x="12" y="16" width="24" height="16" rx="3" fill="hsl(var(--primary-foreground))" />
-    <rect x="14" y="26" width="10" height="3" rx="1.5" fill="hsl(var(--primary))" />
+    <rect x="14" y="26" width="10" height="3" rx="1.5" fill="hsl(var(--card))" />
   </IconWrapper>
 );
 
-export const IconOffer = () => (
-  <IconWrapper>
-    <circle cx="24" cy="24" r="22" fill="white" opacity="0.1" />
+export const IconOffer = ({ className }: { className?: string }) => (
+  <IconWrapper className={className}>
+    <circle cx="24" cy="24" r="24" className="fill-current opacity-20" />
     <path d="M15 13L33 13C34.1046 13 35 13.8954 35 15L35 24L24 35L13 24L15 13Z" fill="hsl(var(--primary-foreground))" />
-    <circle cx="29" cy="18" r="2" fill="hsl(var(--primary))" />
+    <circle cx="29" cy="18" r="2" fill="hsl(var(--card))" />
   </IconWrapper>
 );
 
-export const IconReport = () => (
-  <IconWrapper>
-    <circle cx="24" cy="24" r="22" fill="white" opacity="0.1" />
+export const IconReport = ({ className }: { className?: string }) => (
+  <IconWrapper className={className}>
+    <circle cx="24" cy="24" r="24" className="fill-current opacity-20" />
     <path d="M16 32V24H12V32H16ZM26 32V16H22V32H26ZM36 32V20H32V32H36Z" fill="hsl(var(--primary-foreground))" />
   </IconWrapper>
 );
 
-export const IconReceipt = () => (
-  <IconWrapper>
-    <circle cx="24" cy="24" r="22" fill="white" opacity="0.1" />
+export const IconReceipt = ({ className }: { className?: string }) => (
+  <IconWrapper className={className}>
+    <circle cx="24" cy="24" r="24" className="fill-current opacity-20" />
     <path d="M16 13H32V35L28 32L24 35L20 32L16 35V13Z" fill="hsl(var(--primary-foreground))" />
-    <path d="M20 20H28" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" />
-    <path d="M20 25H25" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" />
+    <path d="M20 20H28" stroke="hsl(var(--card))" strokeWidth="2" strokeLinecap="round" />
+    <path d="M20 25H25" stroke="hsl(var(--card))" strokeWidth="2" strokeLinecap="round" />
   </IconWrapper>
 );
 
-export const IconPending = () => (
-  <IconWrapper>
-    <path d="M18 16L30 16L28 24H20L18 16Z" fill="hsl(var(--primary-foreground))" />
-    <path d="M20 28L28 28L30 32H18L20 28Z" fill="hsl(var(--primary-foreground))" />
-    <path d="M24 16V13" stroke="hsl(var(--primary-foreground))" strokeWidth="2" strokeLinecap="round" />
-    <path d="M24 35V32" stroke="hsl(var(--primary-foreground))" strokeWidth="2" strokeLinecap="round" />
-  </IconWrapper>
-);
-
-export const IconHistory = () => (
-  <IconWrapper>
-    <path d="M24 14V24H32" stroke="hsl(var(--primary-foreground))" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M16.458 31.542C18.9331 33.7222 22.2592 35 26 35C33.1797 35 39 29.1797 39 22C39 14.8203 33.1797 9 26 9C23.9573 9 22.0334 9.40395 20.3223 10.124" stroke="hsl(var(--primary-foreground))" strokeWidth="3" strokeLinecap="round" />
-    <path d="M18 9L15 13L19 14" stroke="hsl(var(--primary-foreground))" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-  </IconWrapper>
-);
-
-export const IconPerformance = () => (
-  <IconWrapper>
+export const IconPerformance = ({ className }: { className?: string }) => (
+  <IconWrapper className={className}>
+    <circle cx="24" cy="24" r="24" className="fill-current opacity-20" />
     <path d="M13 32L21 22L28 28L35 18" stroke="hsl(var(--primary-foreground))" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M30 18H35V23" stroke="hsl(var(--primary-foreground))" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
   </IconWrapper>
 );
 
-export const IconSettings = () => (
-  <IconWrapper>
+export const IconSettings = ({ className }: { className?: string }) => (
+  <IconWrapper className={className}>
+    <circle cx="24" cy="24" r="24" className="fill-current opacity-20" />
     <path d="M29.5858 18.4142C30.3668 19.1953 30.3668 20.4616 29.5858 21.2426L26.7574 24.0711L23.9289 21.2426L26.7574 18.4142C27.5384 17.6332 28.8047 17.6332 29.5858 18.4142Z" fill="hsl(var(--primary-foreground))" />
     <path d="M21.2426 29.5858C20.4616 30.3668 19.1953 30.3668 18.4142 29.5858L15 26.1716L21.8284 19.3431L26.1716 23L21.2426 29.5858Z" fill="hsl(var(--primary-foreground))" />
     <path d="M33.8284 26.1716L26.1716 33.8284L23 30.6569L30.6569 23L33.8284 26.1716Z" fill="hsl(var(--primary-foreground))" />

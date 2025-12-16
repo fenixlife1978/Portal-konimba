@@ -112,13 +112,13 @@ export default function AdminDashboardPage() {
   const isLoading = isLoadingPublishers || isLoadingOffers || isLoadingLeads;
 
   const menuItems = [
-    { title: "Gestión de Publishers", href: "/admin/publishers", icon: <IconPublisher /> },
-    { title: "Cargar Leads", href: "/admin/leads", icon: <IconLead /> },
-    { title: "Gestión de Pagos", href: "/admin/payments", icon: <IconPayment /> },
-    { title: "Gestión de Ofertas", href: "/admin/offers", icon: <IconOffer /> },
-    { title: "Reportes", href: "/admin/reports", icon: <IconReport /> },
-    { title: "Recibos", href: "/admin/receipts", icon: <IconReceiptCustom /> },
-    { title: "Configuración", href: "/admin/settings", icon: <IconSettings /> },
+    { title: "Gestión de Publishers", href: "/admin/publishers", icon: <IconPublisher className="h-full w-full bg-chart-1 rounded-lg" /> },
+    { title: "Cargar Leads", href: "/admin/leads", icon: <IconLead className="h-full w-full bg-chart-2 rounded-lg" /> },
+    { title: "Gestión de Pagos", href: "/admin/payments", icon: <IconPayment className="h-full w-full bg-chart-3 rounded-lg" /> },
+    { title: "Gestión de Ofertas", href: "/admin/offers", icon: <IconOffer className="h-full w-full bg-chart-4 rounded-lg" /> },
+    { title: "Reportes", href: "/admin/reports", icon: <IconReport className="h-full w-full bg-chart-5 rounded-lg" /> },
+    { title: "Recibos", href: "/admin/receipts", icon: <IconReceiptCustom className="h-full w-full bg-yellow-500 rounded-lg" /> },
+    { title: "Configuración", href: "/admin/settings", icon: <IconSettings className="h-full w-full bg-gray-500 rounded-lg" /> },
   ];
 
   return (
@@ -168,9 +168,9 @@ export default function AdminDashboardPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                     {menuItems.map((item) => (
-                    <Button asChild key={item.title} variant="outline" className="w-full justify-start gap-3 text-base py-6">
+                    <Button asChild key={item.title} variant="outline" className="w-full justify-start gap-3 text-base py-8">
                         <Link href={item.href}>
-                            <div className="h-10 w-10 -ml-1.5 flex items-center justify-center">
+                            <div className="h-12 w-12 flex items-center justify-center">
                                {item.icon}
                             </div>
                             {item.title}
