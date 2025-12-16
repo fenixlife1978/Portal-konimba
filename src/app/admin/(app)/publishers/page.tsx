@@ -225,7 +225,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="accountNumber">Número de Cuenta</Label>
-                                <Input id="accountNumber" value={editedPublisher.accountNumber} onChange={handleInputChange} placeholder={editedPublisher.country === 'VE' ? '20 dígitos para Venezuela' : 'Número de cuenta'} maxLength={editedPublisher.country === 'VE' ? 20 : undefined} />
+                                <Input id="accountNumber" value={editedPublisher.accountNumber || ''} onChange={handleInputChange} placeholder={editedPublisher.country === 'VE' ? '20 dígitos para Venezuela' : 'Número de cuenta'} maxLength={editedPublisher.country === 'VE' ? 20 : undefined} />
                             </div>
                         </div>
                     )}
@@ -249,7 +249,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                                         <SelectTrigger className="w-[120px]"><SelectValue placeholder="Código"/></SelectTrigger>
                                         <SelectContent>{phoneCodes.map(code => <SelectItem key={code} value={code}>{code}</SelectItem>)}</SelectContent>
                                     </Select>
-                                    <Input id="mobilePaymentPhoneNumber" value={editedPublisher.mobilePaymentPhoneNumber} onChange={handleInputChange} placeholder="XXXXXXX" maxLength={7} />
+                                    <Input id="mobilePaymentPhoneNumber" value={editedPublisher.mobilePaymentPhoneNumber || ''} onChange={handleInputChange} placeholder="XXXXXXX" maxLength={7} />
                                 </div>
                             </div>
                             <div className="space-y-2">
@@ -259,7 +259,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                                         <SelectTrigger className="w-[100px]"><SelectValue placeholder="Tipo"/></SelectTrigger>
                                         <SelectContent>{idPrefixes.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                                     </Select>
-                                    <Input id="mobilePaymentIdNumber" value={editedPublisher.mobilePaymentIdNumber} onChange={handleInputChange} placeholder="12345678" />
+                                    <Input id="mobilePaymentIdNumber" value={editedPublisher.mobilePaymentIdNumber || ''} onChange={handleInputChange} placeholder="12345678" />
                                 </div>
                             </div>
                          </div>
@@ -274,7 +274,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="usdtAddress">Correo electrónico de Binance</Label>
-                                <Input id="usdtAddress" type="email" value={editedPublisher.usdtAddress} onChange={handleInputChange} placeholder="tu.correo@email.com" />
+                                <Input id="usdtAddress" type="email" value={editedPublisher.usdtAddress || ''} onChange={handleInputChange} placeholder="tu.correo@email.com" />
                             </div>
                         </div>
                     )}
@@ -348,12 +348,15 @@ export default function PublishersPage() {
         updatedAt: serverTimestamp()
     };
     
-    if (mobilePaymentPhoneCode && mobilePaymentPhoneNumber) {
-        (dataToSave as any).mobilePaymentPhone = `${mobilePaymentPhoneCode}${mobilePaymentPhoneNumber}`;
+    if (data.paymentMethod === 'pagoMovil') {
+        if (mobilePaymentPhoneCode && mobilePaymentPhoneNumber) {
+            (dataToSave as any).mobilePaymentPhone = `${mobilePaymentPhoneCode}${mobilePaymentPhoneNumber}`;
+        }
+        if (mobilePaymentIdPrefix && mobilePaymentIdNumber) {
+            (dataToSave as any).mobilePaymentId = `${mobilePaymentIdPrefix}${mobilePaymentIdNumber}`;
+        }
     }
-     if (mobilePaymentIdPrefix && mobilePaymentIdNumber) {
-        (dataToSave as any).mobilePaymentId = `${mobilePaymentIdPrefix}${mobilePaymentIdNumber}`;
-    }
+
 
     try {
       await updateDoc(publisherRef, dataToSave, { merge: true });
