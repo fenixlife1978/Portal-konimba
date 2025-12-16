@@ -292,39 +292,23 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
 
 
 export default function PublishersPage() {
-  const firestore = db;
   const { toast } = useToast();
 
   const publishersCollectionRef = useMemo(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'publishers');
-  }, [firestore]);
+    if (!db) return null;
+    return collection(db, 'publishers');
+  }, [db]);
 
   const { data: publishers, isLoading } = useCollection<Publisher>(publishersCollectionRef);
 
   const handleSavePublisher = async (id: string, data: Partial<Publisher>) => {
-    if (!firestore) return;
-    const publisherRef = doc(firestore, 'publishers', id);
+    if (!db) return;
+    const publisherRef = doc(db, 'publishers', id);
     
-    // Prepare data for saving - ensure we only send what's allowed
-    const { 
-      firstName, lastName, phone, address, subId, status
-    } = data;
-    
-    const dataToSave: Partial<Publisher & { updatedAt: any }> = {
-        updatedAt: serverTimestamp()
-    };
-
-    if (firstName !== undefined) dataToSave.firstName = firstName;
-    if (lastName !== undefined) dataToSave.lastName = lastName;
-    if (phone !== undefined) dataToSave.phone = phone;
-    if (address !== undefined) dataToSave.address = address;
-    if (subId !== undefined) dataToSave.subId = subId;
-    if (status !== undefined) dataToSave.status = status;
-
+    const dataToSave: { [key: string]: any } = { ...data, updatedAt: serverTimestamp() };
 
     try {
-      await updateDoc(publisherRef, dataToSave as any, { merge: true });
+      await updateDoc(publisherRef, dataToSave);
       toast({
         title: "Publisher actualizado",
         description: "Los datos del publisher se han guardado.",
@@ -339,8 +323,8 @@ export default function PublishersPage() {
   };
 
   const handleDeletePublisher = async (id: string) => {
-    if (!firestore) return;
-    const publisherRef = doc(firestore, 'publishers', id);
+    if (!db) return;
+    const publisherRef = doc(db, 'publishers', id);
     try {
       await deleteDoc(publisherRef);
       toast({
