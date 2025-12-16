@@ -42,8 +42,7 @@ export interface InternalQuery extends Query<DocumentData> {
  * Handles nullable references/queries.
  * 
  * IMPORTANT! YOU MUST MEMOIZE the inputted memoizedTargetRefOrQuery or BAD THINGS WILL HAPPEN
- * use useMemo to memoize it per React guidence.  Also make sure that it's dependencies are stable
- * references
+ * use useMemo to memoize it per React guidance. Also make sure that its dependencies are stable references.
  *  
  * @template T Optional type for document data. Defaults to any.
  * @param {CollectionReference<DocumentData> | Query<DocumentData> | null | undefined} targetRefOrQuery -
@@ -51,7 +50,7 @@ export interface InternalQuery extends Query<DocumentData> {
  * @returns {UseCollectionResult<T>} Object with data, isLoading, error.
  */
 export function useCollection<T = any>(
-    memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>) & {__memo?: boolean})  | null | undefined,
+  memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>) & { __memo?: boolean }) | null | undefined,
 ): UseCollectionResult<T> {
   type ResultItemType = WithId<T>;
   type StateDataType = ResultItemType[] | null;
@@ -61,7 +60,6 @@ export function useCollection<T = any>(
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
-    // If the query is not ready, set loading to true and wait.
     if (!memoizedTargetRefOrQuery) {
       setIsLoading(true);
       setData(null);
@@ -86,20 +84,23 @@ export function useCollection<T = any>(
       (err: FirestoreError) => {
         let path: string = 'unknown_path';
         try {
-           path = (memoizedTargetRefOrQuery as any).type === 'collection'
+          path = (memoizedTargetRefOrQuery as any).type === 'collection'
             ? (memoizedTargetRefOrQuery as CollectionReference).path
             : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
         } catch (pathError) {
-            console.error("Could not determine path for Firestore error:", pathError);
+          console.error("Could not determine path for Firestore error:", pathError);
         }
 
+        // En vez de bloquear el módulo, devolvemos un array vacío
         const contextualError = new FirestorePermissionError({
           operation: 'list',
           path,
         });
 
+        console.warn("Firestore permission error caught:", contextualError);
+
         setError(contextualError);
-        setData(null);
+        setData([]); // 👉 tabla vacía en vez de null
         setIsLoading(false);
 
         errorEmitter.emit('permission-error', contextualError);

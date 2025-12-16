@@ -2,18 +2,23 @@
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
-import { getStorage, FirebaseStorage } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export function initializeFirebase() {
-  const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
   const storage = getStorage(app);
+
   return { firebaseApp: app, auth, db, storage };
 }
+
+// ✅ Exportamos las instancias directamente para usarlas en otros módulos
+const { firebaseApp, auth, db, storage } = initializeFirebase();
+export { firebaseApp, auth, db, storage };
 
 export * from './provider';
 export * from './firestore/use-collection';

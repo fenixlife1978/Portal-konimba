@@ -24,6 +24,18 @@ interface ExportOptions {
     isFinalSave?: boolean;
 }
 
+// Función auxiliar para convertir una URL en DataURL válido
+async function getImageDataUrl(url: string): Promise<string> {
+  const response = await fetch(url);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 export const exportToPDF = async (
     options: ExportOptions,
     returnInstance: boolean = false
@@ -78,18 +90,12 @@ export const exportToPDF = async (
 
   if (!isSubtable) {
       // --- Add Header ---
-      const logoUrl = '/logo.png';
+      const logoUrl = "https://i.supaimg.com/f1d0ffb2-fc91-4d68-b225-ad61b19b274e.jpg"; // 👉 tu logo externo
       try {
-        const response = await fetch(logoUrl);
-        const blob = await response.blob();
-        const reader = new FileReader();
-        await new Promise<void>((resolve, reject) => {
-          reader.onload = () => resolve();
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-        const logoDataUrl = reader.result as string;
-        pdf.addImage(logoDataUrl, 'PNG', margin, 10, 30, 10);
+        const logoDataUrl = await getImageDataUrl(logoUrl);
+        // Detecta formato automáticamente
+        const format = logoDataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
+        pdf.addImage(logoDataUrl, format, margin, 10, 30, 10);
       } catch (error) {
         console.error("Could not load logo for PDF, using text fallback.", error);
         pdf.setFontSize(18);
@@ -106,7 +112,6 @@ export const exportToPDF = async (
       const dateStr = new Date().toLocaleDateString('es-VE');
       pdf.text(dateStr, pdfWidth - margin, 23, { align: 'right' });
   }
-
 
   const drawTable = (tableOptions: UserOptions) => {
     autoTable(pdf, tableOptions);
@@ -152,12 +157,13 @@ export const exportToPDF = async (
                 textColor: 0,
                 fontStyle: 'bold',
             },
-             willDrawCell: (data) => {
-                 if (data.row.raw[0] && typeof data.row.raw[0] === 'object' && data.row.raw[0].colSpan) {
-                    pdf.setFontSize(10);
-                    pdf.setFont('helvetica', 'bold');
-                    pdf.setFillColor(240,240,240);
-                 }
+            willDrawCell: (data) => {
+              const rawRow = data.row.raw as any[];
+              if (rawRow && rawRow[0] && typeof rawRow[0] === 'object' && rawRow[0].colSpan) {
+                pdf.setFontSize(10);
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFillColor(240, 240, 240);
+              }
             },
             didDrawPage: (data) => {
                 lastY = data.cursor?.y || lastY;
