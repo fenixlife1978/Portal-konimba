@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
-import { autoTable, type UserOptions } from './jspdf-autotable';
+import autoTable from 'jspdf-autotable';
+import { UserOptions } from 'jspdf-autotable';
 
 // Extend the jsPDF type to include the autoTable method
 interface jsPDFWithAutoTable extends jsPDF {
@@ -57,21 +58,18 @@ export const exportToPDF = async (
       font: 'helvetica',
       fontSize: 8,
     },
+    didDrawPage: (data) => {
+      // --- Add Footer ---
+      pdf.setFontSize(8);
+      pdf.setTextColor(150);
+      pdf.text(
+        `Página ${data.pageNumber}`,
+        pdfWidth / 2,
+        pdf.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      );
+    }
   });
-
-  // --- Add Footer ---
-  const pageCount = pdf.internal.pages.length - 1;
-  for (let i = 1; i <= pageCount; i++) {
-    pdf.setPage(i);
-    pdf.setFontSize(8);
-    pdf.setTextColor(150);
-    pdf.text(
-      `Página ${i} de ${pageCount}`,
-      pdfWidth / 2,
-      pdf.internal.pageSize.getHeight() - 10,
-      { align: 'center' }
-    );
-  }
 
   // --- Save PDF ---
   pdf.save(fileName);
