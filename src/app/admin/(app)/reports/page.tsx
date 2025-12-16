@@ -31,7 +31,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { exportToPDF } from '@/lib/export-pdf';
 
 // Types
-type Publisher = { id: string; firstName: string; lastName: string; email: string; };
+type Publisher = { id: string; subId?: string; firstName: string; lastName: string; email: string; };
 type Offer = { id: string; name: string; paymentAmount: number; status: 'active' | 'inactive' };
 type Lead = { 
   id: string; 
@@ -209,7 +209,7 @@ function ReportDisplay({ reportData, publisher, period, showExchangeRate = false
     return (
         <Card className="mt-8 border-t pt-4" id={tableId}>
             <CardHeader>
-                <CardTitle>Reporte para {publisher.firstName} {publisher.lastName}</CardTitle>
+                <CardTitle>Reporte para {publisher.firstName} {publisher.lastName} {publisher.subId && `(SUB ID: ${publisher.subId})`}</CardTitle>
                 <CardDescription>Período: {period}</CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
@@ -294,13 +294,13 @@ function PublisherReport({ publishers, isLoadingPublishers, companyName }: { pub
 
     const publisherOptions = publishers?.map(p => ({
         value: p.id,
-        label: `${p.firstName} ${p.lastName} (${p.email})`,
+        label: `${p.firstName} ${p.lastName} (${p.subId ? `SUB ID: ${p.subId} - ` : ''}${p.email})`,
     })) || [];
 
     const handleExport = async () => {
         if (!reportData || !selectedPublisher) return;
         setIsExporting(true);
-        const reportTitle = `Reporte de Publisher - ${selectedPublisher.firstName} ${selectedPublisher.lastName}`;
+        const reportTitle = `Reporte de Publisher - ${selectedPublisher.firstName} ${selectedPublisher.lastName} ${selectedPublisher.subId ? `(SUB ID: ${selectedPublisher.subId})` : ''}`;
         const fileName = `Reporte_Publisher_${selectedPublisher.lastName}_${reportData.periodLabel.replace(' ','_')}.pdf`;
         
         const processed = processReportData(reportData);
@@ -704,7 +704,7 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
             ];
     
             allTables.push({
-                title: `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName}`,
+                title: `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName} ${pubReport.publisherInfo.subId ? `(SUB ID: ${pubReport.publisherInfo.subId})` : ''}`,
                 head,
                 body,
                 foot,

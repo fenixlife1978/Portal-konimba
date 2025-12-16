@@ -33,6 +33,7 @@ import { Separator } from '@/components/ui/separator';
 
 type Publisher = {
   id: string;
+  subId?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -129,6 +130,12 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                       Apellido
                     </Label>
                     <Input id="lastName" value={editedPublisher.lastName} onChange={handleInputChange} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="subId" className="text-right">
+                      SUB ID
+                    </Label>
+                    <Input id="subId" value={editedPublisher.subId || ''} onChange={handleInputChange} className="col-span-3" />
                   </div>
                    <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="phone" className="text-right">

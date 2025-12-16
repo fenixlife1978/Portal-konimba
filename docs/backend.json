@@ -10,6 +10,10 @@
           "type": "string",
           "description": "Unique identifier for the Publisher entity."
         },
+        "subId": {
+          "type": "string",
+          "description": "A custom secondary identifier for the publisher."
+        },
         "firstName": {
           "type": "string",
           "description": "The first name of the publisher."
