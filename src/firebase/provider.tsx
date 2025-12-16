@@ -6,7 +6,6 @@ import { Firestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseStorage } from 'firebase/storage';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
-import { firebaseApp, db, auth, storage } from '@/firebase'; // ✅ importamos directamente las instancias
 
 // Internal state for user authentication
 interface UserAuthState {
@@ -45,10 +44,19 @@ export interface UserHookResult {
 
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
+
+interface FirebaseProviderProps {
+    children: ReactNode;
+    firebaseApp: FirebaseApp;
+    auth: Auth;
+    firestore: Firestore;
+    storage: FirebaseStorage;
+}
+
 /**
  * FirebaseProvider manages and provides Firebase services and user authentication state.
  */
-export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children, firebaseApp, auth, firestore, storage }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
     isUserLoading: true,
@@ -74,21 +82,21 @@ export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({ children }
       }
     );
     return () => unsubscribe();
-  }, []);
+  }, [auth]);
 
   const contextValue = useMemo((): FirebaseContextState => {
-    const servicesAvailable = !!(firebaseApp && db && auth && storage);
+    const servicesAvailable = !!(firebaseApp && firestore && auth && storage);
     return {
       areServicesAvailable: servicesAvailable,
       firebaseApp: servicesAvailable ? firebaseApp : null,
-      firestore: servicesAvailable ? db : null,
+      firestore: servicesAvailable ? firestore : null,
       auth: servicesAvailable ? auth : null,
       storage: servicesAvailable ? storage : null,
       user: userAuthState.user,
       isUserLoading: userAuthState.isUserLoading,
       userError: userAuthState.userError,
     };
-  }, [userAuthState]);
+  }, [userAuthState, firebaseApp, firestore, auth, storage]);
 
   return (
     <FirebaseContext.Provider value={contextValue}>

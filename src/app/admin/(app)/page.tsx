@@ -47,13 +47,13 @@ export default function AdminDashboardPage() {
   const { user, isUserLoading } = useUser();
   
   // Data fetching
-  const publishersRef = useMemoFirebase(() => (firestore) ? collection(firestore, 'publishers') : null, [firestore]);
+  const publishersRef = useMemoFirebase(() => (firestore && user) ? collection(firestore, 'publishers') : null, [firestore, user]);
   const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
 
-  const offersRef = useMemoFirebase(() => firestore ? collection(firestore, 'offers') : null, [firestore]);
+  const offersRef = useMemoFirebase(() => (firestore && user) ? collection(firestore, 'offers') : null, [firestore, user]);
   const { data: offers, isLoading: isLoadingOffers } = useCollection<Offer>(offersRef);
 
-  const leadsRef = useMemoFirebase(() => firestore ? collection(firestore, 'leads') : null, [firestore]);
+  const leadsRef = useMemoFirebase(() => (firestore && user) ? collection(firestore, 'leads') : null, [firestore, user]);
   const { data: leads, isLoading: isLoadingLeads } = useCollection<Lead>(leadsRef);
 
   const memoizedStats = useMemo(() => {
@@ -112,13 +112,13 @@ export default function AdminDashboardPage() {
   const isLoading = isLoadingPublishers || isLoadingOffers || isLoadingLeads || isUserLoading;
 
   const menuItems = [
-    { title: "Gestión de Publishers", href: "/admin/publishers", icon: <IconPublisher className="h-full w-full" /> },
-    { title: "Cargar Leads", href: "/admin/leads", icon: <IconLead className="h-full w-full" /> },
-    { title: "Gestión de Pagos", href: "/admin/payments", icon: <IconPayment className="h-full w-full" /> },
-    { title: "Gestión de Ofertas", href: "/admin/offers", icon: <IconOffer className="h-full w-full" /> },
-    { title: "Reportes", href: "/admin/reports", icon: <IconReport className="h-full w-full" /> },
-    { title: "Recibos", href: "/admin/receipts", icon: <IconReceiptCustom className="h-full w-full" /> },
-    { title: "Configuración", href: "/admin/settings", icon: <IconSettings className="h-full w-full" /> },
+    { title: "Gestión de Publishers", href: "/admin/publishers", icon: <IconPublisher className="h-full w-full fill-chart-1" /> },
+    { title: "Cargar Leads", href: "/admin/leads", icon: <IconLead className="h-full w-full fill-chart-2" /> },
+    { title: "Gestión de Pagos", href: "/admin/payments", icon: <IconPayment className="h-full w-full fill-chart-3" /> },
+    { title: "Gestión de Ofertas", href: "/admin/offers", icon: <IconOffer className="h-full w-full fill-chart-4" /> },
+    { title: "Reportes", href: "/admin/reports", icon: <IconReport className="h-full w-full fill-chart-5" /> },
+    { title: "Recibos", href: "/admin/receipts", icon: <IconReceiptCustom className="h-full w-full fill-indigo-400" /> },
+    { title: "Configuración", href: "/admin/settings", icon: <IconSettings className="h-full w-full fill-pink-400" /> },
   ];
 
   return (
