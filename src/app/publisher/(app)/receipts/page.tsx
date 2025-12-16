@@ -166,8 +166,8 @@ function ReceiptDetailsDialog({ payment }: { payment: Payment }) {
         const fetchDetails = async () => {
             setIsLoading(true);
             try {
-                const [year, month, periodType] = payment.paymentPeriod.split('-');
-                const period = periodType === 'fortnight' ? `${periodType}-${payment.paymentPeriod.split('-')[2]}` : periodType;
+                const [year, month, periodType, periodNumber] = payment.paymentPeriod.split('-');
+                const period = periodType === 'fortnight' ? `${periodType}-${periodNumber}` : periodType;
 
                 let startDay = 1, endDay = 15;
                 if (period === 'fortnight-2') {
@@ -204,16 +204,7 @@ function ReceiptDetailsDialog({ payment }: { payment: Payment }) {
 
         fetchDetails();
 
-    }, [firestore, user, payment.paymentPeriod, payment.publisherId]);
-
-    const handleExport = async () => {
-        if (!details || !publisherData) return;
-        setIsExporting(true);
-        const reportTitle = `Recibo de Pago - ${publisherData.firstName} ${publisherData.lastName}`;
-        const fileName = `Recibo_${payment.paymentPeriod}_${publisherData.lastName}.pdf`;
-        await exportToPDF('receipt-content', fileName, reportTitle, settingsData?.companyName);
-        setIsExporting(false);
-    };
+    }, [firestore, user, payment.paymentPeriod]);
 
     const earningsByOffer = new Map<string, { name: string, quantity: number, earnings: number }>();
     let totalLeads = 0;
@@ -231,6 +222,28 @@ function ReceiptDetailsDialog({ payment }: { payment: Payment }) {
         });
         totalLeads = Array.from(earningsByOffer.values()).reduce((sum, item) => sum + item.quantity, 0);
     }
+    
+    const handleExport = async () => {
+        if (!details || !publisherData) return;
+        setIsExporting(true);
+        const reportTitle = `Recibo de Pago - ${publisherData.firstName} ${publisherData.lastName}`;
+        const fileName = `Recibo_${payment.paymentPeriod}_${publisherData.lastName}.pdf`;
+
+        const columns = ['Oferta', 'Leads Generados', 'Monto de Ganancia (USD)'];
+        const body = Array.from(earningsByOffer.values()).map(item => [
+            item.name,
+            item.quantity,
+            `$${item.earnings.toFixed(2)}`
+        ]);
+        body.push([
+            { content: 'Totales', colSpan: 1, styles: { fontStyle: 'bold' } },
+            { content: totalLeads, styles: { fontStyle: 'bold' } },
+            { content: `$${payment.amountUSD.toFixed(2)}`, styles: { fontStyle: 'bold' } }
+        ]);
+
+        await exportToPDF(columns, body, fileName, reportTitle, settingsData?.companyName);
+        setIsExporting(false);
+    };
     
     if (isLoading || !publisherData) {
         return (

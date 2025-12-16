@@ -198,20 +198,23 @@ export default function PaymentsPage() {
             
             let amountVES = 0;
             let amountCOP = 0;
+            let amountUSD = earnings.total;
 
             if (publisherInfo?.paymentMethod === 'usdt') {
-                // Keep as USD, handled by totalUSD
+                // Keep as USD
             } else if (publisherInfo?.country === 'VE' && (publisherInfo.paymentMethod === 'pagoMovil' || publisherInfo.paymentMethod === 'transferencia')) {
                 amountVES = earnings.total * usdToVes;
+                amountUSD = 0;
             } else if (publisherInfo?.country === 'CO' && publisherInfo.paymentMethod === 'transferencia') {
                 amountCOP = earnings.total * usdToCop;
+                amountUSD = 0;
             }
 
             const paymentData = {
                 publisherId,
                 publisherName: earnings.name,
                 paymentPeriod: currentPaymentPeriod,
-                amountUSD: earnings.total,
+                amountUSD: earnings.total, // Store original USD amount for records
                 amountVES: amountVES,
                 amountCOP: amountCOP,
                 status: 'pending',
@@ -293,10 +296,20 @@ export default function PaymentsPage() {
   const handleExport = async () => {
     if (!pendingPayments || pendingPayments.length === 0 || !paymentPeriod) return;
     setIsExporting(true);
+
     const formattedPeriod = formatPaymentPeriod(paymentPeriod);
     const reportTitle = `Nómina de Pagos Pendientes - ${formattedPeriod}`;
     const fileName = `Nomina_Pagos_${paymentPeriod}.pdf`;
-    await exportToPDF('payments-table', fileName, reportTitle, settingsData?.companyName);
+
+    const columns = ['Publisher', 'Monto (USD)', 'Monto (COP)', 'Monto (VES)'];
+    const data = pendingPayments.map(p => [
+        p.publisherName,
+        `$${p.amountUSD.toFixed(2)}`,
+        p.amountCOP > 0 ? p.amountCOP.toLocaleString('es-CO', {style: 'currency', currency: 'COP'}) : '-',
+        p.amountVES > 0 ? p.amountVES.toLocaleString('es-VE', {style: 'currency', currency: 'VES'}) : '-',
+    ]);
+
+    await exportToPDF(columns, data, fileName, reportTitle, settingsData?.companyName);
     setIsExporting(false);
   };
   
@@ -404,7 +417,7 @@ export default function PaymentsPage() {
       )}
 
       {paymentPeriod && (
-        <Card className="mt-8" id="payments-table">
+        <Card className="mt-8" id="payments-table-container">
           <CardHeader>
             <div className="flex items-center justify-between">
                 <div>
