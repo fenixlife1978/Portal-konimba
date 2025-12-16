@@ -44,10 +44,10 @@ const StatCard = ({ title, value, icon, description }: { title: string, value: s
 
 export default function AdminDashboardPage() {
   const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   
   // Data fetching
-  const publishersRef = useMemoFirebase(() => (firestore && user) ? collection(firestore, 'publishers') : null, [firestore, user]);
+  const publishersRef = useMemoFirebase(() => (firestore) ? collection(firestore, 'publishers') : null, [firestore]);
   const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
 
   const offersRef = useMemoFirebase(() => firestore ? collection(firestore, 'offers') : null, [firestore]);
@@ -109,16 +109,16 @@ export default function AdminDashboardPage() {
     return { totalPublishers, activePublishersThisFortnight, totalLeadsThisMonth, totalEarningsThisMonth, leadsByOfferData };
   }, [leads, publishers, offers]);
   
-  const isLoading = isLoadingPublishers || isLoadingOffers || isLoadingLeads;
+  const isLoading = isLoadingPublishers || isLoadingOffers || isLoadingLeads || isUserLoading;
 
   const menuItems = [
-    { title: "Gestión de Publishers", href: "/admin/publishers", icon: <IconPublisher className="h-full w-full bg-chart-1 rounded-lg" /> },
-    { title: "Cargar Leads", href: "/admin/leads", icon: <IconLead className="h-full w-full bg-chart-2 rounded-lg" /> },
-    { title: "Gestión de Pagos", href: "/admin/payments", icon: <IconPayment className="h-full w-full bg-chart-3 rounded-lg" /> },
-    { title: "Gestión de Ofertas", href: "/admin/offers", icon: <IconOffer className="h-full w-full bg-chart-4 rounded-lg" /> },
-    { title: "Reportes", href: "/admin/reports", icon: <IconReport className="h-full w-full bg-chart-5 rounded-lg" /> },
-    { title: "Recibos", href: "/admin/receipts", icon: <IconReceiptCustom className="h-full w-full bg-yellow-500 rounded-lg" /> },
-    { title: "Configuración", href: "/admin/settings", icon: <IconSettings className="h-full w-full bg-gray-500 rounded-lg" /> },
+    { title: "Gestión de Publishers", href: "/admin/publishers", icon: <IconPublisher className="h-full w-full" /> },
+    { title: "Cargar Leads", href: "/admin/leads", icon: <IconLead className="h-full w-full" /> },
+    { title: "Gestión de Pagos", href: "/admin/payments", icon: <IconPayment className="h-full w-full" /> },
+    { title: "Gestión de Ofertas", href: "/admin/offers", icon: <IconOffer className="h-full w-full" /> },
+    { title: "Reportes", href: "/admin/reports", icon: <IconReport className="h-full w-full" /> },
+    { title: "Recibos", href: "/admin/receipts", icon: <IconReceiptCustom className="h-full w-full" /> },
+    { title: "Configuración", href: "/admin/settings", icon: <IconSettings className="h-full w-full" /> },
   ];
 
   return (
@@ -168,12 +168,12 @@ export default function AdminDashboardPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                     {menuItems.map((item) => (
-                    <Button asChild key={item.title} variant="outline" className="w-full justify-start gap-3 text-base py-8">
+                    <Button asChild key={item.title} variant="outline" className="w-full justify-start gap-3 text-base py-8 h-auto">
                         <Link href={item.href}>
-                            <div className="h-12 w-12 flex items-center justify-center">
+                            <div className="h-16 w-16 flex items-center justify-center">
                                {item.icon}
                             </div>
-                            {item.title}
+                            <span className="flex-1 text-left">{item.title}</span>
                             <ArrowRight className="h-4 w-4 ml-auto" />
                         </Link>
                     </Button>

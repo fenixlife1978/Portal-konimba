@@ -7,15 +7,10 @@ import {
   DocumentData,
   FirestoreError,
   QuerySnapshot,
-  CollectionReference,
-  collection,
-  query,
-  where,
+  CollectionReference
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { db } from '@/firebase'; // tu inicialización de Firestore
-import { useAuth } from '@/firebase/auth-context'; // tu contexto de auth
 
 /** Utility type to add an 'id' field to a given type T. */
 export type WithId<T> = T & { id: string };
@@ -62,15 +57,14 @@ export function useCollection<T = any>(
   type StateDataType = ResultItemType[] | null;
 
   const [data, setData] = useState<StateDataType>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // Start as true
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
-  const { currentUser } = useAuth();
-
   useEffect(() => {
-    if (!memoizedTargetRefOrQuery || !currentUser) {
+    // If the query is not ready, set loading to true and wait.
+    if (!memoizedTargetRefOrQuery) {
+      setIsLoading(true);
       setData(null);
-      setIsLoading(false);
       setError(null);
       return;
     }
@@ -78,17 +72,8 @@ export function useCollection<T = any>(
     setIsLoading(true);
     setError(null);
 
-    // 🔑 Si la colección es "payments", construimos un query filtrado por publisherId
-    let finalQuery: Query<DocumentData> | CollectionReference<DocumentData> = memoizedTargetRefOrQuery;
-    if ((memoizedTargetRefOrQuery as CollectionReference).path === 'payments') {
-      finalQuery = query(
-        collection(db, 'payments'),
-        where('publisherId', '==', currentUser.uid)
-      );
-    }
-
     const unsubscribe = onSnapshot(
-      finalQuery,
+      memoizedTargetRefOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
         const results: ResultItemType[] = [];
         for (const doc of snapshot.docs) {
@@ -98,11 +83,15 @@ export function useCollection<T = any>(
         setError(null);
         setIsLoading(false);
       },
-      (error: FirestoreError) => {
-        const path: string =
-          (finalQuery as any).type === 'collection'
-            ? (finalQuery as CollectionReference).path
-            : (finalQuery as unknown as InternalQuery)._query.path.canonicalString();
+      (err: FirestoreError) => {
+        let path: string = 'unknown_path';
+        try {
+           path = (memoizedTargetRefOrQuery as any).type === 'collection'
+            ? (memoizedTargetRefOrQuery as CollectionReference).path
+            : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
+        } catch (pathError) {
+            console.error("Could not determine path for Firestore error:", pathError);
+        }
 
         const contextualError = new FirestorePermissionError({
           operation: 'list',
@@ -118,10 +107,10 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
-  }, [memoizedTargetRefOrQuery, currentUser]);
+  }, [memoizedTargetRefOrQuery]);
 
   if (memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
-    throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');
+    throw new Error('useCollection query must be memoized with useMemoFirebase');
   }
 
   return { data, isLoading, error };
