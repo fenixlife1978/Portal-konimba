@@ -458,16 +458,41 @@ export default function SettingsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold font-headline text-foreground">Configuración de Pagos</h1>
+        <h1 className="text-3xl font-bold font-headline text-foreground">Configuración de Cuenta</h1>
         <Button asChild variant="outline">
           <Link href="/publisher"><ArrowLeft className="mr-2 h-4 w-4" />Volver al panel</Link>
         </Button>
       </div>
+
+       <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Información Personal</CardTitle>
+            <CardDescription>Estos son tus datos personales registrados en el sistema.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="subId">SUB ID</Label>
+                    <Input id="subId" value={publisherData?.subId || 'No asignado'} readOnly className="bg-muted/50" />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="fullName">Nombre Completo</Label>
+                    <Input id="fullName" value={`${publisherData?.firstName || ''} ${publisherData?.lastName || ''}`} readOnly className="bg-muted/50" />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" value={publisherData?.email || ''} readOnly className="bg-muted/50" />
+                </div>
+             </div>
+          </CardContent>
+        </Card>
+
+        <Separator className="my-8" />
+        
+        <h2 className="text-2xl font-bold font-headline text-foreground mb-4">Configuración de Pagos</h2>
       <form onSubmit={handleSave}>
         {renderContent()}
       </form>
     </div>
   );
 }
-
-    
