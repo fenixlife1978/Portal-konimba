@@ -3,7 +3,7 @@
  * Admins have broad permissions to manage the system, while Publishers are restricted to managing their own profile and related data.
  *
  * Data Structure:
- * - /publishers/{publisherId}: Stores individual publisher profiles. Access is controlled by ownership, where the document ID matches the user's Auth UID.
+ * - /publishers/{publisherId}: Stores individual publisher profiles. Access is controlled by ownership, where the document ID matches the user's Auth UID. Admins have full access.
  * - /roles_admin/{uid}: A dedicated collection for managing administrator privileges. The existence of a document for a user's UID grants them admin rights.
  * - /offers/{offerId}: Stores promotional offers. Admins manage them, while all authenticated users can read them.
  * - /leads/{leadId}: Stores records of generated leads. Admins have full control, while Publishers can only read their own lead records.
@@ -53,12 +53,16 @@ service cloud.firestore {
     // ------------------------------------------------------------------------
 
     /**
-     * @description Manages publisher profiles. Publishers can create, read, and update their own profile. Admins have full CRUD access.
+     * @description Manages publisher profiles. Publishers can read and update their own profile. Admins have full CRUD access.
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
-      allow read, write: if isOwner(publisherId);
-      allow write, list: if isAdmin();
+      // Admins have full read, write, and list permissions.
+      allow read, write, list: if isAdmin();
+      // Publishers can only read their own data and write to it. They cannot create it here (creation is in auth flow).
+      allow read, update: if isOwner(publisherId);
+      // Allow any authenticated user to create their own publisher profile.
+      allow create: if isOwner(publisherId);
     }
 
     /**

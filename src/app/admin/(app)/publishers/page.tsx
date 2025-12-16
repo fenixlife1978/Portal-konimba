@@ -30,6 +30,13 @@ import { MoreHorizontal, Pencil, Trash2, ArrowLeft } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+import banksVe from '@/lib/banks-ve.json';
+import banksCo from '@/lib/banks-co.json';
+
+const phoneCodes = ["0412", "0414", "0416", "0424", "0426"];
+const idPrefixes = ["V", "E", "J", "G", "P"];
 
 type Publisher = {
   id: string;
@@ -43,21 +50,31 @@ type Publisher = {
   city?: string;
   state?: string;
   zipCode?: string;
-  // Payment info
-  country?: string;
-  paymentMethod?: string;
+  country?: 'VE' | 'CO' | '';
+  paymentMethod?: 'transferencia' | 'pagoMovil' | 'usdt' | '';
   bank?: string;
   accountNumber?: string;
-  mobilePaymentPhone?: string;
-  mobilePaymentId?: string;
-  usdtPlatform?: string;
+  mobilePaymentBank?: string;
+  mobilePaymentPhoneCode?: string;
+  mobilePaymentPhoneNumber?: string;
+  mobilePaymentIdPrefix?: string;
+  mobilePaymentIdNumber?: string;
   usdtAddress?: string;
 };
 
 function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; onSave: (data: Partial<Publisher>) => Promise<void>; onDelete: () => Promise<void> }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [editedPublisher, setEditedPublisher] = useState(publisher);
+  const [editedPublisher, setEditedPublisher] = useState<Publisher>(publisher);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { id, value } = e.target;
+    setEditedPublisher(prev => ({ ...prev, [id]: value }));
+  };
+  
+  const handleSelectChange = (field: keyof Publisher, value: string) => {
+    setEditedPublisher(prev => ({ ...prev, [field]: value }));
+  };
 
   const handleSave = async () => {
     await onSave(editedPublisher);
@@ -68,21 +85,6 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
     await onDelete();
     setIsDeleting(false);
   }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { id, value } = e.target;
-    setEditedPublisher(prev => ({ ...prev, [id]: value }));
-  };
-
-  const InfoField = ({ label, value }: { label: string, value?: string }) => (
-    value ? (
-      <div className="grid grid-cols-4 items-center gap-4">
-        <Label className="text-right text-muted-foreground">{label}</Label>
-        <p className="col-span-3 text-sm">{value}</p>
-      </div>
-    ) : null
-  );
-  
 
   return (
     <TableRow key={publisher.id}>
@@ -105,72 +107,145 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
           <DropdownMenuContent align="end">
             <Dialog open={isEditing} onOpenChange={setIsEditing}>
               <DialogTrigger asChild>
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setEditedPublisher(publisher); }}>
                   <Pencil className="mr-2 h-4 w-4" />
                   Ver / Editar
                 </DropdownMenuItem>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-3xl">
                 <DialogHeader>
                   <DialogTitle>Detalles del Publisher</DialogTitle>
                   <DialogDescription>
-                    Edita los datos básicos o consulta la información de pago.
+                    Edita la información básica y de pago del publisher.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
-                  <h3 className="font-semibold text-foreground mb-2">Información Personal</h3>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="firstName" className="text-right">
-                      Nombre
-                    </Label>
-                    <Input id="firstName" value={editedPublisher.firstName} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="lastName" className="text-right">
-                      Apellido
-                    </Label>
-                    <Input id="lastName" value={editedPublisher.lastName} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="subId" className="text-right">
-                      SUB ID
-                    </Label>
-                    <Input id="subId" value={editedPublisher.subId || ''} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="phone" className="text-right">
-                      Teléfono
-                    </Label>
-                    <Input id="phone" value={editedPublisher.phone || ''} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="address" className="text-right">
-                      Dirección
-                    </Label>
-                    <Input id="address" value={editedPublisher.address || ''} onChange={handleInputChange} className="col-span-3" />
-                  </div>
+                <div className="grid gap-6 py-4 max-h-[70vh] overflow-y-auto pr-4">
                   
+                  {/* --- Personal Information --- */}
+                  <h3 className="font-semibold text-foreground text-lg">Información Personal</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">Nombre</Label>
+                      <Input id="firstName" value={editedPublisher.firstName} onChange={handleInputChange} />
+                    </div>
+                     <div className="space-y-2">
+                      <Label htmlFor="lastName">Apellido</Label>
+                      <Input id="lastName" value={editedPublisher.lastName} onChange={handleInputChange} />
+                    </div>
+                     <div className="space-y-2">
+                      <Label htmlFor="subId">SUB ID</Label>
+                      <Input id="subId" value={editedPublisher.subId || ''} onChange={handleInputChange} />
+                    </div>
+                     <div className="space-y-2">
+                      <Label htmlFor="phone">Teléfono</Label>
+                      <Input id="phone" value={editedPublisher.phone || ''} onChange={handleInputChange} />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="address">Dirección</Label>
+                      <Input id="address" value={editedPublisher.address || ''} onChange={handleInputChange} />
+                    </div>
+                  </div>
+
                   <Separator className="my-4" />
 
-                  <h3 className="font-semibold text-foreground mb-2">Información de Pago (Solo Lectura)</h3>
-                  
-                  <InfoField label="País" value={publisher.country === 'VE' ? 'Venezuela' : publisher.country === 'CO' ? 'Colombia' : publisher.country} />
-                  <InfoField label="Método" value={publisher.paymentMethod} />
-                  <InfoField label="Banco" value={publisher.bank} />
-                  <InfoField label="Nº de Cuenta" value={publisher.accountNumber} />
-                  <InfoField label="Teléfono (Pago Móvil)" value={publisher.mobilePaymentPhone} />
-                  <InfoField label="ID (Pago Móvil)" value={publisher.mobilePaymentId} />
-                  <InfoField label="Plataforma USDT" value={publisher.usdtPlatform} />
-                  <InfoField label="Dirección USDT" value={publisher.usdtAddress} />
+                  {/* --- Payment Information --- */}
+                  <h3 className="font-semibold text-foreground text-lg">Información de Pago</h3>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-muted/30">
+                        <div className="space-y-2">
+                            <Label htmlFor="country">País de Residencia</Label>
+                            <Select onValueChange={(val: 'VE' | 'CO' | '') => handleSelectChange('country', val)} value={editedPublisher.country}>
+                            <SelectTrigger id="country"><SelectValue placeholder="Selecciona un país" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="VE">Venezuela</SelectItem>
+                                <SelectItem value="CO">Colombia</SelectItem>
+                            </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="paymentMethod">Método de Pago Principal</Label>
+                            <Select onValueChange={(val) => handleSelectChange('paymentMethod', val)} value={editedPublisher.paymentMethod} disabled={!editedPublisher.country}>
+                                <SelectTrigger id="paymentMethod"><SelectValue placeholder="Selecciona un método" /></SelectTrigger>
+                                <SelectContent>
+                                    {editedPublisher.country === 'VE' && <SelectItem value="pagoMovil">Pago Móvil</SelectItem>}
+                                    {(editedPublisher.country === 'VE' || editedPublisher.country === 'CO') && <SelectItem value="transferencia">Transferencia Bancaria</SelectItem>}
+                                    <SelectItem value="usdt">USDT (Binance)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
 
-                  {!publisher.country && (
-                     <p className="col-span-4 text-sm text-center text-muted-foreground mt-2">El publisher aún no ha configurado sus datos de pago.</p>
-                  )}
+                    {/* --- Bank Transfer Fields --- */}
+                    {editedPublisher.paymentMethod === 'transferencia' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="bank">Banco</Label>
+                                <Select onValueChange={(val) => handleSelectChange('bank', val)} value={editedPublisher.bank}>
+                                    <SelectTrigger><SelectValue placeholder="Selecciona un banco" /></SelectTrigger>
+                                    <SelectContent>
+                                        {editedPublisher.country === 'VE' && banksVe.map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
+                                        {editedPublisher.country === 'CO' && banksCo.map(b => <SelectItem key={b.code} value={b.name}>{b.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="accountNumber">Número de Cuenta</Label>
+                                <Input id="accountNumber" value={editedPublisher.accountNumber} onChange={handleInputChange} placeholder={editedPublisher.country === 'VE' ? '20 dígitos para Venezuela' : 'Número de cuenta'} maxLength={editedPublisher.country === 'VE' ? 20 : undefined} />
+                            </div>
+                        </div>
+                    )}
+                    {/* --- Pago Movil Fields --- */}
+                    {editedPublisher.paymentMethod === 'pagoMovil' && editedPublisher.country === 'VE' && (
+                        <>
+                         <div className="space-y-2">
+                            <Label htmlFor="mobilePaymentBank">Banco</Label>
+                            <Select onValueChange={(val) => handleSelectChange('mobilePaymentBank', val)} value={editedPublisher.mobilePaymentBank}>
+                                <SelectTrigger><SelectValue placeholder="Selecciona un banco" /></SelectTrigger>
+                                <SelectContent>
+                                    {banksVe.map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                         </div>
+                         <div className="grid grid-cols-2 gap-4">
+                             <div className="space-y-2">
+                                <Label>Número de Teléfono</Label>
+                                <div className="flex gap-2">
+                                    <Select onValueChange={(val) => handleSelectChange('mobilePaymentPhoneCode', val)} value={editedPublisher.mobilePaymentPhoneCode}>
+                                        <SelectTrigger className="w-[120px]"><SelectValue placeholder="Código"/></SelectTrigger>
+                                        <SelectContent>{phoneCodes.map(code => <SelectItem key={code} value={code}>{code}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                    <Input id="mobilePaymentPhoneNumber" value={editedPublisher.mobilePaymentPhoneNumber} onChange={handleInputChange} placeholder="XXXXXXX" maxLength={7} />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Cédula o RIF</Label>
+                                <div className="flex gap-2">
+                                    <Select onValueChange={(val) => handleSelectChange('mobilePaymentIdPrefix', val)} value={editedPublisher.mobilePaymentIdPrefix}>
+                                        <SelectTrigger className="w-[100px]"><SelectValue placeholder="Tipo"/></SelectTrigger>
+                                        <SelectContent>{idPrefixes.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                    <Input id="mobilePaymentIdNumber" value={editedPublisher.mobilePaymentIdNumber} onChange={handleInputChange} placeholder="12345678" />
+                                </div>
+                            </div>
+                         </div>
+                        </>
+                    )}
+                    {/* --- USDT Fields --- */}
+                    {editedPublisher.paymentMethod === 'usdt' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Plataforma</Label>
+                                <Input value="Binance" readOnly className="bg-muted/50" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="usdtAddress">Correo electrónico de Binance</Label>
+                                <Input id="usdtAddress" type="email" value={editedPublisher.usdtAddress} onChange={handleInputChange} placeholder="tu.correo@email.com" />
+                            </div>
+                        </div>
+                    )}
+
                 </div>
                 <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">Cancelar</Button>
-                  </DialogClose>
+                  <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
                   <Button onClick={handleSave}>Guardar Cambios</Button>
                 </DialogFooter>
               </DialogContent>
@@ -190,9 +265,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                   </DialogDescription>
                 </DialogHeader>
                  <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">Cancelar</Button>
-                  </DialogClose>
+                  <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
                   <Button variant="destructive" onClick={handleDeleteConfirm}>Sí, eliminar</Button>
                 </DialogFooter>
               </DialogContent>
@@ -219,8 +292,24 @@ export default function PublishersPage() {
   const handleSavePublisher = async (id: string, data: Partial<Publisher>) => {
     if (!firestore) return;
     const publisherRef = doc(firestore, 'publishers', id);
+    
+    // Prepare data for saving
+    const { mobilePaymentPhoneCode, mobilePaymentPhoneNumber, mobilePaymentIdPrefix, mobilePaymentIdNumber, ...restOfData } = data;
+    const dataToSave: Partial<Publisher> & { updatedAt: any } = {
+        ...restOfData,
+        updatedAt: serverTimestamp()
+    };
+    
+    // Combine phone and id numbers if they exist
+    if (mobilePaymentPhoneCode && mobilePaymentPhoneNumber) {
+        (dataToSave as any).mobilePaymentPhone = `${mobilePaymentPhoneCode}${mobilePaymentPhoneNumber}`;
+    }
+     if (mobilePaymentIdPrefix && mobilePaymentIdNumber) {
+        (dataToSave as any).mobilePaymentId = `${mobilePaymentIdPrefix}${mobilePaymentIdNumber}`;
+    }
+
     try {
-      await updateDoc(publisherRef, { ...data, updatedAt: serverTimestamp() });
+      await updateDoc(publisherRef, dataToSave);
       toast({
         title: "Publisher actualizado",
         description: "Los datos del publisher se han guardado.",
