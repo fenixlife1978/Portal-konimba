@@ -308,5 +308,3 @@ export default function PublishersPage() {
     </div>
   );
 }
-
-    
