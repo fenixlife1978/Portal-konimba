@@ -119,14 +119,19 @@ export default function PaymentsPage() {
     if (!pendingPayments) return null;
 
     return pendingPayments.reduce((totals, payment) => {
-        if(payment.amountUSD > 0 && (payment.amountVES === 0 && payment.amountCOP === 0) ) {
-            totals.totalUSD += payment.amountUSD;
-        } else if (payment.amountVES > 0) {
+        // Publisher will be paid in VES
+        if (payment.amountVES > 0) {
             totals.totalVES += payment.amountVES;
             totals.hasVES = true;
-        } else if (payment.amountCOP > 0) {
+        } 
+        // Publisher will be paid in COP
+        else if (payment.amountCOP > 0) {
             totals.totalCOP += payment.amountCOP;
             totals.hasCOP = true;
+        } 
+        // Publisher will be paid in USDT (USD)
+        else {
+            totals.totalUSD += payment.amountUSD;
         }
         return totals;
     }, { totalUSD: 0, totalVES: 0, totalCOP: 0, hasVES: false, hasCOP: false });
@@ -443,24 +448,24 @@ export default function PaymentsPage() {
               </TableBody>
               {memoizedPaymentTotals && (pendingPayments?.length ?? 0) > 0 && (
                 <TableFooter>
-                    {memoizedPaymentTotals.hasCOP && (
+                    {memoizedPaymentTotals.hasCOP && memoizedPaymentTotals.totalCOP > 0 && (
                         <TableRow className="bg-muted/50 font-bold">
-                            <TableCell colSpan={2}>TOTAL A PAGAR (COP)</TableCell>
-                            <TableCell className="text-right">{memoizedPaymentTotals.totalCOP.toLocaleString('es-CO', {style: 'currency', currency: 'COP'})}</TableCell>
+                            <TableCell colSpan={2} className="text-right">TOTAL A PAGAR (COP)</TableCell>
+                            <TableCell className="text-right font-extrabold">{memoizedPaymentTotals.totalCOP.toLocaleString('es-CO', {style: 'currency', currency: 'COP'})}</TableCell>
                             <TableCell colSpan={2} />
                         </TableRow>
                     )}
-                    {memoizedPaymentTotals.hasVES && (
+                    {memoizedPaymentTotals.hasVES && memoizedPaymentTotals.totalVES > 0 && (
                         <TableRow className="bg-muted/50 font-bold">
-                            <TableCell colSpan={3}>TOTAL A PAGAR (VES)</TableCell>
-                            <TableCell className="text-right">{memoizedPaymentTotals.totalVES.toLocaleString('es-VE', {style: 'currency', currency: 'VES'})}</TableCell>
+                            <TableCell colSpan={3} className="text-right">TOTAL A PAGAR (VES)</TableCell>
+                            <TableCell className="text-right font-extrabold">{memoizedPaymentTotals.totalVES.toLocaleString('es-VE', {style: 'currency', currency: 'VES'})}</TableCell>
                             <TableCell />
                         </TableRow>
                     )}
                     {memoizedPaymentTotals.totalUSD > 0 && (
                         <TableRow className="bg-muted/50 font-bold">
-                            <TableCell colSpan={4}>TOTAL A PAGAR (USDT)</TableCell>
-                            <TableCell className="text-right">${memoizedPaymentTotals.totalUSD.toFixed(2)}</TableCell>
+                            <TableCell colSpan={4} className="text-right">TOTAL A PAGAR (USDT)</TableCell>
+                            <TableCell className="text-right font-extrabold">${memoizedPaymentTotals.totalUSD.toFixed(2)}</TableCell>
                         </TableRow>
                     )}
                 </TableFooter>
