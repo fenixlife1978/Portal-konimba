@@ -95,7 +95,7 @@ export default function ReceiptsPage() {
                     </TableCell>
                 </TableRow>
               )}
-              {!isLoading && paidPayments?.length === 0 ? (
+              {!isLoading && paidPayments?.length === 0 && !error ? (
                  <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No se encontraron recibos.</TableCell></TableRow>
               ) : (
                 paidPayments?.map((payment) => (
