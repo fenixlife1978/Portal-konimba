@@ -309,7 +309,7 @@ function PublisherReport({ publishers, isLoadingPublishers, companyName }: { pub
             return;
         }
 
-        const header = ["Oferta", ...processed.dayColumns.map(String), "Total Leads", "Precio (USD)", "Ganancia (USD)"];
+        const head = [["Oferta", ...processed.dayColumns.map(String), "Total Leads", "Precio (USD)", "Ganancia (USD)"]];
         const body = processed.tableRows.map(row => [
             row.offerName,
             ...processed.dayColumns.map(day => row.days.get(day) || ''),
@@ -318,22 +318,14 @@ function PublisherReport({ publishers, isLoadingPublishers, companyName }: { pub
             `$${row.offerEarnings.toFixed(2)}`
         ]);
         
-        const totalsRow = [
-             { content: 'TOTALES', colSpan: processed.dayColumns.length + 1, styles: { fontStyle: 'bold', halign: 'right' } },
+        const foot = [
+             [{ content: 'TOTALES', colSpan: processed.dayColumns.length + 1, styles: { fontStyle: 'bold', halign: 'right' } },
              { content: processed.totalLeads, styles: { fontStyle: 'bold', halign: 'center' } },
              { content: '', styles: { fontStyle: 'bold', halign: 'center' } },
-             { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }
-        ]
-        
-        // jspdf-autotable requires the body to be an array of arrays.
-        // We'll add the header as the first row with custom styling.
-        const finalBody = [
-            header.map(h => ({ content: h, styles: { fillColor: [22, 64, 114], textColor: 255, fontStyle: 'bold' } })),
-            ...body,
-            totalsRow
+             { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }]
         ];
 
-        await exportToPDF(finalBody, fileName, reportTitle, companyName);
+        await exportToPDF({ head, body, foot, fileName, reportTitle, companyName, showFooter: true });
         setIsExporting(false);
     };
 
@@ -519,84 +511,58 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
     const handleExport = async () => {
         if (!reportData) return;
         setIsExporting(true);
+
         const periodLabel = reportData.publisherReports[0]?.reportData.periodLabel || "General";
         const reportTitle = `Reporte General de Pagos: ${periodLabel}`;
-        const fileName = `Reporte_General_Pagos_${periodLabel.replace(/ /g,'_')}.pdf`;
+        const fileName = `Reporte_General_Pagos_${periodLabel.replace(/ /g, '_')}.pdf`;
         
         let allBody: any[][] = [];
-        const activeOffers = offers.filter(o => o.status === 'active').sort((a, b) => a.name.localeCompare(b.name));
-        const offerNames = activeOffers.map(o => o.name);
 
-        reportData.publisherReports.forEach(pubReport => {
+        for (const pubReport of reportData.publisherReports) {
             const processed = processReportData(pubReport.reportData);
-            if(processed) {
-                // Publisher Name Header Row
-                allBody.push([
-                    { content: `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName}`, colSpan: offerNames.length + 3, styles: { fontStyle: 'bold', fillColor: '#f0f0f0' } }
-                ]);
-                
-                // Offer Names Header Row for each publisher
-                const offerHeader = [
-                    { content: 'Leads / Día', styles: { fontStyle: 'bold', fillColor: '#e0e0e0'} },
-                     ...offerNames,
-                     { content: 'Total Leads', styles: { fontStyle: 'bold', fillColor: '#ccffcc'} },
-                     { content: 'Total (USD)', styles: { fontStyle: 'bold', fillColor: '#ffcccc'} },
-                ];
-                allBody.push(offerHeader);
+            if (!processed) continue;
 
-                // Data Rows (by day)
-                const leadsByDay = new Map<number, { day: number, leads: Map<string, number>, total: number }>();
-                pubReport.reportData.leads.forEach(lead => {
-                    const day = parseInt(lead.date.split('-')[2]);
-                    if(!leadsByDay.has(day)) leadsByDay.set(day, { day, leads: new Map(), total: 0 });
-                    const dayEntry = leadsByDay.get(day)!;
-                    dayEntry.leads.set(lead.offerId, (dayEntry.leads.get(lead.offerId) || 0) + lead.quantity);
-                });
+            allBody.push([
+                { content: `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName}`, colSpan: processed.dayColumns.length + 4, styles: { fontStyle: 'bold', fillColor: '#f0f0f0' } }
+            ]);
 
-                pubReport.reportData.daysInPeriod.forEach(day => {
-                    const dayData = leadsByDay.get(day);
-                    if (dayData) {
-                         const leadsForOffers = activeOffers.map(offer => dayData.leads.get(offer.id) || '');
-                         const dayTotal = Array.from(dayData.leads.values()).reduce((s, q) => s + q, 0);
-                         const dayEarnings = activeOffers.reduce((sum, offer) => {
-                            const qty = dayData.leads.get(offer.id) || 0;
-                            return sum + (qty * offer.paymentAmount);
-                         }, 0);
-                         allBody.push([
-                            day.toString(),
-                            ...leadsForOffers,
-                            { content: dayTotal, styles: { fontStyle: 'bold' } },
-                            { content: `$${dayEarnings.toFixed(2)}`, styles: { fontStyle: 'bold' } },
-                         ]);
-                    }
-                });
+            const head = [["Oferta", ...processed.dayColumns.map(String), "Total Leads", "Precio (USD)", "Ganancia (USD)"]];
+            
+            const body = processed.tableRows.map(row => [
+                row.offerName,
+                ...processed.dayColumns.map(day => row.days.get(day) || ''),
+                row.totalOfferLeads,
+                `$${row.offerPayment.toFixed(2)}`,
+                `$${row.offerEarnings.toFixed(2)}`
+            ]);
 
-                 // Publisher Total Row
-                 const pubTotalRow = [
-                    { content: 'Subtotal Publisher', styles: { fontStyle: 'bold', fillColor: '#e9e9e9' } },
-                    ...activeOffers.map(offer => {
-                        const total = pubReport.reportData.leads.filter(l => l.offerId === offer.id).reduce((s, l) => s + l.quantity, 0);
-                        return { content: total, styles: { fontStyle: 'bold' } };
-                    }),
-                    { content: processed.totalLeads, styles: { fontStyle: 'bold', fillColor: '#ccffcc' } },
-                    { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: '#ffcccc' } },
-                 ];
-                 allBody.push(pubTotalRow);
+            const foot = [
+                [{ content: 'Subtotales', colSpan: processed.dayColumns.length + 1, styles: { fontStyle: 'bold', halign: 'right' } },
+                { content: processed.totalLeads, styles: { fontStyle: 'bold', halign: 'center' } },
+                { content: '' },
+                { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }]
+            ];
 
-                 // Spacer Row
-                 allBody.push([{ content: '', colSpan: offerNames.length + 3, styles: { cellPadding: 1 } }]);
-            }
+            await exportToPDF({
+                head,
+                body,
+                foot,
+                reportTitle: `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName} - ${periodLabel}`,
+                companyName: settingsData?.companyName,
+                isSubtable: true,
+                addPage: allBody.length > 1 // Don't add a new page for the first table
+            }, true); // Pass true to get the PDF object back without saving
+        }
+
+        // Now save the final combined PDF
+        const finalPdf = await exportToPDF({
+            reportTitle,
+            fileName,
+            companyName: settingsData?.companyName,
+            showFooter: true,
+            isFinalSave: true
         });
-        
-        // Grand Total Row
-         const grandTotalRow = [
-            { content: "TOTAL NÓMINA", colSpan: offerNames.length + 1, styles: { fontStyle: 'bold', halign: 'right', fillColor: '#e0e0e0'} },
-            { content: reportData.grandTotalLeads, styles: { fontStyle: 'bold', fillColor: '#ccffcc' } },
-            { content: `$${reportData.grandTotalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: '#ffcccc' } }
-        ];
-        allBody.push(grandTotalRow);
-        
-        await exportToPDF(allBody, fileName, reportTitle, settingsData?.companyName);
+
         setIsExporting(false);
     };
 
@@ -706,6 +672,58 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
         }
     };
 
+    const handleComplexExport = async () => {
+        if (!reportData) return;
+        setIsExporting(true);
+    
+        const periodLabel = reportData.publisherReports[0]?.reportData.periodLabel || "General";
+        const reportTitle = `Reporte General de Pagos: ${periodLabel}`;
+        const fileName = `Reporte_General_Pagos_${periodLabel.replace(/ /g, '_')}.pdf`;
+    
+        // Array to hold all table bodies for the final PDF
+        let allTables: any = [];
+    
+        reportData.publisherReports.forEach((pubReport, index) => {
+            const processed = processReportData(pubReport.reportData);
+            if (!processed) return;
+    
+            // Table for this publisher
+            const head = [["Oferta", ...processed.dayColumns.map(String), "Total Leads", "Precio (USD)", "Ganancia (USD)"]];
+            const body = processed.tableRows.map(row => [
+                row.offerName,
+                ...processed.dayColumns.map(day => row.days.get(day) || ''),
+                row.totalOfferLeads,
+                `$${row.offerPayment.toFixed(2)}`,
+                `$${row.offerEarnings.toFixed(2)}`
+            ]);
+            const foot = [
+                [{ content: 'Subtotales', colSpan: processed.dayColumns.length + 1, styles: { fontStyle: 'bold', halign: 'right' } },
+                 { content: processed.totalLeads, styles: { fontStyle: 'bold', halign: 'center' } },
+                 '',
+                 { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }]
+            ];
+    
+            allTables.push({
+                title: `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName}`,
+                head,
+                body,
+                foot,
+            });
+        });
+    
+        // Pass all tables to the export function
+        await exportToPDF({
+            tables: allTables,
+            reportTitle,
+            fileName,
+            companyName: settingsData?.companyName,
+            showFooter: true,
+        });
+    
+        setIsExporting(false);
+    };
+
+
     return (
         <Card>
             <CardHeader>
@@ -745,7 +763,7 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
                              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
                             {isGenerating ? 'Generando...' : 'Generar Reporte'}
                         </Button>
-                        <Button type="button" variant="outline" onClick={handleExport} disabled={!reportData || isExporting}>
+                        <Button type="button" variant="outline" onClick={handleComplexExport} disabled={!reportData || isExporting}>
                             {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Exportar a PDF
                         </Button>
@@ -890,10 +908,10 @@ function InactivityReport({ publishers, companyName }: { publishers: Publisher[]
         const reportTitle = `Reporte de Inactividad de Publishers (${periodLabel})`;
         const fileName = `Reporte_Inactividad_${periodLabel.replace(' ','_')}.pdf`;
 
-        const header = [['Publisher', 'Email', 'Último Lead Registrado']];
+        const head = [['Publisher', 'Email', 'Último Lead Registrado']];
         const body = reportData.map(p => [p.name, p.email, p.lastLeadDate || 'Nunca']);
 
-        await exportToPDF([...header, ...body], fileName, reportTitle, companyName);
+        await exportToPDF({ head, body, fileName, reportTitle, companyName });
         setIsExporting(false);
     };
 
