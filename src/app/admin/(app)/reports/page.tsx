@@ -511,23 +511,18 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
     const handleExport = async () => {
         if (!reportData) return;
         setIsExporting(true);
-
+    
         const periodLabel = reportData.publisherReports[0]?.reportData.periodLabel || "General";
         const reportTitle = `Reporte General de Pagos: ${periodLabel}`;
         const fileName = `Reporte_General_Pagos_${periodLabel.replace(/ /g, '_')}.pdf`;
-        
-        let allBody: any[][] = [];
-
-        for (const pubReport of reportData.publisherReports) {
+    
+        let allTables: any = [];
+    
+        reportData.publisherReports.forEach((pubReport) => {
             const processed = processReportData(pubReport.reportData);
-            if (!processed) continue;
-
-            allBody.push([
-                { content: `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName}`, colSpan: processed.dayColumns.length + 4, styles: { fontStyle: 'bold', fillColor: '#f0f0f0' } }
-            ]);
-
+            if (!processed) return;
+    
             const head = [["Oferta", ...processed.dayColumns.map(String), "Total Leads", "Precio (USD)", "Ganancia (USD)"]];
-            
             const body = processed.tableRows.map(row => [
                 row.offerName,
                 ...processed.dayColumns.map(day => row.days.get(day) || ''),
@@ -535,34 +530,31 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
                 `$${row.offerPayment.toFixed(2)}`,
                 `$${row.offerEarnings.toFixed(2)}`
             ]);
-
             const foot = [
-                [{ content: 'Subtotales', colSpan: processed.dayColumns.length + 1, styles: { fontStyle: 'bold', halign: 'right' } },
-                { content: processed.totalLeads, styles: { fontStyle: 'bold', halign: 'center' } },
-                { content: '' },
-                { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }]
+                 [{ content: 'Subtotales', colSpan: processed.dayColumns.length + 1, styles: { fontStyle: 'bold', halign: 'right' } },
+                 { content: processed.totalLeads, styles: { fontStyle: 'bold', halign: 'center' } },
+                 '',
+                 { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }]
             ];
+    
+            const subHeader = `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName} ${pubReport.publisherInfo.subId ? `(SUB ID: ${pubReport.publisherInfo.subId})` : ''}`;
 
-            await exportToPDF({
+            allTables.push({
+                subHeader: subHeader,
                 head,
                 body,
                 foot,
-                reportTitle: `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName} - ${periodLabel}`,
-                companyName: settingsData?.companyName,
-                isSubtable: true,
-                addPage: allBody.length > 1 // Don't add a new page for the first table
-            }, true); // Pass true to get the PDF object back without saving
-        }
-
-        // Now save the final combined PDF
-        const finalPdf = await exportToPDF({
+            });
+        });
+    
+        await exportToPDF({
+            tables: allTables,
             reportTitle,
             fileName,
             companyName: settingsData?.companyName,
             showFooter: true,
-            isFinalSave: true
         });
-
+    
         setIsExporting(false);
     };
 
@@ -672,57 +664,6 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
         }
     };
 
-    const handleComplexExport = async () => {
-        if (!reportData) return;
-        setIsExporting(true);
-    
-        const periodLabel = reportData.publisherReports[0]?.reportData.periodLabel || "General";
-        const reportTitle = `Reporte General de Pagos: ${periodLabel}`;
-        const fileName = `Reporte_General_Pagos_${periodLabel.replace(/ /g, '_')}.pdf`;
-    
-        // Array to hold all table bodies for the final PDF
-        let allTables: any = [];
-    
-        reportData.publisherReports.forEach((pubReport, index) => {
-            const processed = processReportData(pubReport.reportData);
-            if (!processed) return;
-    
-            // Table for this publisher
-            const head = [["Oferta", ...processed.dayColumns.map(String), "Total Leads", "Precio (USD)", "Ganancia (USD)"]];
-            const body = processed.tableRows.map(row => [
-                row.offerName,
-                ...processed.dayColumns.map(day => row.days.get(day) || ''),
-                row.totalOfferLeads,
-                `$${row.offerPayment.toFixed(2)}`,
-                `$${row.offerEarnings.toFixed(2)}`
-            ]);
-            const foot = [
-                [{ content: 'Subtotales', colSpan: processed.dayColumns.length + 1, styles: { fontStyle: 'bold', halign: 'right' } },
-                 { content: processed.totalLeads, styles: { fontStyle: 'bold', halign: 'center' } },
-                 '',
-                 { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }]
-            ];
-    
-            allTables.push({
-                title: `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName} ${pubReport.publisherInfo.subId ? `(SUB ID: ${pubReport.publisherInfo.subId})` : ''}`,
-                head,
-                body,
-                foot,
-            });
-        });
-    
-        // Pass all tables to the export function
-        await exportToPDF({
-            tables: allTables,
-            reportTitle,
-            fileName,
-            companyName: settingsData?.companyName,
-            showFooter: true,
-        });
-    
-        setIsExporting(false);
-    };
-
 
     return (
         <Card>
@@ -763,7 +704,7 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
                              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
                             {isGenerating ? 'Generando...' : 'Generar Reporte'}
                         </Button>
-                        <Button type="button" variant="outline" onClick={handleComplexExport} disabled={!reportData || isExporting}>
+                        <Button type="button" variant="outline" onClick={handleExport} disabled={!reportData || isExporting}>
                             {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Exportar a PDF
                         </Button>

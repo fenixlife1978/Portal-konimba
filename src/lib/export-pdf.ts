@@ -1,4 +1,4 @@
-import jsPDF, { jsPDFOptions } from 'jspdf';
+import jsPDF from 'jspdf';
 import autoTable, { UserOptions } from 'jspdf-autotable';
 
 // Store the pdf instance for multi-page/multi-table reports
@@ -14,7 +14,7 @@ interface ExportOptions {
     head?: any[][];
     body?: any[][];
     foot?: any[][];
-    tables?: { title: string, head: any[][], body: any[][], foot: any[][] }[];
+    tables?: { title: string, subHeader?: string, head: any[][], body: any[][], foot: any[][] }[];
     fileName?: string;
     reportTitle?: string;
     companyName?: string;
@@ -74,6 +74,8 @@ export const exportToPDF = async (
   const pdfWidth = pdf.internal.pageSize.getWidth();
   const margin = 15;
 
+  let startY = 25;
+
   if (!isSubtable) {
       // --- Add Header ---
       const logoUrl = '/logo.png';
@@ -111,14 +113,26 @@ export const exportToPDF = async (
   }
 
   if (tables) {
-      let lastY = 25;
+      let lastY = startY;
       tables.forEach((table, index) => {
-          // --- Add Content ---
+          if (index > 0) {
+            // Add space between tables
+            lastY += 10;
+          }
+
+          if (table.subHeader) {
+            pdf.setFontSize(11);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(40);
+            pdf.text(table.subHeader, margin, lastY);
+            lastY += 8;
+          }
+
           drawTable({
             head: table.head,
             body: table.body,
             foot: table.foot,
-            startY: lastY + (index > 0 ? 15 : 10),
+            startY: lastY,
             theme: 'grid',
             styles: {
               font: 'helvetica',
@@ -131,22 +145,14 @@ export const exportToPDF = async (
                 textColor: 255,
                 fontStyle: 'bold',
                 fontSize: 6,
+                halign: 'center'
             },
             footStyles: {
                 fillColor: [230, 230, 230],
                 textColor: 0,
                 fontStyle: 'bold',
             },
-            didParseCell: (data) => {
-                if(data.section === 'head' && data.column.index > 0) {
-                    data.cell.styles.halign = 'center';
-                }
-                 if(data.section === 'body' && data.column.index > 0 && data.column.index < (table.head[0].length - 3)) {
-                    data.cell.styles.halign = 'center';
-                }
-            },
              willDrawCell: (data) => {
-                // For publisher title row
                  if (data.row.raw[0] && typeof data.row.raw[0] === 'object' && data.row.raw[0].colSpan) {
                     pdf.setFontSize(10);
                     pdf.setFont('helvetica', 'bold');
@@ -178,6 +184,7 @@ export const exportToPDF = async (
             fillColor: [22, 64, 114],
             textColor: 255,
             fontStyle: 'bold',
+            halign: 'center'
         },
         footStyles: {
             fillColor: [230, 230, 230],
