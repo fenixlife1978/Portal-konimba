@@ -1,7 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useCollection } from '@/firebase';
+import { db } from '@/firebase/config';
 import { collection, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -327,10 +328,10 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
 
 
 export default function PublishersPage() {
-  const firestore = useFirestore();
+  const firestore = db;
   const { toast } = useToast();
 
-  const publishersCollectionRef = useMemoFirebase(() => {
+  const publishersCollectionRef = useMemo(() => {
     if (!firestore) return null;
     return collection(firestore, 'publishers');
   }, [firestore]);

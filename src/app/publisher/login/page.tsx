@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +19,8 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 // Asegúrate de que estos imports personalizados funcionen en tu proyecto
-import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase"; 
+import { useAuth, useUser, useDoc } from "@/firebase"; 
+import { db } from '@/firebase/config';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo"; // Asumo que este componente existe
@@ -43,12 +44,12 @@ export default function PublisherAuthPage() {
   const [isCheckingRole, setIsCheckingRole] = useState(true); 
 
   const auth = useAuth();
-  const firestore = useFirestore();
+  const firestore = db;
   const { user, isUserLoading } = useUser(); // Hook personalizado que expone el usuario y el estado de carga
   const router = useRouter();
   const { toast } = useToast(); // Hook personalizado para notificaciones
 
-  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
 

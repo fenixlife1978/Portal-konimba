@@ -1,9 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useFirestore, useDoc, useMemoFirebase, useStorage } from '@/firebase';
+import { useDoc, useStorage } from '@/firebase';
+import { db } from '@/firebase/config';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
@@ -89,14 +90,14 @@ function UrlUploadDialog({ onSave }: { onSave: (url: string) => void }) {
 
 
 export default function SettingsPage() {
-  const firestore = useFirestore();
+  const firestore = db;
   const storage = useStorage();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData, isLoading } = useDoc<SettingsFormData>(settingsRef);
   
   const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<SettingsFormData>({

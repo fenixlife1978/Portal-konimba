@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useFirestore, useCollection, useDoc, useMemoFirebase, useUser } from '@/firebase';
+import { useCollection, useDoc, useUser } from '@/firebase';
+import { db } from '@/firebase/config';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, writeBatch, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -71,7 +72,7 @@ const months = [
 ];
 
 export default function PaymentsPage() {
-  const firestore = useFirestore();
+  const firestore = db;
   const { user } = useUser();
   const { toast } = useToast();
 
@@ -80,17 +81,17 @@ export default function PaymentsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [paymentPeriod, setPaymentPeriod] = useState<string | null>(null);
   
-  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
   
-  const paymentsQuery = useMemoFirebase(() => {
+  const paymentsQuery = useMemo(() => {
     if (!firestore || !paymentPeriod) return null;
     return query(collection(firestore, "payments"), where("paymentPeriod", "==", paymentPeriod), where("status", "==", "pending"));
   }, [firestore, paymentPeriod]);
   
   const { data: pendingPayments, isLoading: isLoadingPayments, error: paymentsError } = useCollection<Payment>(paymentsQuery);
   
-  const publishersRef = useMemoFirebase(() => (firestore && user) ? collection(firestore, 'publishers') : null, [firestore, user]);
+  const publishersRef = useMemo(() => (firestore && user) ? collection(firestore, 'publishers') : null, [firestore, user]);
   const { data: publishersData } = useCollection<Publisher>(publishersRef);
 
   const { control, handleSubmit, watch, formState: { errors } } = useForm<PaymentFormData>({
@@ -309,7 +310,13 @@ export default function PaymentsPage() {
         p.amountVES > 0 ? p.amountVES.toLocaleString('es-VE', {style: 'currency', currency: 'VES'}) : '-',
     ]);
 
-    await exportToPDF(columns, data, fileName, reportTitle, settingsData?.companyName);
+    await exportToPDF({
+        head: [columns],
+        body: data, 
+        fileName, 
+        reportTitle, 
+        companyName: settingsData?.companyName
+    });
     setIsExporting(false);
   };
   

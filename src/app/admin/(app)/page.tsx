@@ -1,6 +1,7 @@
 'use client';
 import { useMemo } from 'react';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useCollection, useUser } from '@/firebase';
+import { db } from '@/firebase/config';
 import { collection } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -43,17 +44,17 @@ const StatCard = ({ title, value, icon, description }: { title: string, value: s
 );
 
 export default function AdminDashboardPage() {
-  const firestore = useFirestore();
+  const firestore = db;
   const { user, isUserLoading } = useUser();
   
   // Data fetching
-  const publishersRef = useMemoFirebase(() => (firestore && user) ? collection(firestore, 'publishers') : null, [firestore, user]);
+  const publishersRef = useMemo(() => (firestore && user) ? collection(firestore, 'publishers') : null, [firestore, user]);
   const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
 
-  const offersRef = useMemoFirebase(() => (firestore && user) ? collection(firestore, 'offers') : null, [firestore, user]);
+  const offersRef = useMemo(() => (firestore && user) ? collection(firestore, 'offers') : null, [firestore, user]);
   const { data: offers, isLoading: isLoadingOffers } = useCollection<Offer>(offersRef);
 
-  const leadsRef = useMemoFirebase(() => (firestore && user) ? collection(firestore, 'leads') : null, [firestore, user]);
+  const leadsRef = useMemo(() => (firestore && user) ? collection(firestore, 'leads') : null, [firestore, user]);
   const { data: leads, isLoading: isLoadingLeads } = useCollection<Lead>(leadsRef);
 
   const memoizedStats = useMemo(() => {

@@ -1,10 +1,12 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useMemo } from 'react';
 import { LogOut } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
-import { useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useAuth, useDoc } from '@/firebase';
+import { db } from '@/firebase/config';
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 
@@ -15,10 +17,10 @@ type CompanySettings = {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
-  const firestore = useFirestore();
+  const firestore = db;
   const router = useRouter();
 
-  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
   const handleLogout = () => {

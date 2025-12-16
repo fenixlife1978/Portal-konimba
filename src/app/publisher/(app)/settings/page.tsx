@@ -1,6 +1,7 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useEffect, useState, useMemo } from 'react';
+import { useUser, useDoc } from '@/firebase';
+import { db } from '@/firebase/config';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -112,10 +113,10 @@ function DisplayPaymentMethod({ publisherData, onEdit, onDelete }: { publisherDa
 // Main settings page component
 export default function SettingsPage() {
   const { user } = useUser();
-  const firestore = useFirestore();
+  const firestore = db;
   const { toast } = useToast();
   
-  const publisherRef = useMemoFirebase(() => (firestore && user) ? doc(firestore, 'publishers', user.uid) : null, [firestore, user]);
+  const publisherRef = useMemo(() => (firestore && user) ? doc(firestore, 'publishers', user.uid) : null, [firestore, user]);
   const { data: publisherData, isLoading: isLoadingData } = useDoc<any>(publisherRef);
 
   const [viewState, setViewState] = useState<ViewState>('loading');

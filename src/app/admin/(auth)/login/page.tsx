@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import { useAuth, useUser, useDoc } from "@/firebase";
+import { db } from '@/firebase/config';
 import { Logo } from "@/components/logo";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -35,12 +36,12 @@ export default function AdminAuthPage() {
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
   const auth = useAuth();
-  const firestore = useFirestore();
+  const firestore = db;
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
-  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
   useEffect(() => {

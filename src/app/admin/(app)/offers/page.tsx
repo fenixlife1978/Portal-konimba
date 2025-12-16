@@ -1,7 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useCollection } from '@/firebase';
+import { db } from '@/firebase/config';
 import { collection, doc, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -134,11 +135,11 @@ function OfferRow({ offer, onSave, onDelete }: { offer: Offer; onSave: (data: Pa
 }
 
 export default function OffersPage() {
-  const firestore = useFirestore();
+  const firestore = db;
   const { toast } = useToast();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const offersCollectionRef = useMemoFirebase(() => firestore ? collection(firestore, 'offers') : null, [firestore]);
+  const offersCollectionRef = useMemo(() => firestore ? collection(firestore, 'offers') : null, [firestore]);
   const { data: offers, isLoading } = useCollection<Offer>(offersCollectionRef);
 
   const handleSaveOffer = async (id: string | null, data: OfferFormData) => {

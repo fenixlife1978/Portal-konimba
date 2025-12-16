@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useDoc } from '@/firebase';
+import { db } from '@/firebase/config';
 import { collection, query, where, getDocs, orderBy, Timestamp, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -71,7 +72,7 @@ const periodOptions = [
 ];
 
 export default function PerformancePage() {
-  const firestore = useFirestore();
+  const firestore = db;
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
 
@@ -84,10 +85,10 @@ export default function PerformancePage() {
     }
   });
 
-  const publisherRef = useMemoFirebase(() => (firestore && user) ? doc(firestore, 'publishers', user.uid) : null, [firestore, user]);
+  const publisherRef = useMemo(() => (firestore && user) ? doc(firestore, 'publishers', user.uid) : null, [firestore, user]);
   const { data: publisherData, isLoading: isLoadingPublisher } = useDoc<Publisher>(publisherRef);
   
-  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
   
   const [reportData, setReportData] = useState<ReportData | null>(null);

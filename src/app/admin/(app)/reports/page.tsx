@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { useCollection, useDoc } from '@/firebase';
+import { db } from '@/firebase/config';
 import { collection, query, where, getDocs, orderBy, Timestamp, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -115,16 +116,16 @@ const periodOptions = [
 
 // Main Component
 export default function ReportsPage() {
-  const firestore = useFirestore();
+  const firestore = db;
   
   // Data fetching for publishers
-  const publishersRef = useMemoFirebase(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
+  const publishersRef = useMemo(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
   const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
   
-  const offersRef = useMemoFirebase(() => firestore ? collection(firestore, 'offers') : null, [firestore]);
+  const offersRef = useMemo(() => firestore ? collection(firestore, 'offers') : null, [firestore]);
   const { data: offers, isLoading: isLoadingOffers } = useCollection<Offer>(offersRef);
 
-  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
   return (
@@ -279,7 +280,7 @@ function ReportDisplay({ reportData, publisher, period, showExchangeRate = false
 // #################################################################################
 
 function PublisherReport({ publishers, isLoadingPublishers, companyName }: { publishers: Publisher[], isLoadingPublishers: boolean, companyName?: string }) {
-    const firestore = useFirestore();
+    const firestore = db;
     const { toast } = useToast();
     const { control, handleSubmit, watch, formState: { errors } } = useForm<ReportFormData>({
         resolver: zodResolver(reportFormSchema),
@@ -485,7 +486,7 @@ function SelectionModal<T extends string>({ open, onOpenChange, title, options, 
 // #################################################################################
 
 function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers: Publisher[], offers: Offer[], settingsData?: CompanySettings | null }) {
-    const firestore = useFirestore();
+    const firestore = db;
     const { toast } = useToast();
     const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<GeneralReportFormData>({
         resolver: zodResolver(generalReportSchema),
@@ -824,7 +825,7 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
 // #################################################################################
 
 function InactivityReport({ publishers, companyName }: { publishers: Publisher[], companyName?: string }) {
-    const firestore = useFirestore();
+    const firestore = db;
     const { toast } = useToast();
     const { control, handleSubmit, formState: { errors }, watch } = useForm<InactivityReportFormData>({
         resolver: zodResolver(inactivityReportSchema),

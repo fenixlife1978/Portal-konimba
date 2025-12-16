@@ -1,9 +1,11 @@
 'use client';
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Logo } from '@/components/logo';
 import { ArrowRight } from 'lucide-react';
-import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useDoc } from '@/firebase';
+import { db } from '@/firebase/config';
 import { doc } from 'firebase/firestore';
 
 
@@ -13,8 +15,8 @@ type CompanySettings = {
 };
 
 export default function Home() {
-  const firestore = useFirestore();
-  const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const firestore = db;
+  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
 

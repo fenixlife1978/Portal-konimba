@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useCollection } from '@/firebase';
+import { db } from '@/firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -33,7 +34,7 @@ const leadFormSchema = z.object({
 type LeadFormData = z.infer<typeof leadFormSchema>;
 
 export default function LeadsPage() {
-  const firestore = useFirestore();
+  const firestore = db;
   const { toast } = useToast();
 
   const { control, handleSubmit, reset, watch, formState: { errors } } = useForm<LeadFormData>({
@@ -41,10 +42,10 @@ export default function LeadsPage() {
   });
 
   // Data fetching
-  const publishersRef = useMemoFirebase(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
+  const publishersRef = useMemo(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
   const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
 
-  const offersRef = useMemoFirebase(() => firestore ? collection(firestore, 'offers') : null, [firestore]);
+  const offersRef = useMemo(() => firestore ? collection(firestore, 'offers') : null, [firestore]);
   const { data: offers, isLoading: isLoadingOffers } = useCollection<Offer>(offersRef);
 
   const activeOffers = offers?.filter(o => o.status === 'active');
