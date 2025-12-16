@@ -32,7 +32,7 @@ import { exportToPDF } from '@/lib/export-pdf';
 
 // Types
 type Publisher = { id: string; firstName: string; lastName: string; email: string; };
-type Offer = { id: string; name: string; paymentAmount: number; };
+type Offer = { id: string; name: string; paymentAmount: number; status: 'active' | 'inactive' };
 type Lead = { 
   id: string; 
   publisherId: string;
@@ -120,6 +120,9 @@ export default function ReportsPage() {
   // Data fetching for publishers
   const publishersRef = useMemoFirebase(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
   const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
+  
+  const offersRef = useMemoFirebase(() => firestore ? collection(firestore, 'offers') : null, [firestore]);
+  const { data: offers, isLoading: isLoadingOffers } = useCollection<Offer>(offersRef);
 
   const settingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
@@ -143,7 +146,7 @@ export default function ReportsPage() {
             <PublisherReport publishers={publishers || []} isLoadingPublishers={isLoadingPublishers} companyName={settingsData?.companyName} />
         </TabsContent>
         <TabsContent value="general-payment-report">
-            <GeneralPaymentReport publishers={publishers || []} settingsData={settingsData} />
+            <GeneralPaymentReport publishers={publishers || []} offers={offers || []} settingsData={settingsData} />
         </TabsContent>
         <TabsContent value="inactivity-report">
             <InactivityReport publishers={publishers || []} companyName={settingsData?.companyName} />
@@ -306,7 +309,7 @@ function PublisherReport({ publishers, isLoadingPublishers, companyName }: { pub
             return;
         }
 
-        const columns = ["Oferta", ...processed.dayColumns.map(String), "Total Leads", "Precio (USD)", "Ganancia (USD)"];
+        const header = ["Oferta", ...processed.dayColumns.map(String), "Total Leads", "Precio (USD)", "Ganancia (USD)"];
         const body = processed.tableRows.map(row => [
             row.offerName,
             ...processed.dayColumns.map(day => row.days.get(day) || ''),
@@ -314,10 +317,23 @@ function PublisherReport({ publishers, isLoadingPublishers, companyName }: { pub
             `$${row.offerPayment.toFixed(2)}`,
             `$${row.offerEarnings.toFixed(2)}`
         ]);
-        body.push(["TOTALES", ...Array(processed.dayColumns.length).fill(''), processed.totalLeads, '', `$${processed.totalEarnings.toFixed(2)}`]);
+        
+        const totalsRow = [
+             { content: 'TOTALES', colSpan: processed.dayColumns.length + 1, styles: { fontStyle: 'bold', halign: 'right' } },
+             { content: processed.totalLeads, styles: { fontStyle: 'bold', halign: 'center' } },
+             { content: '', styles: { fontStyle: 'bold', halign: 'center' } },
+             { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }
+        ]
+        
+        // jspdf-autotable requires the body to be an array of arrays.
+        // We'll add the header as the first row with custom styling.
+        const finalBody = [
+            header.map(h => ({ content: h, styles: { fillColor: [22, 64, 114], textColor: 255, fontStyle: 'bold' } })),
+            ...body,
+            totalsRow
+        ];
 
-
-        await exportToPDF(columns, body, fileName, reportTitle, companyName);
+        await exportToPDF(finalBody, fileName, reportTitle, companyName);
         setIsExporting(false);
     };
 
@@ -476,7 +492,7 @@ function SelectionModal<T extends string>({ open, onOpenChange, title, options, 
 // ## TAB 2: Reporte General de Pagos
 // #################################################################################
 
-function GeneralPaymentReport({ publishers, settingsData }: { publishers: Publisher[], settingsData?: CompanySettings | null }) {
+function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers: Publisher[], offers: Offer[], settingsData?: CompanySettings | null }) {
     const firestore = useFirestore();
     const { toast } = useToast();
     const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<GeneralReportFormData>({
@@ -504,42 +520,83 @@ function GeneralPaymentReport({ publishers, settingsData }: { publishers: Publis
         if (!reportData) return;
         setIsExporting(true);
         const periodLabel = reportData.publisherReports[0]?.reportData.periodLabel || "General";
-        const reportTitle = `Reporte General de Pagos`;
-        const fileName = `Reporte_General_Pagos_${periodLabel.replace(' ','_')}.pdf`;
+        const reportTitle = `Reporte General de Pagos: ${periodLabel}`;
+        const fileName = `Reporte_General_Pagos_${periodLabel.replace(/ /g,'_')}.pdf`;
         
         let allBody: any[][] = [];
+        const activeOffers = offers.filter(o => o.status === 'active').sort((a, b) => a.name.localeCompare(b.name));
+        const offerNames = activeOffers.map(o => o.name);
+
         reportData.publisherReports.forEach(pubReport => {
             const processed = processReportData(pubReport.reportData);
             if(processed) {
+                // Publisher Name Header Row
                 allBody.push([
-                    { content: `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName}`, colSpan: 5, styles: { fontStyle: 'bold', fillColor: '#f0f0f0' } }
+                    { content: `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName}`, colSpan: offerNames.length + 3, styles: { fontStyle: 'bold', fillColor: '#f0f0f0' } }
                 ]);
-                const body = processed.tableRows.map(row => [
-                    row.offerName,
-                    ...processed.dayColumns.map(day => row.days.get(day) || ''),
-                    row.totalOfferLeads,
-                    `$${row.offerPayment.toFixed(2)}`,
-                    `$${row.offerEarnings.toFixed(2)}`
-                ]);
-                allBody.push(...body);
-                 allBody.push([
-                    { content: 'Subtotal', styles: { fontStyle: 'bold' } },
-                     ...Array(processed.dayColumns.length).fill(''), 
-                     { content: processed.totalLeads, styles: { fontStyle: 'bold' } }, 
-                     '', 
-                     { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold' } }
-                ]);
+                
+                // Offer Names Header Row for each publisher
+                const offerHeader = [
+                    { content: 'Leads / Día', styles: { fontStyle: 'bold', fillColor: '#e0e0e0'} },
+                     ...offerNames,
+                     { content: 'Total Leads', styles: { fontStyle: 'bold', fillColor: '#ccffcc'} },
+                     { content: 'Total (USD)', styles: { fontStyle: 'bold', fillColor: '#ffcccc'} },
+                ];
+                allBody.push(offerHeader);
+
+                // Data Rows (by day)
+                const leadsByDay = new Map<number, { day: number, leads: Map<string, number>, total: number }>();
+                pubReport.reportData.leads.forEach(lead => {
+                    const day = parseInt(lead.date.split('-')[2]);
+                    if(!leadsByDay.has(day)) leadsByDay.set(day, { day, leads: new Map(), total: 0 });
+                    const dayEntry = leadsByDay.get(day)!;
+                    dayEntry.leads.set(lead.offerId, (dayEntry.leads.get(lead.offerId) || 0) + lead.quantity);
+                });
+
+                pubReport.reportData.daysInPeriod.forEach(day => {
+                    const dayData = leadsByDay.get(day);
+                    if (dayData) {
+                         const leadsForOffers = activeOffers.map(offer => dayData.leads.get(offer.id) || '');
+                         const dayTotal = Array.from(dayData.leads.values()).reduce((s, q) => s + q, 0);
+                         const dayEarnings = activeOffers.reduce((sum, offer) => {
+                            const qty = dayData.leads.get(offer.id) || 0;
+                            return sum + (qty * offer.paymentAmount);
+                         }, 0);
+                         allBody.push([
+                            day.toString(),
+                            ...leadsForOffers,
+                            { content: dayTotal, styles: { fontStyle: 'bold' } },
+                            { content: `$${dayEarnings.toFixed(2)}`, styles: { fontStyle: 'bold' } },
+                         ]);
+                    }
+                });
+
+                 // Publisher Total Row
+                 const pubTotalRow = [
+                    { content: 'Subtotal Publisher', styles: { fontStyle: 'bold', fillColor: '#e9e9e9' } },
+                    ...activeOffers.map(offer => {
+                        const total = pubReport.reportData.leads.filter(l => l.offerId === offer.id).reduce((s, l) => s + l.quantity, 0);
+                        return { content: total, styles: { fontStyle: 'bold' } };
+                    }),
+                    { content: processed.totalLeads, styles: { fontStyle: 'bold', fillColor: '#ccffcc' } },
+                    { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: '#ffcccc' } },
+                 ];
+                 allBody.push(pubTotalRow);
+
+                 // Spacer Row
+                 allBody.push([{ content: '', colSpan: offerNames.length + 3, styles: { cellPadding: 1 } }]);
             }
         });
         
-        const columns = ["Oferta / Publisher", ...reportData.publisherReports[0].reportData.daysInPeriod.map(String), "Total Leads", "Precio (USD)", "Ganancia (USD)"];
+        // Grand Total Row
+         const grandTotalRow = [
+            { content: "TOTAL NÓMINA", colSpan: offerNames.length + 1, styles: { fontStyle: 'bold', halign: 'right', fillColor: '#e0e0e0'} },
+            { content: reportData.grandTotalLeads, styles: { fontStyle: 'bold', fillColor: '#ccffcc' } },
+            { content: `$${reportData.grandTotalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: '#ffcccc' } }
+        ];
+        allBody.push(grandTotalRow);
         
-        allBody.push([
-            { content: "TOTAL NÓMINA (USD)", colSpan: columns.length - 1, styles: { fontStyle: 'bold', halign: 'right', fillColor: '#e0e0e0'} },
-            { content: `$${reportData.grandTotalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: '#e0e0e0' } }
-        ]);
-
-        await exportToPDF(columns, allBody, fileName, reportTitle, settingsData?.companyName);
+        await exportToPDF(allBody, fileName, reportTitle, settingsData?.companyName);
         setIsExporting(false);
     };
 
@@ -830,13 +887,13 @@ function InactivityReport({ publishers, companyName }: { publishers: Publisher[]
         if (!reportData) return;
         setIsExporting(true);
         const periodLabel = periodOptions.find(p => p.value === watchedPeriod)?.label || "Inactividad";
-        const reportTitle = `Reporte de Inactividad de Publishers`;
+        const reportTitle = `Reporte de Inactividad de Publishers (${periodLabel})`;
         const fileName = `Reporte_Inactividad_${periodLabel.replace(' ','_')}.pdf`;
 
-        const columns = ['Publisher', 'Email', 'Último Lead Registrado'];
+        const header = [['Publisher', 'Email', 'Último Lead Registrado']];
         const body = reportData.map(p => [p.name, p.email, p.lastLeadDate || 'Nunca']);
 
-        await exportToPDF(columns, body, fileName, reportTitle, companyName);
+        await exportToPDF([...header, ...body], fileName, reportTitle, companyName);
         setIsExporting(false);
     };
 

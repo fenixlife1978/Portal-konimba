@@ -8,13 +8,12 @@ interface jsPDFWithAutoTable extends jsPDF {
 }
 
 export const exportToPDF = async (
-    columns: any[], 
-    data: any[][], 
+    body: any[][], 
     fileName: string, 
     reportTitle: string, 
     companyName: string = "Portal Konimba"
 ) => {
-  const pdf = new jsPDF('p', 'mm', 'a4') as jsPDFWithAutoTable;
+  const pdf = new jsPDF('l', 'mm', 'a4') as jsPDFWithAutoTable;
   const pdfWidth = pdf.internal.pageSize.getWidth();
   const margin = 15;
 
@@ -49,14 +48,19 @@ export const exportToPDF = async (
 
   // --- Add Content ---
   autoTable(pdf, {
-    head: [columns],
-    body: data,
+    body: body,
     startY: margin + 25,
     theme: 'grid',
-    headStyles: { fillColor: [22, 64, 114] }, // Primary color
     styles: {
       font: 'helvetica',
       fontSize: 8,
+      cellPadding: 1,
+      overflow: 'linebreak',
+    },
+    headStyles: { 
+        fillColor: [22, 64, 114], // Primary color
+        textColor: 255,
+        fontStyle: 'bold',
     },
     didDrawPage: (data) => {
       // --- Add Footer ---
