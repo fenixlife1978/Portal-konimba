@@ -311,19 +311,20 @@ export default function PublishersPage() {
       firstName, lastName, phone, address, subId, status
     } = data;
     
-    const dataToSave = {
-        firstName,
-        lastName,
-        phone,
-        address,
-        subId,
-        status,
+    const dataToSave: Partial<Publisher & { updatedAt: any }> = {
         updatedAt: serverTimestamp()
     };
 
+    if (firstName !== undefined) dataToSave.firstName = firstName;
+    if (lastName !== undefined) dataToSave.lastName = lastName;
+    if (phone !== undefined) dataToSave.phone = phone;
+    if (address !== undefined) dataToSave.address = address;
+    if (subId !== undefined) dataToSave.subId = subId;
+    if (status !== undefined) dataToSave.status = status;
+
 
     try {
-      await updateDoc(publisherRef, dataToSave, { merge: true });
+      await updateDoc(publisherRef, dataToSave as any, { merge: true });
       toast({
         title: "Publisher actualizado",
         description: "Los datos del publisher se han guardado.",
