@@ -1,9 +1,16 @@
 'use client';
+
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useCollection } from '@/firebase';
 import { db } from '@/firebase/config';
-import { collection, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  updateDoc,
+  serverTimestamp,
+  deleteDoc,
+} from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -27,8 +34,20 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { MoreHorizontal, Pencil, Trash2, ArrowLeft, CaseSensitive, Eye } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import {
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  ArrowLeft,
+  CaseSensitive,
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -36,8 +55,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import banksVe from '@/lib/banks-ve.json';
 import banksCo from '@/lib/banks-co.json';
 
-const phoneCodes = ["0412", "0414", "0416", "0424", "0426"];
-const idPrefixes = ["V", "E", "J", "G", "P"];
+const phoneCodes = ['0412', '0414', '0416', '0424', '0426'];
+const idPrefixes = ['V', 'E', 'J', 'G', 'P'];
+
+// Tipos de los JSON de bancos
+type BankVE = { id: string; name: string };
+type BankCO = { code: string; name: string };
 
 type Publisher = {
   id: string;
@@ -63,8 +86,20 @@ type Publisher = {
   usdtAddress?: string;
 };
 
+// Utilidades para mostrar bancos (corrige TS2352)
+const banksVeNames = (banksVe as BankVE[]).map((b) => b.name);
+const banksCoNames = (banksCo as BankCO[]).map((b) => b.name);
+
 // Modal exclusivo para el SUB ID
-function SubIdModal({ publisher, onSave, onOpenChange }: { publisher: Publisher; onSave: (data: { subId: string }) => Promise<void>; onOpenChange: (open: boolean) => void }) {
+function SubIdModal({
+  publisher,
+  onSave,
+  onOpenChange,
+}: {
+  publisher: Publisher;
+  onSave: (data: { subId: string }) => Promise<void>;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [subId, setSubId] = useState(publisher.subId || '');
 
   const handleSaveSubId = async () => {
@@ -77,7 +112,8 @@ function SubIdModal({ publisher, onSave, onOpenChange }: { publisher: Publisher;
       <DialogHeader>
         <DialogTitle>Asignar/Modificar SUB ID</DialogTitle>
         <DialogDescription>
-          Establece el SUB ID para el publisher {publisher.firstName} {publisher.lastName}.
+          Establece el SUB ID para el publisher {publisher.firstName}{' '}
+          {publisher.lastName}.
         </DialogDescription>
       </DialogHeader>
       <div className="py-4">
@@ -99,27 +135,191 @@ function SubIdModal({ publisher, onSave, onOpenChange }: { publisher: Publisher;
   );
 }
 
+function PaymentReadOnly({ publisher }: { publisher: Publisher }) {
+  const isVE = publisher.country === 'VE';
 
-function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; onSave: (data: Partial<Publisher>) => Promise<void>; onDelete: () => Promise<void> }) {
+  return (
+    <>
+      <h3 className="font-semibold text-foreground text-lg">
+        Información de Pago (Solo Lectura)
+      </h3>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-muted/30">
+        <div className="space-y-2">
+          <Label htmlFor="country">País de Residencia</Label>
+          <Input
+            id="country"
+            value={publisher.country || 'No especificado'}
+            readOnly
+            disabled
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="paymentMethod">Método de Pago Principal</Label>
+          <Input
+            id="paymentMethod"
+            value={publisher.paymentMethod || 'No especificado'}
+            readOnly
+            disabled
+          />
+        </div>
+      </div>
+
+      {publisher.paymentMethod === 'transferencia' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="bank">Banco</Label>
+            <Input id="bank" value={publisher.bank || ''} readOnly disabled />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="accountNumber">Número de Cuenta</Label>
+            <Input
+              id="accountNumber"
+              value={publisher.accountNumber || ''}
+              readOnly
+              disabled
+            />
+          </div>
+
+          {/* Listas de bancos por país (solo referencia) */}
+          <div className="space-y-2 md:col-span-2">
+            <Label>Referencia bancos por país</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="p-2 border rounded">
+                <p className="text-sm font-medium">Bancos VE (referencia)</p>
+                <div className="text-xs text-muted-foreground">
+                  {banksVeNames.slice(0, 6).join(', ')}...
+                </div>
+              </div>
+              <div className="p-2 border rounded">
+                <p className="text-sm font-medium">Bancos CO (referencia)</p>
+                <div className="text-xs text-muted-foreground">
+                  {banksCoNames.slice(0, 6).join(', ')}...
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {publisher.paymentMethod === 'pagoMovil' && isVE && (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="mobilePaymentBank">Banco (Pago Móvil)</Label>
+            <Input
+              id="mobilePaymentBank"
+              value={publisher.mobilePaymentBank || ''}
+              readOnly
+              disabled
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Teléfono (Pago Móvil)</Label>
+              <Input
+                value={`${publisher.mobilePaymentPhoneCode || ''}${
+                  publisher.mobilePaymentPhoneNumber || ''
+                }`}
+                readOnly
+                disabled
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Cédula o RIF (Pago Móvil)</Label>
+              <Input
+                value={`${publisher.mobilePaymentIdPrefix || ''}${
+                  publisher.mobilePaymentIdNumber || ''
+                }`}
+                readOnly
+                disabled
+              />
+            </div>
+          </div>
+
+          {/* Opciones válidas (solo referencia) */}
+          <div className="grid grid-cols-2 gap-4 mt-2">
+            <div className="space-y-2">
+              <Label>Códigos de teléfono válidos</Label>
+              <Select disabled defaultValue={phoneCodes[0]}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona código" />
+                </SelectTrigger>
+                <SelectContent>
+                  {phoneCodes.map((code) => (
+                    <SelectItem key={code} value={code}>
+                      {code}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Prefijos de identificación válidos</Label>
+              <Select disabled defaultValue={idPrefixes[0]}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona prefijo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {idPrefixes.map((prefix) => (
+                    <SelectItem key={prefix} value={prefix}>
+                      {prefix}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </>
+      )}
+
+      {publisher.paymentMethod === 'usdt' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Plataforma</Label>
+            <Input value="Binance" readOnly disabled />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="usdtAddress">Correo electrónico de Binance</Label>
+            <Input
+              id="usdtAddress"
+              type="email"
+              value={publisher.usdtAddress || ''}
+              readOnly
+              disabled
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function PublisherRow({
+  publisher,
+  onSave,
+  onDelete,
+}: {
+  publisher: Publisher;
+  onSave: (data: Partial<Publisher>) => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSubIdModalOpen, setIsSubIdModalOpen] = useState(false);
   const [editedPublisher, setEditedPublisher] = useState<Publisher>(publisher);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { id, value } = e.target;
-    setEditedPublisher(prev => ({ ...prev, [id]: value }));
-  };
-  
-  const handleSelectChange = (field: keyof Publisher, value: string) => {
-    setEditedPublisher(prev => ({ ...prev, [field]: value }));
+    setEditedPublisher((prev) => ({ ...prev, [id]: value }));
   };
 
   const handleSave = async () => {
     await onSave(editedPublisher);
     setIsEditing(false);
   };
-  
+
   const handleSaveSubIdWrapper = async (data: { subId: string }) => {
     await onSave(data);
   };
@@ -127,7 +327,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
   const handleDeleteConfirm = async () => {
     await onDelete();
     setIsDeleting(false);
-  }
+  };
 
   return (
     <TableRow key={publisher.id}>
@@ -136,7 +336,9 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
       <TableCell>{publisher.email}</TableCell>
       <TableCell>{publisher.subId || 'N/A'}</TableCell>
       <TableCell>
-        <Badge variant={publisher.status === 'active' ? 'default' : 'secondary'}>
+        <Badge
+          variant={publisher.status === 'active' ? 'default' : 'secondary'}
+        >
           {publisher.status}
         </Badge>
       </TableCell>
@@ -149,9 +351,15 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {/* Ver / Editar Detalles */}
             <Dialog open={isEditing} onOpenChange={setIsEditing}>
               <DialogTrigger asChild>
-                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setEditedPublisher(publisher); }}>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setEditedPublisher(publisher);
+                  }}
+                >
                   <Pencil className="mr-2 h-4 w-4" />
                   Ver / Editar Detalles
                 </DropdownMenuItem>
@@ -160,97 +368,65 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                 <DialogHeader>
                   <DialogTitle>Detalles del Publisher</DialogTitle>
                   <DialogDescription>
-                    Ver y editar la información básica. La información de pago es de solo lectura.
+                    Ver y editar la información básica. La información de pago es
+                    de solo lectura.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-6 py-4 max-h-[70vh] overflow-y-auto pr-4">
-                  
-                  <h3 className="font-semibold text-foreground text-lg">Información Personal</h3>
+                  {/* Información Personal */}
+                  <h3 className="font-semibold text-foreground text-lg">
+                    Información Personal
+                  </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="firstName">Nombre</Label>
-                      <Input id="firstName" value={editedPublisher.firstName} onChange={handleInputChange} />
+                      <Input
+                        id="firstName"
+                        value={editedPublisher.firstName}
+                        onChange={handleInputChange}
+                      />
                     </div>
-                     <div className="space-y-2">
+                    <div className="space-y-2">
                       <Label htmlFor="lastName">Apellido</Label>
-                      <Input id="lastName" value={editedPublisher.lastName} onChange={handleInputChange} />
+                      <Input
+                        id="lastName"
+                        value={editedPublisher.lastName}
+                        onChange={handleInputChange}
+                      />
                     </div>
-                     <div className="space-y-2">
+                    <div className="space-y-2">
                       <Label htmlFor="phone">Teléfono</Label>
-                      <Input id="phone" value={editedPublisher.phone || ''} onChange={handleInputChange} />
+                      <Input
+                        id="phone"
+                        value={editedPublisher.phone || ''}
+                        onChange={handleInputChange}
+                      />
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <Label htmlFor="address">Dirección</Label>
-                      <Input id="address" value={editedPublisher.address || ''} onChange={handleInputChange} />
+                      <Input
+                        id="address"
+                        value={editedPublisher.address || ''}
+                        onChange={handleInputChange}
+                      />
                     </div>
                   </div>
 
                   <Separator className="my-4" />
-
-                  <h3 className="font-semibold text-foreground text-lg">Información de Pago (Solo Lectura)</h3>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-muted/30">
-                        <div className="space-y-2">
-                            <Label htmlFor="country">País de Residencia</Label>
-                            <Input id="country" value={publisher.country || 'No especificado'} readOnly disabled />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="paymentMethod">Método de Pago Principal</Label>
-                            <Input id="paymentMethod" value={publisher.paymentMethod || 'No especificado'} readOnly disabled />
-                        </div>
-                    </div>
-
-                    {publisher.paymentMethod === 'transferencia' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="bank">Banco</Label>
-                                <Input id="bank" value={publisher.bank || ''} readOnly disabled />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="accountNumber">Número de Cuenta</Label>
-                                <Input id="accountNumber" value={publisher.accountNumber || ''} readOnly disabled />
-                            </div>
-                        </div>
-                    )}
-
-                    {publisher.paymentMethod === 'pagoMovil' && publisher.country === 'VE' && (
-                        <>
-                         <div className="space-y-2">
-                            <Label htmlFor="mobilePaymentBank">Banco (Pago Móvil)</Label>
-                            <Input id="mobilePaymentBank" value={publisher.mobilePaymentBank || ''} readOnly disabled />
-                         </div>
-                         <div className="grid grid-cols-2 gap-4">
-                             <div className="space-y-2">
-                                <Label>Teléfono (Pago Móvil)</Label>
-                                <Input value={`${publisher.mobilePaymentPhoneCode || ''}${publisher.mobilePaymentPhoneNumber || ''}`} readOnly disabled />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Cédula o RIF (Pago Móvil)</Label>
-                                 <Input value={`${publisher.mobilePaymentIdPrefix || ''}${publisher.mobilePaymentIdNumber || ''}`} readOnly disabled />
-                            </div>
-                         </div>
-                        </>
-                    )}
-                    
-                    {publisher.paymentMethod === 'usdt' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>Plataforma</Label>
-                                <Input value="Binance" readOnly disabled />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="usdtAddress">Correo electrónico de Binance</Label>
-                                <Input id="usdtAddress" type="email" value={publisher.usdtAddress || ''} readOnly disabled />
-                            </div>
-                        </div>
-                    )}
+                  <PaymentReadOnly publisher={publisher} />
                 </div>
                 <DialogFooter>
-                  <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
+                  <DialogClose asChild>
+                    <Button variant="outline">Cancelar</Button>
+                  </DialogClose>
                   <Button onClick={handleSave}>Guardar Cambios</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
             <DropdownMenuSeparator />
+
+            {/* Asignar SUB ID */}
             <Dialog open={isSubIdModalOpen} onOpenChange={setIsSubIdModalOpen}>
               <DialogTrigger asChild>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
@@ -259,13 +435,23 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                 </DropdownMenuItem>
               </DialogTrigger>
               <DialogContent>
-                <SubIdModal publisher={publisher} onSave={handleSaveSubIdWrapper} onOpenChange={setIsSubIdModalOpen} />
+                <SubIdModal
+                  publisher={publisher}
+                  onSave={handleSaveSubIdWrapper}
+                  onOpenChange={setIsSubIdModalOpen}
+                />
               </DialogContent>
             </Dialog>
+
             <DropdownMenuSeparator />
+
+            {/* Eliminar */}
             <Dialog open={isDeleting} onOpenChange={setIsDeleting}>
-               <DialogTrigger asChild>
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+              <DialogTrigger asChild>
+                <DropdownMenuItem
+                  onSelect={(e) => e.preventDefault()}
+                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Eliminar
                 </DropdownMenuItem>
@@ -274,12 +460,18 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                 <DialogHeader>
                   <DialogTitle>¿Estás seguro?</DialogTitle>
                   <DialogDescription>
-                    Esta acción eliminará permanentemente los datos del publisher de la base de datos, pero no su cuenta de autenticación. Esta operación no se puede deshacer.
+                    Esta acción eliminará permanentemente los datos del publisher
+                    de la base de datos, pero no su cuenta de autenticación. Esta
+                    operación no se puede deshacer.
                   </DialogDescription>
                 </DialogHeader>
-                 <DialogFooter>
-                  <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-                  <Button variant="destructive" onClick={handleDeleteConfirm}>Sí, eliminar</Button>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline">Cancelar</Button>
+                  </DialogClose>
+                  <Button variant="destructive" onClick={handleDeleteConfirm}>
+                    Sí, eliminar
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -290,7 +482,6 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
   );
 }
 
-
 export default function PublishersPage() {
   const { toast } = useToast();
 
@@ -299,25 +490,30 @@ export default function PublishersPage() {
     return collection(db, 'publishers');
   }, [db]);
 
-  const { data: publishers, isLoading } = useCollection<Publisher>(publishersCollectionRef);
+  const { data: publishers, isLoading } =
+    useCollection<Publisher>(publishersCollectionRef);
 
   const handleSavePublisher = async (id: string, data: Partial<Publisher>) => {
     if (!db) return;
+
     const publisherRef = doc(db, 'publishers', id);
-    
-    const dataToSave: { [key: string]: any } = { ...data, updatedAt: serverTimestamp() };
 
     try {
-      await updateDoc(publisherRef, dataToSave);
+      // Actualiza solo los campos enviados + timestamp
+      await updateDoc(publisherRef, {
+        ...data,
+        updatedAt: serverTimestamp(),
+      });
+
       toast({
-        title: "Publisher actualizado",
-        description: "Los datos del publisher se han guardado.",
+        title: 'Publisher actualizado',
+        description: 'Los datos del publisher se han guardado.',
       });
     } catch (error: any) {
       toast({
-        variant: "destructive",
-        title: "Error al actualizar",
-        description: error.message || "No se pudo guardar los cambios.",
+        variant: 'destructive',
+        title: 'Error al actualizar',
+        description: error?.message || 'No se pudo guardar los cambios.',
       });
     }
   };
@@ -328,14 +524,15 @@ export default function PublishersPage() {
     try {
       await deleteDoc(publisherRef);
       toast({
-        title: "Publisher eliminado",
-        description: "Los datos del publisher han sido eliminados del sistema.",
+        title: 'Publisher eliminado',
+        description:
+          'Los datos del publisher han sido eliminados del sistema.',
       });
     } catch (error: any) {
       toast({
-        variant: "destructive",
-        title: "Error al eliminar",
-        description: error.message || "No se pudo eliminar el publisher.",
+        variant: 'destructive',
+        title: 'Error al eliminar',
+        description: error?.message || 'No se pudo eliminar el publisher.',
       });
     }
   };
@@ -375,21 +572,22 @@ export default function PublishersPage() {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && publishers?.length === 0 && (
+              {!isLoading && (!publishers || publishers.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center">
                     No se encontraron publishers.
                   </TableCell>
                 </TableRow>
               )}
-              {publishers?.map((publisher) => (
-                <PublisherRow
-                  key={publisher.id}
-                  publisher={publisher}
-                  onSave={(data) => handleSavePublisher(publisher.id, data)}
-                  onDelete={() => handleDeletePublisher(publisher.id)}
-                />
-              ))}
+              {!isLoading &&
+                publishers?.map((publisher) => (
+                  <PublisherRow
+                    key={publisher.id}
+                    publisher={publisher}
+                    onSave={(data) => handleSavePublisher(publisher.id, data)}
+                    onDelete={() => handleDeletePublisher(publisher.id)}
+                  />
+                ))}
             </TableBody>
           </Table>
         </CardContent>
