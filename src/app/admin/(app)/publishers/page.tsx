@@ -134,6 +134,14 @@ function EditDetailsModal({
     lastName: publisher.lastName || '',
     phone: publisher.phone || '',
     address: publisher.address || '',
+    country: publisher.country || '',
+    paymentMethod: publisher.paymentMethod || '',
+    bank: publisher.bank || '',
+    accountNumber: publisher.accountNumber || '',
+    mobilePaymentBank: publisher.mobilePaymentBank || '',
+    mobilePaymentPhone: publisher.mobilePaymentPhone || '',
+    mobilePaymentId: publisher.mobilePaymentId || '',
+    usdtAddress: publisher.usdtAddress || '',
   });
 
   const handleSave = async () => {
@@ -146,14 +154,14 @@ function EditDetailsModal({
       <DialogHeader>
         <DialogTitle>Ver / Editar Detalles del Publisher</DialogTitle>
         <DialogDescription>
-          Aquí puedes ver los datos de pago (solo lectura) y modificar la información personal del publisher.
+          Aquí puedes ver y modificar la información personal y de pago del publisher.
         </DialogDescription>
       </DialogHeader>
 
       <div className="max-h-[60vh] overflow-y-auto p-1 space-y-6">
         {/* Personal Information (Editable) */}
         <div className="space-y-4">
-            <h3 className="font-semibold text-foreground text-lg">Información Personal (Editable)</h3>
+            <h3 className="font-semibold text-foreground text-lg">Información Personal</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="firstName">Nombre</Label>
@@ -176,17 +184,17 @@ function EditDetailsModal({
         
         <Separator />
 
-        {/* Payment Information (Read-Only) */}
+        {/* Payment Information (Editable) */}
         <div className="space-y-4">
-            <h3 className="font-semibold text-foreground text-lg">Información de Pago (Solo Lectura)</h3>
+            <h3 className="font-semibold text-foreground text-lg">Información de Pago</h3>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-muted/30">
                 <div className="space-y-2">
                   <Label>País de Residencia</Label>
-                  <Input value={publisher.country || 'No especificado'} readOnly disabled />
+                  <Input value={formData.country} onChange={(e) => setFormData(prev => ({...prev, country: e.target.value}))} />
                 </div>
                 <div className="space-y-2">
                   <Label>Método de Pago Principal</Label>
-                  <Input value={publisher.paymentMethod || 'No especificado'} readOnly disabled />
+                  <Input value={formData.paymentMethod} onChange={(e) => setFormData(prev => ({...prev, paymentMethod: e.target.value}))} />
                 </div>
               </div>
 
@@ -194,11 +202,11 @@ function EditDetailsModal({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Banco</Label>
-                    <Input value={publisher.bank || ''} readOnly disabled />
+                    <Input value={formData.bank} onChange={(e) => setFormData(prev => ({...prev, bank: e.target.value}))} />
                   </div>
                   <div className="space-y-2">
                     <Label>Número de Cuenta</Label>
-                    <Input value={publisher.accountNumber || ''} readOnly disabled />
+                    <Input value={formData.accountNumber} onChange={(e) => setFormData(prev => ({...prev, accountNumber: e.target.value}))} />
                   </div>
                 </div>
               )}
@@ -207,22 +215,22 @@ function EditDetailsModal({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Banco (Pago Móvil)</Label>
-                    <Input value={publisher.mobilePaymentBank || ''} readOnly disabled />
+                    <Input value={formData.mobilePaymentBank} onChange={(e) => setFormData(prev => ({...prev, mobilePaymentBank: e.target.value}))} />
                   </div>
                    <div className="space-y-2">
                       <Label>Teléfono (Pago Móvil)</Label>
-                      <Input value={publisher.mobilePaymentPhone || ''} readOnly disabled />
+                      <Input value={formData.mobilePaymentPhone} onChange={(e) => setFormData(prev => ({...prev, mobilePaymentPhone: e.target.value}))} />
                    </div>
                    <div className="space-y-2">
                       <Label>Cédula/RIF (Pago Móvil)</Label>
-                      <Input value={publisher.mobilePaymentId || ''} readOnly disabled />
+                      <Input value={formData.mobilePaymentId} onChange={(e) => setFormData(prev => ({...prev, mobilePaymentId: e.target.value}))} />
                    </div>
                 </div>
               )}
                {publisher.paymentMethod === 'usdt' && (
                   <div className="space-y-2">
                       <Label>Wallet/Email USDT (Binance)</Label>
-                      <Input value={publisher.usdtAddress || ''} readOnly disabled />
+                      <Input value={formData.usdtAddress} onChange={(e) => setFormData(prev => ({...prev, usdtAddress: e.target.value}))} />
                   </div>
               )}
         </div>
@@ -232,7 +240,7 @@ function EditDetailsModal({
         <DialogClose asChild>
           <Button variant="outline">Cerrar</Button>
         </DialogClose>
-        <Button onClick={handleSave}>Guardar Cambios Personales</Button>
+        <Button onClick={handleSave}>Guardar Cambios</Button>
       </DialogFooter>
     </>
   );
@@ -453,5 +461,3 @@ export default function PublishersPage() {
     </div>
   );
 }
-
-    

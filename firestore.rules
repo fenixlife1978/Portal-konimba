@@ -57,12 +57,9 @@ service cloud.firestore {
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
-      // Admins can read any publisher profile and list all of them.
-      allow get, list: if isAdmin();
+      // Admins have full read/write access.
+      allow read, write: if isAdmin();
       
-      // Admins can update a publisher's profile, but CANNOT touch payment-related fields.
-      allow update: if isAdmin() && !('country' in request.resource.data) && !('paymentMethod' in request.resource.data) && !('bank' in request.resource.data) && !('accountNumber' in request.resource.data) && !('mobilePaymentBank' in request.resource.data) && !('mobilePaymentPhone' in request.resource.data) && !('mobilePaymentId' in request.resource.data) && !('usdtAddress' in request.resource.data);
-
       // Publishers can only read and update their own data.
       allow read, update: if isOwner(publisherId);
       
