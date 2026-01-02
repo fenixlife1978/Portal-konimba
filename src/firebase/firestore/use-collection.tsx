@@ -59,6 +59,20 @@ export function useCollection<T = any>(
   const [isLoading, setIsLoading] = useState<boolean>(true); // Start as true
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
+  // Extract the path from the query to use as a stable dependency.
+  const queryPath = useMemo(() => {
+    if (!memoizedTargetRefOrQuery) return null;
+    try {
+      return (memoizedTargetRefOrQuery as any).type === 'collection'
+        ? (memoizedTargetRefOrQuery as CollectionReference).path
+        : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
+    } catch {
+      // Fallback for any unexpected structure
+      return JSON.stringify(memoizedTargetRefOrQuery);
+    }
+  }, [memoizedTargetRefOrQuery]);
+
+
   useEffect(() => {
     if (!memoizedTargetRefOrQuery) {
       setIsLoading(true);
@@ -82,14 +96,7 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        let path: string = 'unknown_path';
-        try {
-          path = (memoizedTargetRefOrQuery as any).type === 'collection'
-            ? (memoizedTargetRefOrQuery as CollectionReference).path
-            : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
-        } catch (pathError) {
-          console.error("Could not determine path for Firestore error:", pathError);
-        }
+        const path = queryPath || 'unknown_path';
 
         // En vez de bloquear el módulo, devolvemos un array vacío
         const contextualError = new FirestorePermissionError({
@@ -108,7 +115,7 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
-  }, [memoizedTargetRefOrQuery]);
+  }, [queryPath]); // Use the stable path as the dependency
 
   return { data, isLoading, error };
 }
