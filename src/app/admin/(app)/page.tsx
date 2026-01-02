@@ -26,11 +26,11 @@ import {
 
 
 // Types
-type Publisher = { id: string; };
-type Offer = { id: string; name: string; paymentAmount: number; };
-type Lead = { publisherId: string; offerId: string; quantity: number; date: string; };
+type Publisher = { id: string };
+type Offer = { id: string; name: string; paymentAmount: number };
+type Lead = { publisherId: string; offerId: string; quantity: number; date: string };
 
-const StatCard = ({ title, value, icon, description }: { title: string, value: string | number, icon: React.ReactNode, description?: string }) => (
+const StatCard = ({ title, value, icon, description }: { title: string; value: string | number; icon: React.ReactNode; description?: string }) => (
   <Card>
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
       <CardTitle className="text-sm font-medium">{title}</CardTitle>
@@ -46,15 +46,15 @@ const StatCard = ({ title, value, icon, description }: { title: string, value: s
 export default function AdminDashboardPage() {
   const firestore = db;
   const { user, isUserLoading } = useUser();
-  
+
   // Data fetching
-  const publishersRef = useMemo(() => (firestore && user) ? collection(firestore, 'publishers') : null, [firestore, user]);
+  const publishersRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
   const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
 
-  const offersRef = useMemo(() => (firestore && user) ? collection(firestore, 'offers') : null, [firestore, user]);
+  const offersRef = useMemo(() => (firestore && user ? collection(firestore, 'offers') : null), [firestore, user]);
   const { data: offers, isLoading: isLoadingOffers } = useCollection<Offer>(offersRef);
 
-  const leadsRef = useMemo(() => (firestore && user) ? collection(firestore, 'leads') : null, [firestore, user]);
+  const leadsRef = useMemo(() => (firestore && user ? collection(firestore, 'leads') : null), [firestore, user]);
   const { data: leads, isLoading: isLoadingLeads } = useCollection<Lead>(leadsRef);
 
   const memoizedStats = useMemo(() => {
@@ -64,10 +64,10 @@ export default function AdminDashboardPage() {
         activePublishersThisFortnight: 0,
         totalLeadsThisMonth: 0,
         totalEarningsThisMonth: 0,
-        leadsByOfferData: []
+        leadsByOfferData: [],
       };
     }
-    
+
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
@@ -77,55 +77,56 @@ export default function AdminDashboardPage() {
 
     const fortnightStartDay = currentDay <= 15 ? 1 : 16;
     const fortnightEndDay = currentDay <= 15 ? 15 : new Date(currentYear, currentMonth, 0).getDate();
-    
+
     const startDateFortnight = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(fortnightStartDay).padStart(2, '0')}`;
     const endDateFortnight = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(fortnightEndDay).padStart(2, '0')}`;
 
-    const leadsThisFortnight = leads.filter(lead => lead.date >= startDateFortnight && lead.date <= endDateFortnight);
-    const activePublishersThisFortnight = new Set(leadsThisFortnight.map(l => l.publisherId)).size;
-    
+    const leadsThisFortnight = leads.filter((lead) => lead.date >= startDateFortnight && lead.date <= endDateFortnight);
+    const activePublishersThisFortnight = new Set(leadsThisFortnight.map((l) => l.publisherId)).size;
+
     const startDateMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
     const endDateMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${new Date(currentYear, currentMonth, 0).getDate()}`;
-    const leadsThisMonth = leads.filter(lead => lead.date >= startDateMonth && lead.date <= endDateMonth);
+    const leadsThisMonth = leads.filter((lead) => lead.date >= startDateMonth && lead.date <= endDateMonth);
 
     const totalLeadsThisMonth = leadsThisMonth.reduce((sum, lead) => sum + lead.quantity, 0);
 
-    const offersMap = new Map(offers.map(o => [o.id, o]));
+    const offersMap = new Map(offers.map((o) => [o.id, o]));
     const totalEarningsThisMonth = leadsThisMonth.reduce((sum, lead) => {
-        const offer = offersMap.get(lead.offerId);
-        return sum + (lead.quantity * (offer?.paymentAmount || 0));
+      const offer = offersMap.get(lead.offerId);
+      return sum + lead.quantity * (offer?.paymentAmount || 0);
     }, 0);
 
     const leadsByOffer = new Map<string, number>();
-    leads.forEach(lead => {
-        leadsByOffer.set(lead.offerId, (leadsByOffer.get(lead.offerId) || 0) + lead.quantity);
+    leads.forEach((lead) => {
+      leadsByOffer.set(lead.offerId, (leadsByOffer.get(lead.offerId) || 0) + lead.quantity);
     });
 
-    const leadsByOfferData = Array.from(leadsByOffer.entries()).map(([offerId, quantity]) => ({
-      name: offersMap.get(offerId)?.name || 'Oferta Desconocida',
-      leads: quantity,
-    })).sort((a, b) => b.leads - a.leads);
-
+    const leadsByOfferData = Array.from(leadsByOffer.entries())
+      .map(([offerId, quantity]) => ({
+        name: offersMap.get(offerId)?.name || 'Oferta Desconocida',
+        leads: quantity,
+      }))
+      .sort((a, b) => b.leads - a.leads);
 
     return { totalPublishers, activePublishersThisFortnight, totalLeadsThisMonth, totalEarningsThisMonth, leadsByOfferData };
   }, [leads, publishers, offers]);
-  
+
   const isLoading = isLoadingPublishers || isLoadingOffers || isLoadingLeads || isUserLoading;
 
   const menuItems = [
-    { title: "Gestión de Publishers", href: "/admin/publishers", icon: <IconPublisher className="h-full w-full fill-chart-1" /> },
-    { title: "Cargar Leads", href: "/admin/leads", icon: <IconLead className="h-full w-full fill-chart-2" /> },
-    { title: "Gestión de Pagos", href: "/admin/payments", icon: <IconPayment className="h-full w-full fill-chart-3" /> },
-    { title: "Gestión de Ofertas", href: "/admin/offers", icon: <IconOffer className="h-full w-full fill-chart-4" /> },
-    { title: "Reportes", href: "/admin/reports", icon: <IconReport className="h-full w-full fill-chart-5" /> },
-    { title: "Recibos", href: "/admin/receipts", icon: <IconReceiptCustom className="h-full w-full fill-indigo-400" /> },
-    { title: "Configuración", href: "/admin/settings", icon: <IconSettings className="h-full w-full fill-pink-400" /> },
+    { title: 'Gestión de Publishers', href: '/admin/publishers', icon: <IconPublisher className="h-full w-full fill-chart-1" /> },
+    { title: 'Cargar Leads', href: '/admin/leads', icon: <IconLead className="h-full w-full fill-chart-2" /> },
+    { title: 'Gestión de Pagos', href: '/admin/payments', icon: <IconPayment className="h-full w-full fill-chart-3" /> },
+    { title: 'Gestión de Ofertas', href: '/admin/offers', icon: <IconOffer className="h-full w-full fill-chart-4" /> },
+    { title: 'Reportes', href: '/admin/reports', icon: <IconReport className="h-full w-full fill-chart-5" /> },
+    { title: 'Recibos', href: '/admin/receipts', icon: <IconReceiptCustom className="h-full w-full fill-indigo-400" /> },
+    { title: 'Configuración', href: '/admin/settings', icon: <IconSettings className="h-full w-full fill-pink-400" /> },
   ];
 
   return (
     <div className="space-y-8">
       <h1 className="text-3xl font-bold font-headline text-foreground">Panel de Administrador</h1>
-      
+
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total de Publishers" value={isLoading ? '...' : memoizedStats.totalPublishers} icon={<Users className="h-4 w-4 text-muted-foreground" />} description="Publishers registrados en total." />
@@ -145,12 +146,19 @@ export default function AdminDashboardPage() {
             <ResponsiveContainer width="100%" height={350}>
               <BarChart data={memoizedStats.leadsByOfferData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} interval={0} tick={{ fontSize: 12 }} />
+                <XAxis
+                  dataKey="name"
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  interval={0}
+                  tick={{ fontSize: 12 }}
+                />
                 <YAxis />
-                <Tooltip 
-                  contentStyle={{ 
+                <Tooltip
+                  contentStyle={{
                     backgroundColor: 'hsl(var(--background))',
-                    borderColor: 'hsl(var(--border))'
+                    borderColor: 'hsl(var(--border))',
                   }}
                 />
                 <Legend />
@@ -162,25 +170,30 @@ export default function AdminDashboardPage() {
 
         {/* Navigation Buttons */}
         <div className="col-span-1 flex flex-col gap-4">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Navegación</CardTitle>
-                    <CardDescription>Accesos directos a las secciones principales.</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
-                    {menuItems.map((item) => (
-                    <Button asChild key={item.title} variant="outline" className="w-full justify-start gap-3 text-base py-8 h-auto">
-                        <Link href={item.href}>
-                            <div className="h-16 w-16 flex items-center justify-center">
-                               {item.icon}
-                            </div>
-                            <span className="flex-1 text-left">{item.title}</span>
-                            <ArrowRight className="h-4 w-4 ml-auto" />
-                        </Link>
-                    </Button>
-                    ))}
-                </CardContent>
-            </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Navegación</CardTitle>
+              <CardDescription>Accesos directos a las secciones principales.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              {menuItems.map((item) => (
+                <Button
+                  asChild
+                  key={item.title}
+                  variant="outline"
+                  className="w-full justify-start gap-3 text-base py-8 h-auto"
+                >
+                  <Link href={item.href}>
+                    <div className="h-16 w-16 flex items-center justify-center">
+                      {item.icon}
+                    </div>
+                    <span className="flex-1 text-left">{item.title}</span>
+                    <ArrowRight className="h-4 w-4 ml-auto" />
+                  </Link>
+                </Button>
+              ))}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
