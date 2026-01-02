@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useCollection } from '@/firebase';
 import { db } from '@/firebase/config';
@@ -75,6 +75,8 @@ type Publisher = {
   bank?: string;
   accountNumber?: string;
   mobilePaymentBank?: string;
+  mobilePaymentPhone?: string;
+  mobilePaymentId?: string;
   mobilePaymentPhoneCode?: string;
   mobilePaymentPhoneNumber?: string;
   mobilePaymentIdPrefix?: string;
