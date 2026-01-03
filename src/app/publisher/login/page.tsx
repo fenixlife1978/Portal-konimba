@@ -18,10 +18,10 @@ import { signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmail
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/ui/logo";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-material";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Cookies from "js-cookie"; // Importación necesaria para la seguridad
+import Cookies from "js-cookie";
 
 type CompanySettings = {
   companyName?: string;
@@ -45,79 +45,67 @@ export default function PublisherAuthPage() {
   const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
+  // LÓGICA DE REDIRECCIÓN POR ROL
   useEffect(() => {
     if (isUserLoading) return;
-    
     if (!user) {
       setIsCheckingRole(false);
       return;
     }
 
-    const checkRole = async () => {
+    const checkRoleAndRedirect = async () => {
       setIsCheckingRole(true);
-      
-      if (!firestore) {
-       
-        setIsCheckingRole(false);
-        return;
-      };
-
-      const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-      const publisherRef = doc(firestore, 'publishers', user.uid);
+      if (!firestore) return;
 
       try {
-        const adminDocSnap = await getDoc(adminRoleRef);
-        
-        if (adminDocSnap.exists()) {
-          toast({
-            variant: "destructive",
-            title: "Acceso no permitido",
-            description: "Los administradores no pueden iniciar sesión aquí.",
-          });
-          if (auth) {
-            await auth.signOut();
-            Cookies.remove('session'); // Borrar cookie si el rol es incorrecto
-          }
-          setIsCheckingRole(false);
+        const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+        const publisherRef = doc(firestore, 'publishers', user.uid);
+
+        const [adminDoc, publisherDoc] = await Promise.all([
+          getDoc(adminRoleRef),
+          getDoc(publisherRef)
+        ]);
+
+        if (adminDoc.exists()) {
+          toast({ title: "Modo Administrador", description: "Cargando panel de control..." });
+          router.push('/admin');
           return;
         }
 
-        const publisherDocSnap = await getDoc(publisherRef);
-        if (publisherDocSnap.exists()) {
+        if (publisherDoc.exists()) {
+          toast({ title: "Modo Publisher", description: "Cargando tu panel..." });
           router.push('/publisher');
-        } else {
-           setIsCheckingRole(false);
+          return;
         }
-      } catch (error: any) {
-        console.error("Error checking role:", error);
+
+        // Si no está en ninguna colección
+        setIsCheckingRole(false);
+      } catch (error) {
+        console.error("Error validando rol:", error);
         setIsCheckingRole(false);
       }
     };
 
-    checkRole();
-  }, [user, isUserLoading, router, firestore, auth, toast]);
+    checkRoleAndRedirect();
+  }, [user, isUserLoading, router, firestore, toast]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth) return;
     try {
-      // 1. Autenticación con Firebase
       const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      
-      // 2. OBTENER TOKEN Y CREAR COOKIE (Indispensable para el Middleware)
       const token = await userCredential.user.getIdToken();
+      
+      // Creamos la cookie para que el middleware nos deje pasar
       Cookies.set('session', token, { expires: 7, secure: true, sameSite: 'strict' });
       
-      // 3. Refrescar rutas y redirigir
+      // Forzamos el refresh para que el middleware lea la nueva cookie
       router.refresh();
-      router.push('/publisher');
-
     } catch (error: any) {
-      console.error("Login Error:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Credenciales inválidas.",
+        description: "Credenciales incorrectas o usuario no registrado.",
       });
     }
   };
@@ -126,80 +114,70 @@ export default function PublisherAuthPage() {
     e.preventDefault();
     if (!auth || !firestore) return;
     
-    
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
-        const newUser = userCredential.user;
-        
-        // CREAR COOKIE EN EL REGISTRO
-        const token = await newUser.getIdToken();
+        const token = await userCredential.user.getIdToken();
         Cookies.set('session', token, { expires: 7, secure: true, sameSite: 'strict' });
 
-        await updateProfile(newUser, { displayName: registerName });
+        await updateProfile(userCredential.user, { displayName: registerName });
 
         const nameParts = registerName.trim().split(' ');
-        const publisherRef = doc(firestore, 'publishers', newUser.uid);
-        await setDoc(publisherRef, {
-            id: newUser.uid,
+        await setDoc(doc(firestore, 'publishers', userCredential.user.uid), {
+            id: userCredential.user.uid,
             firstName: nameParts[0] || '',
             lastName: nameParts.slice(1).join(' ') || '',
-            email: newUser.email,
+            email: userCredential.user.email,
             status: 'active',
             createdAt: serverTimestamp(),
-
         });
         
-        toast({ title: "Cuenta creada con éxito" });
         router.refresh();
-        router.push('/publisher');
-
     } catch (error: any) {
-        toast({ variant: "destructive", title: "Error en registro", description: error.message });
+        toast({ variant: "destructive", title: "Error", description: "No se pudo crear la cuenta." });
     }
   };
 
-  const handlePasswordReset = async () => {
-    if (!loginEmail || !auth) return;
-    try {
-      await sendPasswordResetEmail(auth, loginEmail);
-      toast({ title: "Correo enviado" });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo enviar el correo" });
-    }
-  };
-  
   if (isUserLoading || isCheckingRole) {
-    return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen space-y-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="text-muted-foreground animate-pulse">Verificando credenciales y permisos...</p>
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
-       <div className="mb-8 text-center">
-        <Link href="/" className="inline-block">
-          <Logo className="h-24 w-24" src={settingsData?.logoUrl} />
-        </Link>
-        <div className="mt-4">
-          <h1 className="text-3xl font-bold">Portal</h1>
-          <h2 className="text-2xl text-foreground/80">{settingsData?.companyName || "Konimba Group"}</h2>
-        </div>
+      <div className="mb-8 text-center">
+        <Logo className="h-20 w-20 mx-auto" src={settingsData?.logoUrl} />
+        <h1 className="text-3xl font-bold mt-4">{settingsData?.companyName || "Portal de Gestión"}</h1>
+        <p className="text-muted-foreground">Ingresa para acceder a tu panel personalizado</p>
       </div>
 
-       <Tabs defaultValue="login" className="w-full max-sm:max-w-xs max-w-sm">
+      <Tabs defaultValue="login" className="w-full max-w-sm">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Entrar</TabsTrigger>
-          <TabsTrigger value="register">Registro</TabsTrigger>
+          <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
+          <TabsTrigger value="register">Registro Publisher</TabsTrigger>
         </TabsList>
         <TabsContent value="login">
           <form onSubmit={handleLogin}>
             <Card>
-              <CardHeader><CardTitle>Login</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Acceso Universal</CardTitle>
+                <CardDescription>El sistema detectará tu rol automáticamente.</CardDescription>
+              </CardHeader>
               <CardContent className="space-y-4">
-                <Input type="email" placeholder="Email" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
-                <Input type="password" placeholder="Contraseña" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input type="email" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Contraseña</Label>
+                  <Input type="password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
+                </div>
               </CardContent>
-              <CardFooter className="flex flex-col gap-2">
-                <Button className="w-full" type="submit">Acceder</Button>
-                <Button variant="link" type="button" onClick={handlePasswordReset}>¿Olvidaste tu clave?</Button>
+              <CardFooter>
+                <Button className="w-full" type="submit">Entrar al Panel</Button>
               </CardFooter>
             </Card>
           </form>
@@ -207,23 +185,22 @@ export default function PublisherAuthPage() {
         <TabsContent value="register">
           <form onSubmit={handleRegister}>
             <Card>
-              <CardHeader><CardTitle>Registro</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Nuevo Publisher</CardTitle>
+                <CardDescription>Crea tu cuenta de colaborador.</CardDescription>
+              </CardHeader>
               <CardContent className="space-y-4">
-                <Input placeholder="Nombre completo" required value={registerName} onChange={(e) => setRegisterName(e.target.value)} />
+                <Input placeholder="Nombre Completo" required value={registerName} onChange={(e) => setRegisterName(e.target.value)} />
                 <Input type="email" placeholder="Email" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} />
-                <Input type="password" placeholder="Mínimo 6 caracteres" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} />
+                <Input type="password" placeholder="Contraseña (min. 6)" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} />
               </CardContent>
               <CardFooter>
-                <Button className="w-full" type="submit">Crear cuenta</Button>
+                <Button className="w-full" type="submit">Registrarme</Button>
               </CardFooter>
             </Card>
           </form>
         </TabsContent>
       </Tabs>
-      
-      <Button asChild variant="link" className="mt-8">
-        <Link href="/"><ArrowLeft className="mr-2 h-4 w-4" />Volver</Link>
-      </Button>
     </div>
-  )
+  );
 }
