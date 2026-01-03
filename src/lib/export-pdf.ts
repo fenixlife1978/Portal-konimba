@@ -10,6 +10,15 @@ interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: UserOptions) => jsPDF;
 }
 
+interface PaymentSummary {
+    totalUSD: number;
+    usdToVesRate?: number;
+    usdToCopRate?: number;
+    totalToPayInVES_USD: number;
+    totalToPayInCOP_USD: number;
+    totalToPayInUSDT: number;
+}
+
 interface ExportOptions {
     head?: any[][];
     body?: any[][];
@@ -27,6 +36,7 @@ interface ExportOptions {
     isSubtable?: boolean;
     addPage?: boolean;
     isFinalSave?: boolean;
+    paymentSummary?: PaymentSummary;
 }
 
 // Función auxiliar para convertir una URL en DataURL válido
@@ -62,6 +72,7 @@ export const exportToPDF = async (
     isSubtable = false,
     addPage = false,
     isFinalSave = false,
+    paymentSummary,
   } = options;
 
   if (isFinalSave && pdfInstance) {
@@ -162,28 +173,28 @@ export const exportToPDF = async (
   const drawTable = (tableOptions: UserOptions) => {
     autoTable(pdf, tableOptions);
   }
+  
+  let finalY = startY;
 
   if (tables) {
-      let lastY = startY;
       tables.forEach((table, index) => {
           if (index > 0) {
-            // Add space between tables
-            lastY += 10;
+            finalY += 10;
           }
 
           if (table.subHeader) {
             pdf.setFontSize(11);
             pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(40);
-            pdf.text(table.subHeader, margin, lastY);
-            lastY += 8;
+            pdf.text(table.subHeader, margin, finalY);
+            finalY += 8;
           }
 
           drawTable({
             head: table.head,
             body: table.body,
             foot: table.foot,
-            startY: lastY,
+            startY: finalY,
             theme: 'grid',
             styles: {
               font: 'helvetica',
@@ -212,10 +223,10 @@ export const exportToPDF = async (
               }
             },
             didDrawPage: (data) => {
-                lastY = data.cursor?.y || lastY;
+                finalY = data.cursor?.y || finalY;
             }
           });
-          lastY = (pdf as any).lastAutoTable.finalY || lastY;
+          finalY = (pdf as any).lastAutoTable.finalY || finalY;
       });
 
   } else {
@@ -257,7 +268,56 @@ export const exportToPDF = async (
           }
         }
     });
+    finalY = (pdf as any).lastAutoTable.finalY || finalY;
   }
+  
+    // --- Add Payment Summary ---
+    if (paymentSummary) {
+        finalY += 15;
+        if (finalY > pdf.internal.pageSize.getHeight() - 40) {
+            pdf.addPage();
+            finalY = 20;
+        }
+
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Resumen General de la Nómina', margin, finalY);
+        finalY += 8;
+
+        const summaryBody = [];
+        const { totalUSD, usdToVesRate, usdToCopRate, totalToPayInVES_USD, totalToPayInCOP_USD, totalToPayInUSDT } = paymentSummary;
+
+        summaryBody.push([{ content: `Monto Total Nómina (USD): $${totalUSD.toFixed(2)}`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [230, 230, 230] } }]);
+
+        if (totalToPayInVES_USD > 0 && usdToVesRate) {
+            const totalVES = totalToPayInVES_USD * usdToVesRate;
+            summaryBody.push([
+                { content: `Tasa Aplicable (VES): ${usdToVesRate.toFixed(2)}`, styles: { fontStyle: 'bold' } },
+                { content: `Pago Total en Bolívares (VES): $${totalToPayInVES_USD.toFixed(2)} x ${usdToVesRate.toFixed(2)} = ${totalVES.toLocaleString('es-VE', {minimumFractionDigits: 2})} VES`, styles: { halign: 'right' } }
+            ]);
+        }
+        if (totalToPayInCOP_USD > 0 && usdToCopRate) {
+            const totalCOP = totalToPayInCOP_USD * usdToCopRate;
+             summaryBody.push([
+                { content: `Tasa Aplicable (COP): ${usdToCopRate.toFixed(2)}`, styles: { fontStyle: 'bold' } },
+                { content: `Pago Total en Pesos (COP): $${totalToPayInCOP_USD.toFixed(2)} x ${usdToCopRate.toFixed(2)} = ${totalCOP.toLocaleString('es-CO', {style: 'currency', currency: 'COP'})}`, styles: { halign: 'right' } }
+            ]);
+        }
+        if (totalToPayInUSDT > 0) {
+            summaryBody.push([
+                { content: `Pagos en USDT (Binance):`, styles: { fontStyle: 'bold' } },
+                { content: `$${totalToPayInUSDT.toFixed(2)}`, styles: { halign: 'right' } }
+            ]);
+        }
+
+        autoTable(pdf, {
+            body: summaryBody,
+            startY: finalY,
+            theme: 'grid',
+            styles: { fontSize: 9 },
+        });
+    }
+
 
   if (returnInstance) {
       return pdf;
@@ -283,5 +343,3 @@ export const exportToPDF = async (
       finalOptions = null;
   }
 };
-
-    

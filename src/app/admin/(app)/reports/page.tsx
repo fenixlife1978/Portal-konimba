@@ -32,7 +32,15 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { exportToPDF } from '@/lib/export-pdf';
 
 // Types
-type Publisher = { id: string; subId?: string; firstName: string; lastName: string; email: string; };
+type Publisher = { 
+    id: string; 
+    subId?: string; 
+    firstName: string; 
+    lastName: string; 
+    email: string; 
+    country?: 'VE' | 'CO';
+    paymentMethod?: 'pagoMovil' | 'transferencia' | 'usdt';
+};
 type Offer = { id: string; name: string; paymentAmount: number; status: 'active' | 'inactive' };
 type Lead = { 
   id: string; 
@@ -82,6 +90,8 @@ type ReportData = {
 type PublisherReportData = {
     publisherInfo: Publisher;
     reportData: ReportData;
+    totalLeads: number;
+    totalEarnings: number;
 }
 type GeneralReportResult = {
     publisherReports: PublisherReportData[];
@@ -529,7 +539,7 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
         const reportTitle = `Reporte General de Pagos: ${periodLabel}`;
         const fileName = `Reporte_General_Pagos_${periodLabel.replace(/ /g, '_')}.pdf`;
     
-        let allTables: any = [];
+        let allTables: any[] = [];
     
         reportData.publisherReports.forEach((pubReport) => {
             const processed = processReportData(pubReport.reportData);
@@ -559,6 +569,42 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
                 foot,
             });
         });
+
+        // Calculate summary for PDF
+        const paymentSummary = {
+            totalUSD: reportData.grandTotalEarnings,
+            totalVES: 0,
+            totalCOP: 0,
+            totalUSDT: 0,
+            usdToVesRate: settingsData?.usdToVesRate || 0,
+            usdToCopRate: settingsData?.usdToCopRate || 0,
+        };
+
+        let totalToPayInVES_USD = 0;
+        let totalToPayInCOP_USD = 0;
+        
+        reportData.publisherReports.forEach(pubReport => {
+            const pub = pubReport.publisherInfo;
+            if (pub.paymentMethod === 'usdt') {
+                paymentSummary.totalUSDT += pubReport.totalEarnings;
+            } else if (pub.country === 'VE' && (pub.paymentMethod === 'pagoMovil' || pub.paymentMethod === 'transferencia')) {
+                totalToPayInVES_USD += pubReport.totalEarnings;
+            } else if (pub.country === 'CO' && pub.paymentMethod === 'transferencia') {
+                totalToPayInCOP_USD += pubReport.totalEarnings;
+            }
+        });
+        
+        paymentSummary.totalVES = totalToPayInVES_USD * paymentSummary.usdToVesRate;
+        paymentSummary.totalCOP = totalToPayInCOP_USD * paymentSummary.usdToCopRate;
+
+        const summaryDetails = {
+            totalUSD: reportData.grandTotalEarnings,
+            usdToVesRate: settingsData?.usdToVesRate,
+            usdToCopRate: settingsData?.usdToCopRate,
+            totalToPayInVES_USD,
+            totalToPayInCOP_USD,
+            totalToPayInUSDT: paymentSummary.totalUSDT,
+        };
     
         await exportToPDF({
             tables: allTables,
@@ -566,6 +612,7 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
             fileName,
             companyName: settingsData?.companyName,
             showFooter: true,
+            paymentSummary: summaryDetails,
         });
     
         setIsExporting(false);
@@ -634,6 +681,9 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
             for (const [pubId, pubLeads] of leadsByPublisher.entries()) {
                 const publisherInfo = publishers.find(p => p.id === pubId);
                 if (publisherInfo) {
+                    let pubTotalLeads = 0;
+                    let pubTotalEarnings = 0;
+
                      pubLeads.forEach(lead => {
                         const offerName = lead.offerName || 'Desconocida';
                         const current = totalLeadsByOffer.get(lead.offerId) || { offerName: offerName, totalLeads: 0 };
@@ -641,12 +691,18 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
                         totalLeadsByOffer.set(lead.offerId, current);
 
                         grandTotalLeads += lead.quantity;
+                        pubTotalLeads += lead.quantity;
+
                         const offer = offersMap.get(lead.offerId);
-                        grandTotalEarnings += (offer?.paymentAmount || 0) * lead.quantity;
+                        const earning = (offer?.paymentAmount || 0) * lead.quantity;
+                        grandTotalEarnings += earning;
+                        pubTotalEarnings += earning;
                     });
                     
                     publisherReports.push({
                         publisherInfo: publisherInfo,
+                        totalLeads: pubTotalLeads,
+                        totalEarnings: pubTotalEarnings,
                         reportData: {
                             leads: pubLeads,
                             offersMap: offersMap,
