@@ -133,7 +133,7 @@ export default function ReportsPage() {
   const publishersRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
   const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
   
-  const offersRef = useMemo(() => firestore ? collection(firestore, 'offers') : null, [firestore]);
+  const offersRef = useMemo(() => (firestore && user ? collection(firestore, 'offers') : null), [firestore, user]);
   const { data: offers, isLoading: isLoadingOffers } = useCollection<Offer>(offersRef);
 
   const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
