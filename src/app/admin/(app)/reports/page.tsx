@@ -107,7 +107,7 @@ const months = [
     { value: '7', label: 'Julio' }, { value: '8', label: 'Agosto' }, { value: '9', 'label': 'Septiembre' },
     { value: '10', label: 'Octubre' }, { value: '11', 'label': 'Noviembre' }, { value: '12', 'label': 'Diciembre' }
 ];
-const periodOptions = [
+const periodOptionsForSelect = [
     { value: 'monthly', label: 'Mes Completo' },
     { value: 'fortnight-1', label: '1ra Quincena' },
     { value: 'fortnight-2', label: '2da Quincena' },
@@ -293,10 +293,10 @@ function PublisherReport({ publishers, isLoadingPublishers, companyName }: { pub
     const publisherId = watch('publisherId');
     const selectedPublisher = publishers?.find(p => p.id === publisherId);
 
-    const publisherOptions = publishers?.map(p => ({
+    const publisherOptions = useMemo(() => publishers?.map(p => ({
         value: p.id,
         label: `${p.firstName} ${p.lastName} (${p.subId ? `SUB ID: ${p.subId} - ` : ''}${p.email})`,
-    })) || [];
+    })) || [], [publishers]);
 
     const handleExport = async () => {
         if (!reportData || !selectedPublisher) return;
@@ -367,7 +367,8 @@ function PublisherReport({ publishers, isLoadingPublishers, companyName }: { pub
                     offersMap.set(doc.id, { id: doc.id, ...doc.data() } as Offer);
                 });
             }
-            const periodLabel = `${months.find(m => m.value === watch('month'))?.label} ${watch('year')}`;
+            const monthLabel = months.find(m => m.value === watch('month'))?.label || '';
+            const periodLabel = `${monthLabel} ${watch('year')}`;
             setReportData({ leads, offersMap, daysInPeriod: Array.from({ length: daysInMonth }, (_, i) => i + 1), periodLabel });
 
         } catch (error: any) {
@@ -456,6 +457,10 @@ function SelectionModal<T extends string>({ open, onOpenChange, title, options, 
 }) {
     const [selectedValue, setSelectedValue] = useState(value);
 
+    useEffect(() => {
+        setSelectedValue(value);
+    }, [value, open]);
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
@@ -484,6 +489,12 @@ function SelectionModal<T extends string>({ open, onOpenChange, title, options, 
 // #################################################################################
 // ## TAB 2: Reporte General de Pagos
 // #################################################################################
+type Period = "monthly" | "fortnight-1" | "fortnight-2";
+const periodOptions: { value: Period; label: string }[] = [
+  { value: "monthly", label: "Mes Completo" },
+  { value: "fortnight-1", label: "1ra Quincena" },
+  { value: "fortnight-2", label: "2da Quincena" },
+];
 
 function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers: Publisher[], offers: Offer[], settingsData?: CompanySettings | null }) {
     const firestore = db;
@@ -712,25 +723,25 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
                     </div>
                 </form>
 
-                type Period = "monthly" | "fortnight-1" | "fortnight-2";
-
-const periodOptions: { value: Period; label: string }[] = [
-  { value: "monthly", label: "Mensual" },
-  { value: "fortnight-1", label: "Primera Quincena" },
-  { value: "fortnight-2", label: "Segunda Quincena" },
-];
-
-<SelectionModal
-  open={periodModalOpen}
-  onOpenChange={setPeriodModalOpen}
-  title="Seleccionar Período"
-  options={periodOptions}
-  value={watchedPeriod as Period}
-  onValueChange={(value: Period) => setValue("period", value)}
-  fieldName="period"
-/>
-
-
+                <SelectionModal
+                  open={periodModalOpen}
+                  onOpenChange={setPeriodModalOpen}
+                  title="Seleccionar Período"
+                  options={periodOptions}
+                  value={watchedPeriod as Period}
+                  onValueChange={(value) => setValue("period", value as Period)}
+                  fieldName="period"
+                />
+                
+                <SelectionModal
+                    open={monthModalOpen}
+                    onOpenChange={setMonthModalOpen}
+                    title="Seleccionar Mes"
+                    options={months}
+                    value={watchedMonth}
+                    onValueChange={(value) => setValue('month', value)}
+                    fieldName="month"
+                />
                 
                 <SelectionModal
                     open={yearModalOpen}
