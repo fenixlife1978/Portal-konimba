@@ -200,7 +200,7 @@ function ReceiptDetails({ payment, publisher, settings }: { payment: Payment, pu
             <div className="py-6 space-y-6">
                 <div className="text-sm">
                     <p><strong>Fecha de Pago:</strong> {payment.paidAt ? payment.paidAt.toDate().toLocaleDateString('es-VE') : 'N/A'}</p>
-                    <p><strong>Publisher:</strong> {publisher.firstName} {publisher.lastName}</p>
+                    <p><strong>Publisher:</strong> {publisher.firstName} ${publisher.lastName}</p>
                     <p><strong>Email:</strong> {publisher.email}</p>
                 </div>
                 <Table>
@@ -312,8 +312,8 @@ export default function ReceiptsPage() {
         <>
           {(!payments || payments.length === 0) ? (
             <div className="text-center py-16 border-2 border-dashed rounded-lg">
-                <h3 className="text-xl font-semibold text-muted-foreground">No tienes recibos disponibles</h3>
-                <p className="text-muted-foreground mt-2">Cuando se procese un pago, tu recibo aparecerá aquí.</p>
+                <h3 className="text-xl font-semibold text-muted-foreground">No tienes recibos para mostrar</h3>
+                <p className="text-muted-foreground mt-2">En estos momentos no tienes recibo alguno para mostrar. Cuando la administración procese un pago, tu recibo aparecerá aquí.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
