@@ -41,7 +41,6 @@ import {
   Pencil,
   Trash2,
   ArrowLeft,
-  PlusCircle,
   UserPlus,
 } from 'lucide-react';
 import {
@@ -53,7 +52,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 
@@ -97,7 +96,8 @@ function CreatePublisherModal({ onSave, onOpenChange }: { onSave: (data: CreateP
 
     const handleFormSubmit = async (data: CreatePublisherFormData) => {
         await onSave(data);
-        onOpenChange(false);
+        // Do not close on success to allow multiple creations
+        // onOpenChange(false);
     };
 
     return (
@@ -148,7 +148,7 @@ function CreatePublisherModal({ onSave, onOpenChange }: { onSave: (data: CreateP
                 </div>
             </div>
             <DialogFooter>
-                <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
+                <DialogClose asChild><Button type="button" variant="outline">Cerrar</Button></DialogClose>
                 <Button type="submit">Crear Publisher</Button>
             </DialogFooter>
         </form>
@@ -362,11 +362,12 @@ export default function PublishersPage() {
   const { data: publishers, isLoading } = useCollection<Publisher>(publishersCollectionRef);
 
   const handleCreatePublisher = async (data: CreatePublisherFormData) => {
+    if (!firestore) {
+      toast({ variant: "destructive", title: "Error", description: "Firestore no está disponible." });
+      return;
+    }
     const { email, password, ...profileData } = data;
     try {
-        // This is a temporary auth instance for user creation.
-        // It's not ideal but necessary because we can't easily get the main auth instance here
-        // in a way that allows creating users. A backend function would be better.
         const { user } = await createUserWithEmailAndPassword(auth, email, password);
 
         const publisherRef = doc(firestore, 'publishers', user.uid);
@@ -379,12 +380,14 @@ export default function PublishersPage() {
             updatedAt: serverTimestamp(),
         });
         toast({ title: "Publisher Creado", description: "El nuevo publisher ha sido registrado exitosamente." });
+        // After successful creation, we can close the modal if desired, or reset the form
+        // For now, we leave it open to allow creating multiple publishers
     } catch (error: any) {
         let description = "Ocurrió un error desconocido.";
         if (error.code === 'auth/email-already-in-use') {
-            description = "El correo electrónico ya está registrado.";
+            description = "El correo electrónico ya está registrado. Por favor, utiliza otro.";
         } else if (error.code === 'auth/weak-password') {
-            description = "La contraseña es demasiado débil.";
+            description = "La contraseña es demasiado débil (mínimo 6 caracteres).";
         }
         toast({ variant: "destructive", title: "Error al crear publisher", description });
     }
