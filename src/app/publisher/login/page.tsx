@@ -21,7 +21,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Cookies from "js-cookie"; // NUEVO: Importación de cookies
+import Cookies from "js-cookie"; // Importación necesaria para la seguridad
 
 type CompanySettings = {
   companyName?: string;
@@ -45,11 +45,8 @@ export default function PublisherAuthPage() {
   const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
-
   useEffect(() => {
-    if (isUserLoading) {
-      return;
-    }
+    if (isUserLoading) return;
     
     if (!user) {
       setIsCheckingRole(false);
@@ -60,7 +57,7 @@ export default function PublisherAuthPage() {
       setIsCheckingRole(true);
       
       if (!firestore) {
-        console.error("Firestore no está inicializado.");
+       
         setIsCheckingRole(false);
         return;
       };
@@ -75,11 +72,11 @@ export default function PublisherAuthPage() {
           toast({
             variant: "destructive",
             title: "Acceso no permitido",
-            description: "Los administradores no pueden iniciar sesión en el panel de publishers.",
+            description: "Los administradores no pueden iniciar sesión aquí.",
           });
           if (auth) {
             await auth.signOut();
-            Cookies.remove('session'); // Limpiar cookie si se intenta entrar con rol equivocado
+            Cookies.remove('session'); // Borrar cookie si el rol es incorrecto
           }
           setIsCheckingRole(false);
           return;
@@ -92,13 +89,7 @@ export default function PublisherAuthPage() {
            setIsCheckingRole(false);
         }
       } catch (error: any) {
-        console.error("Error checking user role:", error);
-        toast({
-          variant: "destructive",
-          title: "Error de verificación de permisos",
-          description: "No se pudo verificar el rol. Revisa tus reglas de seguridad de Firestore.",
-        });
-        if (auth) await auth.signOut();
+        console.error("Error checking role:", error);
         setIsCheckingRole(false);
       }
     };
@@ -110,26 +101,23 @@ export default function PublisherAuthPage() {
     e.preventDefault();
     if (!auth) return;
     try {
-      // 1. Iniciar sesión en Firebase
+      // 1. Autenticación con Firebase
       const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       
-      // 2. Generar Token y Guardar en Cookie para el Middleware
+      // 2. OBTENER TOKEN Y CREAR COOKIE (Indispensable para el Middleware)
       const token = await userCredential.user.getIdToken();
       Cookies.set('session', token, { expires: 7, secure: true, sameSite: 'strict' });
       
-      // 3. Refrescar estado de rutas
+      // 3. Refrescar rutas y redirigir
       router.refresh();
+      router.push('/publisher');
 
     } catch (error: any) {
-      console.error("Publisher Login Error:", error);
-      let description = "No se pudo iniciar sesión. Verifica tus credenciales.";
-      if (error.code === 'auth/invalid-credential') {
-        description = "Correo electrónico o contraseña incorrectos."
-      }
+      console.error("Login Error:", error);
       toast({
         variant: "destructive",
-        title: "Error de inicio de sesión",
-        description: description,
+        title: "Error",
+        description: "Credenciales inválidas.",
       });
     }
   };
@@ -138,81 +126,50 @@ export default function PublisherAuthPage() {
     e.preventDefault();
     if (!auth || !firestore) return;
     
-    const nameParts = registerName.trim().split(' ');
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
-
-    if (!firstName) {
-        toast({ variant: "destructive", title: "Error de registro", description: "Por favor, introduce al menos un nombre." });
-        return;
-    }
-
+    
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
         const newUser = userCredential.user;
         
-        // 1. Generar Token y Guardar en Cookie para el Middleware
+        // CREAR COOKIE EN EL REGISTRO
         const token = await newUser.getIdToken();
         Cookies.set('session', token, { expires: 7, secure: true, sameSite: 'strict' });
 
         await updateProfile(newUser, { displayName: registerName });
 
+        const nameParts = registerName.trim().split(' ');
         const publisherRef = doc(firestore, 'publishers', newUser.uid);
         await setDoc(publisherRef, {
             id: newUser.uid,
-            firstName,
-            lastName,
+            firstName: nameParts[0] || '',
+            lastName: nameParts.slice(1).join(' ') || '',
             email: newUser.email,
             status: 'active',
             createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+
         });
         
-        toast({ title: "¡Registro exitoso!", description: "Tu cuenta ha sido creada. Serás redirigido." });
+        toast({ title: "Cuenta creada con éxito" });
         router.refresh();
+        router.push('/publisher');
 
     } catch (error: any) {
-        console.error("Publisher Registration Error:", error);
-        let description = "No se pudo crear la cuenta.";
-        if (error.code === 'auth/email-already-in-use') {
-            description = "Este correo electrónico ya está en uso. Por favor, utiliza otro."
-        } else if (error.code === 'auth/weak-password') {
-            description = "La contraseña es demasiado débil (mínimo 6 caracteres)."
-        }
-        toast({ variant: "destructive", title: "Error de registro", description });
+        toast({ variant: "destructive", title: "Error en registro", description: error.message });
     }
   };
 
-  
   const handlePasswordReset = async () => {
-    const emailToReset = loginEmail || registerEmail;
-    if (!emailToReset) {
-      toast({
-        variant: "destructive",
-        title: "Correo electrónico requerido",
-        description: "Por favor, introduce tu correo electrónico para restablecer la contraseña.",
-      });
-      return;
-    }
-    if (!auth) return;
+    if (!loginEmail || !auth) return;
     try {
-      await sendPasswordResetEmail(auth, emailToReset);
-      toast({
-        title: "Correo de recuperación enviado",
-        description: "Revisa tu bandeja de entrada para restablecer tu contraseña.",
-      });
-    } catch (error: any) {
-      console.error("Password Reset Error:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo enviar el correo de recuperación. Verifica que el correo sea correcto.",
-      });
+      await sendPasswordResetEmail(auth, loginEmail);
+      toast({ title: "Correo enviado" });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo enviar el correo" });
     }
   };
   
   if (isUserLoading || isCheckingRole) {
-    return <div className="flex items-center justify-center min-h-screen">Verificando sesión y permisos...</div>;
+    return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
   }
 
   return (
@@ -222,39 +179,27 @@ export default function PublisherAuthPage() {
           <Logo className="h-24 w-24" src={settingsData?.logoUrl} />
         </Link>
         <div className="mt-4">
-          <h1 className="text-3xl font-bold font-headline">Portal</h1>
-          <h2 className="text-2xl font-bold font-headline text-foreground/80">{settingsData?.companyName || "Konimba Group Marketing"}</h2>
+          <h1 className="text-3xl font-bold">Portal</h1>
+          <h2 className="text-2xl text-foreground/80">{settingsData?.companyName || "Konimba Group"}</h2>
         </div>
-        <p className="text-muted-foreground mt-2">Acceso de Publisher</p>
       </div>
 
-       <Tabs defaultValue="login" className="w-full max-w-sm">
+       <Tabs defaultValue="login" className="w-full max-sm:max-w-xs max-w-sm">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
-          <TabsTrigger value="register">Registrarse</TabsTrigger>
+          <TabsTrigger value="login">Entrar</TabsTrigger>
+          <TabsTrigger value="register">Registro</TabsTrigger>
         </TabsList>
         <TabsContent value="login">
           <form onSubmit={handleLogin}>
             <Card>
-              <CardHeader>
-                <CardTitle>Iniciar Sesión</CardTitle>
-                <CardDescription>Accede a tu panel de publisher.</CardDescription>
-              </CardHeader>
+              <CardHeader><CardTitle>Login</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input id="login-email" type="email" placeholder="tu@email.com" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Contraseña</Label>
-                  <Input id="login-password" type="password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
-                </div>
+                <Input type="email" placeholder="Email" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
+                <Input type="password" placeholder="Contraseña" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
               </CardContent>
-              <CardFooter className="flex flex-col gap-4">
+              <CardFooter className="flex flex-col gap-2">
                 <Button className="w-full" type="submit">Acceder</Button>
-                 <Button variant="link" type="button" onClick={handlePasswordReset} className="text-sm font-normal">
-                    ¿Olvidaste tu contraseña?
-                </Button>
+                <Button variant="link" type="button" onClick={handlePasswordReset}>¿Olvidaste tu clave?</Button>
               </CardFooter>
             </Card>
           </form>
@@ -262,26 +207,14 @@ export default function PublisherAuthPage() {
         <TabsContent value="register">
           <form onSubmit={handleRegister}>
             <Card>
-              <CardHeader>
-                <CardTitle>Crear Cuenta</CardTitle>
-                <CardDescription>Regístrate para acceder a tu panel de publisher.</CardDescription>
-              </CardHeader>
+              <CardHeader><CardTitle>Registro</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                 <div className="space-y-2">
-                  <Label htmlFor="name">Nombre Completo</Label>
-                  <Input id="name" placeholder="Tu Nombre y Apellido" required value={registerName} onChange={(e) => setRegisterName(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="register-email">Email</Label>
-                  <Input id="register-email" type="email" placeholder="tu@email.com" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="register-password">Contraseña</Label>
-                  <Input id="register-password" type="password" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} />
-                </div>
+                <Input placeholder="Nombre completo" required value={registerName} onChange={(e) => setRegisterName(e.target.value)} />
+                <Input type="email" placeholder="Email" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} />
+                <Input type="password" placeholder="Mínimo 6 caracteres" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} />
               </CardContent>
               <CardFooter>
-                <Button className="w-full" type="submit">Crear Cuenta</Button>
+                <Button className="w-full" type="submit">Crear cuenta</Button>
               </CardFooter>
             </Card>
           </form>
@@ -289,10 +222,7 @@ export default function PublisherAuthPage() {
       </Tabs>
       
       <Button asChild variant="link" className="mt-8">
-        <Link href="/" >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Volver al inicio
-        </Link>
+        <Link href="/"><ArrowLeft className="mr-2 h-4 w-4" />Volver</Link>
       </Button>
     </div>
   )
