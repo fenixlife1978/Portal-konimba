@@ -265,6 +265,8 @@ export default function PerformancePage() {
         companyPhone: settingsData?.companyPhone,
         companyEmail: settingsData?.companyEmail,
         companySocialMedia: settingsData?.companySocialMedia,
+        publisherName: `${publisherData.firstName} ${publisherData.lastName}`,
+        publisherSubId: publisherData.subId,
         showFooter: true
     });
 

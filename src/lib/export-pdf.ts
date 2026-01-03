@@ -22,6 +22,8 @@ interface ExportOptions {
     companyPhone?: string;
     companyEmail?: string;
     companySocialMedia?: string;
+    publisherName?: string;
+    publisherSubId?: string;
     showFooter?: boolean;
     isSubtable?: boolean;
     addPage?: boolean;
@@ -56,6 +58,8 @@ export const exportToPDF = async (
     companyPhone,
     companyEmail,
     companySocialMedia,
+    publisherName,
+    publisherSubId,
     showFooter = true,
     isSubtable = false,
     addPage = false,
@@ -145,6 +149,24 @@ export const exportToPDF = async (
       pdf.text(dateStr, pdfWidth - margin, 23, { align: 'right' });
       
       startY = Math.max(companyInfoY, 25) + 10;
+
+      // Add Publisher Info (centered)
+      if (publisherName) {
+        startY += 5; // Add some space
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(publisherName, pdfWidth / 2, startY, { align: 'center' });
+        startY += 6;
+
+        if (publisherSubId) {
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(`SUB ID: ${publisherSubId}`, pdfWidth / 2, startY, { align: 'center' });
+            startY += 8;
+        } else {
+            startY += 4;
+        }
+      }
   }
 
 
