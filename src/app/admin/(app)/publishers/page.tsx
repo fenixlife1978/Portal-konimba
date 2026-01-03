@@ -280,7 +280,7 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
   );
 }
 
-function PublisherRow({ publisher, onSave, onDelete, onUpdateSubId }: { publisher: Publisher; onSave: (data: Partial<Publisher>) => void; onDelete: () => void; onUpdateSubId: (data: { subId: string }) => void; }) {
+function PublisherRow({ publisher, onSave, onDelete, onUpdateSubId }: { publisher: Publisher; onSave: (data: Partial<Publisher>) => Promise<void>; onDelete: () => Promise<void>; onUpdateSubId: (data: { subId: string }) => Promise<void>; }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingSubId, setIsEditingSubId] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -409,5 +409,7 @@ export default function PublishersPage() {
     </div>
   );
 }
+
+    
 
     
