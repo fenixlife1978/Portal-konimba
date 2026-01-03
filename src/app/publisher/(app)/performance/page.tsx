@@ -28,7 +28,15 @@ import { exportToPDF } from '@/lib/export-pdf';
 
 
 // Types
-type Publisher = { id: string; firstName: string; lastName: string; email: string; paymentMethod?: string; country?: string; };
+type Publisher = { 
+    id: string; 
+    firstName: string; 
+    lastName: string; 
+    email: string; 
+    paymentMethod?: string; 
+    country?: string;
+    subId?: string;
+};
 type CompanySettings = { 
     companyName?: string; 
     companyAddress?: string; 
@@ -149,7 +157,6 @@ export default function PerformancePage() {
     if (!user || !firestore) return;
     setIsGenerating(true);
     setReportData(null);
-    setPageTitle('Generando reporte...');
     
     const { month, year, period } = data;
 
@@ -189,7 +196,6 @@ export default function PerformancePage() {
       if (leads.length === 0) {
         setReportData(null);
         toast({ title: "Sin resultados", description: "No tienes leads registrados para este período." });
-        setPageTitle('Reporte de Rendimiento');
         setIsGenerating(false);
         return;
       }
@@ -401,8 +407,15 @@ function ReportDisplay({ reportData, publisher, period, settings }: { reportData
     return (
         <Card className="mt-8 border-t pt-4">
             <CardHeader>
-                <CardTitle>Hola, {publisher.firstName}</CardTitle>
-                <CardDescription>{period}</CardDescription>
+                <CardTitle>Hola, {publisher.firstName} {publisher.lastName}</CardTitle>
+                <CardDescription className="flex justify-between items-center">
+                    <span>{period}</span>
+                    {publisher.subId && (
+                        <span className="font-semibold text-sm bg-muted px-2 py-1 rounded">
+                            SUB ID: {publisher.subId}
+                        </span>
+                    )}
+                </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
                 <Table>
