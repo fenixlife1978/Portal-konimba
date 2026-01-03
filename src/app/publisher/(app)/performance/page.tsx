@@ -134,12 +134,14 @@ export default function PerformancePage() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [reportPeriod, setReportPeriod] = useState<string | null>(null);
 
 
   const onSubmit = async (data: ReportFormData) => {
     if (!user || !firestore) return;
     setIsGenerating(true);
     setReportData(null);
+    setReportPeriod(null);
     
     const { month, year, period } = data;
 
@@ -159,6 +161,7 @@ export default function PerformancePage() {
     daysInPeriodArray = Array.from({ length: (endDay - startDay) + 1 }, (_, i) => startDay + i);
     const startDate = `${year}-${month.padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
     const endDate = `${year}-${month.padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+    setReportPeriod(`del ${startDate} al ${endDate}`);
 
     try {
       const leadsQuery = query(
@@ -204,7 +207,7 @@ export default function PerformancePage() {
   };
 
   const handleExport = async () => {
-    if (!reportData || !publisherData) return;
+    if (!reportData || !publisherData || !reportPeriod) return;
     setIsExporting(true);
 
     const processed = processReport(reportData);
@@ -259,7 +262,7 @@ export default function PerformancePage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold font-headline text-foreground">
-          Mi Reporte
+          {reportPeriod ? `Reporte ${reportPeriod}` : 'Reporte de Rendimiento'}
         </h1>
         <Button asChild variant="outline">
           <Link href="/publisher">
