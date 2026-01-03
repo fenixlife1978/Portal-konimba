@@ -14,7 +14,7 @@
  * - Admin Role Check: Admin status is efficiently determined by checking for the existence of a document in `/roles_admin/{request.auth.uid}`.
  * - Publisher Privacy: Listing all publishers is a privileged operation restricted to Admins to prevent data scraping.
  * - Ownership Enforcement: A user's access to their own data is enforced by checking if `request.auth.uid` matches the document ID or a `publisherId` field.
- * - Publisher Self-Creation: Any authenticated user can create their own publisher profile.
+ * - Publisher Creation by Admins: Only admins can create publisher profiles.
  * - Default Secure: Access is denied by default. All permissions must be explicitly granted.
  */
 rules_version = '2';
@@ -53,18 +53,15 @@ service cloud.firestore {
     // ------------------------------------------------------------------------
 
     /**
-     * @description Manages publisher profiles. Publishers can read and update their own profile. Admins can read all profiles and update non-payment info.
+     * @description Manages publisher profiles. Publishers can read and update their own profile. Admins have full control.
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
       // Admins have full read/write access.
       allow read, write: if isAdmin();
       
-      // Publishers can only read and update their own data.
+      // Publishers can only read and update their own data. They cannot create or delete their profile.
       allow read, update: if isOwner(publisherId);
-      
-      // Allow any authenticated user to create their own publisher profile.
-      allow create: if isOwner(publisherId);
     }
 
     /**

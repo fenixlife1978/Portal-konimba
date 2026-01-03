@@ -1,16 +1,18 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useCollection } from '@/firebase';
-import { db } from '@/firebase/config';
+import { db, auth } from '@/firebase/config';
 import {
   collection,
   doc,
   updateDoc,
   serverTimestamp,
   deleteDoc,
+  setDoc,
 } from 'firebase/firestore';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -39,6 +41,8 @@ import {
   Pencil,
   Trash2,
   ArrowLeft,
+  PlusCircle,
+  UserPlus,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -49,9 +53,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 
 type Publisher = {
   id: string;
+  subId?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -61,7 +69,7 @@ type Publisher = {
   city?: string;
   state?: string;
   zipCode?: string;
-  country?: string; // ✅ ahora string libre
+  country?: string;
   paymentMethod?: 'transferencia' | 'pagoMovil' | 'usdt' | '';
   bank?: string;
   accountNumber?: string;
@@ -70,6 +78,83 @@ type Publisher = {
   mobilePaymentId?: string;
   usdtAddress?: string;
 };
+
+const createPublisherSchema = z.object({
+    firstName: z.string().min(1, "El nombre es requerido."),
+    lastName: z.string().min(1, "El apellido es requerido."),
+    email: z.string().email("Debe ser un email válido."),
+    password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
+    phone: z.string().optional(),
+    country: z.string().optional(),
+    subId: z.string().optional(),
+});
+type CreatePublisherFormData = z.infer<typeof createPublisherSchema>;
+
+function CreatePublisherModal({ onSave, onOpenChange }: { onSave: (data: CreatePublisherFormData) => Promise<void>; onOpenChange: (open: boolean) => void }) {
+    const { register, handleSubmit, formState: { errors } } = useForm<CreatePublisherFormData>({
+        resolver: zodResolver(createPublisherSchema)
+    });
+
+    const handleFormSubmit = async (data: CreatePublisherFormData) => {
+        await onSave(data);
+        onOpenChange(false);
+    };
+
+    return (
+        <form onSubmit={handleSubmit(handleFormSubmit)}>
+            <DialogHeader>
+                <DialogTitle>Crear Nuevo Publisher</DialogTitle>
+                <DialogDescription>
+                Completa los datos para registrar un nuevo publisher. Se creará una cuenta de autenticación para ellos.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="firstName">Nombre *</Label>
+                        <Input id="firstName" {...register('firstName')} />
+                        {errors.firstName && <p className="text-sm text-destructive">{errors.firstName.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="lastName">Apellido *</Label>
+                        <Input id="lastName" {...register('lastName')} />
+                        {errors.lastName && <p className="text-sm text-destructive">{errors.lastName.message}</p>}
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <Input id="email" type="email" {...register('email')} />
+                    {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="password">Contraseña Inicial *</Label>
+                    <Input id="password" type="password" {...register('password')} />
+                    {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+                </div>
+                <Separator />
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="phone">Teléfono</Label>
+                        <Input id="phone" {...register('phone')} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="country">País</Label>
+                        <Input id="country" {...register('country')} />
+                    </div>
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="subId">Sub ID (Alias)</Label>
+                    <Input id="subId" {...register('subId')} />
+                </div>
+            </div>
+            <DialogFooter>
+                <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
+                <Button type="submit">Crear Publisher</Button>
+            </DialogFooter>
+        </form>
+    );
+}
+
 
 /* ---------- EditDetailsModal ---------- */
 interface EditDetailsModalProps {
@@ -81,13 +166,14 @@ interface EditDetailsModalProps {
 function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalProps) {
   const [formData, setFormData] = useState<Partial<Publisher>>({});
 
-  useEffect(() => {
+  useState(() => {
     setFormData({
         firstName: publisher.firstName || '',
         lastName: publisher.lastName || '',
         phone: publisher.phone || '',
         address: publisher.address || '',
         country: publisher.country || '',
+        subId: publisher.subId || '',
         paymentMethod: publisher.paymentMethod || '',
         bank: publisher.bank || '',
         accountNumber: publisher.accountNumber || '',
@@ -96,7 +182,7 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
         mobilePaymentId: publisher.mobilePaymentId || '',
         usdtAddress: publisher.usdtAddress || '',
     });
-  }, [publisher]);
+  });
 
 
   const handleSave = async () => {
@@ -145,6 +231,10 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
             value={formData.address || ''}
             onChange={(e) => setFormData({ ...formData, address: e.target.value })}
           />
+        </div>
+        <div>
+            <Label htmlFor="subId">Alias (Sub ID)</Label>
+            <Input id="subId" value={formData.subId || ''} onChange={(e) => setFormData({ ...formData, subId: e.target.value })} />
         </div>
 
         <Separator className='my-4' />
@@ -224,7 +314,7 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
   );
 }
 
-function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; onSave: (data: Partial<Publisher>) => Promise<void>; onDelete: () => Promise<void>; }) {
+function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; onSave: (id: string, data: Partial<Publisher>) => Promise<void>; onDelete: (id: string) => Promise<void>; }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -232,6 +322,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
     <TableRow>
       <TableCell>{publisher.firstName} {publisher.lastName}</TableCell>
       <TableCell>{publisher.email}</TableCell>
+      <TableCell>{publisher.subId}</TableCell>
       <TableCell><Badge variant={publisher.status === 'active' ? 'default' : 'secondary'}>{publisher.status}</Badge></TableCell>
       <TableCell className="text-right">
         <DropdownMenu>
@@ -241,7 +332,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
           <DropdownMenuContent align="end">
              <Dialog open={isEditing} onOpenChange={setIsEditing}>
                 <DialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()}><Pencil className="mr-2 h-4 w-4" />Ver / Editar Detalles</DropdownMenuItem></DialogTrigger>
-                <DialogContent className="sm:max-w-[625px]"><EditDetailsModal publisher={publisher} onSave={onSave} onOpenChange={setIsEditing} /></DialogContent>
+                <DialogContent className="sm:max-w-[625px]"><EditDetailsModal publisher={publisher} onSave={(data) => onSave(publisher.id, data)} onOpenChange={setIsEditing} /></DialogContent>
             </Dialog>
             <DropdownMenuSeparator />
             <Dialog open={isDeleting} onOpenChange={setIsDeleting}>
@@ -250,7 +341,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                 <DialogHeader><DialogTitle>¿Estás seguro?</DialogTitle><DialogDescription>Esta acción eliminará al publisher permanentemente y no se podrá deshacer.</DialogDescription></DialogHeader>
                 <DialogFooter>
                   <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-                  <Button variant="destructive" onClick={async () => { await onDelete(); setIsDeleting(false); }}>Sí, eliminar</Button>
+                  <Button variant="destructive" onClick={async () => { await onDelete(publisher.id); setIsDeleting(false); }}>Sí, eliminar</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -265,9 +356,40 @@ export default function PublishersPage() {
   const firestore = db;
   const { toast } = useToast();
   const [filter, setFilter] = useState('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const publishersCollectionRef = useMemo(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
   const { data: publishers, isLoading } = useCollection<Publisher>(publishersCollectionRef);
+
+  const handleCreatePublisher = async (data: CreatePublisherFormData) => {
+    const { email, password, ...profileData } = data;
+    try {
+        // This is a temporary auth instance for user creation.
+        // It's not ideal but necessary because we can't easily get the main auth instance here
+        // in a way that allows creating users. A backend function would be better.
+        const { user } = await createUserWithEmailAndPassword(auth, email, password);
+
+        const publisherRef = doc(firestore, 'publishers', user.uid);
+        await setDoc(publisherRef, {
+            id: user.uid,
+            email,
+            ...profileData,
+            status: 'active',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        });
+        toast({ title: "Publisher Creado", description: "El nuevo publisher ha sido registrado exitosamente." });
+    } catch (error: any) {
+        let description = "Ocurrió un error desconocido.";
+        if (error.code === 'auth/email-already-in-use') {
+            description = "El correo electrónico ya está registrado.";
+        } else if (error.code === 'auth/weak-password') {
+            description = "La contraseña es demasiado débil.";
+        }
+        toast({ variant: "destructive", title: "Error al crear publisher", description });
+    }
+  };
+
 
   const handleUpdatePublisher = async (id: string, data: Partial<Publisher>) => {
     if (!firestore) return;
@@ -283,8 +405,11 @@ export default function PublishersPage() {
   const handleDeletePublisher = async (id: string) => {
     if (!firestore) return;
     try {
+      // NOTE: This only deletes the Firestore document.
+      // The Firebase Auth user still exists. For a full delete,
+      // you would need a backend function to delete the auth user.
       await deleteDoc(doc(firestore, 'publishers', id));
-      toast({ title: "Publisher eliminado" });
+      toast({ title: "Publisher eliminado", description: "El documento del publisher fue eliminado. La cuenta de Auth sigue activa."});
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error al eliminar", description: error.message });
     }
@@ -295,24 +420,38 @@ export default function PublishersPage() {
     return publishers.filter(p =>
       p.firstName?.toLowerCase().includes(filter.toLowerCase()) ||
       p.lastName?.toLowerCase().includes(filter.toLowerCase()) ||
-      p.email?.toLowerCase().includes(filter.toLowerCase())
+      p.email?.toLowerCase().includes(filter.toLowerCase()) ||
+      p.subId?.toLowerCase().includes(filter.toLowerCase())
     );
   }, [publishers, filter]);
 
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold font-headline text-foreground">Gestión de Publishers</h1>
-        <Button asChild variant="outline">
-          <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Volver al panel</Link>
-        </Button>
+        <div>
+            <h1 className="text-3xl font-bold font-headline text-foreground">Gestión de Publishers</h1>
+            <p className="text-muted-foreground">Crea, modifica y gestiona los perfiles de los publishers.</p>
+        </div>
+        <div className="flex gap-2">
+            <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+                <DialogTrigger asChild>
+                    <Button><UserPlus className="mr-2 h-4 w-4" />Crear Publisher</Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[625px]">
+                    <CreatePublisherModal onSave={handleCreatePublisher} onOpenChange={setIsCreateModalOpen} />
+                </DialogContent>
+            </Dialog>
+            <Button asChild variant="outline">
+            <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Volver al panel</Link>
+            </Button>
+        </div>
       </div>
 
       <Card>
         <CardContent className="pt-6">
            <div className="mb-4">
               <Input
-                placeholder="Buscar por nombre o email..."
+                placeholder="Buscar por nombre, email o Sub ID..."
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               />
@@ -322,19 +461,20 @@ export default function PublishersPage() {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Alias (Sub ID)</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={4} className="text-center">Cargando publishers...</TableCell></TableRow>}
-              {!isLoading && filteredPublishers.length === 0 && <TableRow><TableCell colSpan={4} className="text-center">No se encontraron publishers.</TableCell></TableRow>}
+              {isLoading && <TableRow><TableCell colSpan={5} className="text-center">Cargando publishers...</TableCell></TableRow>}
+              {!isLoading && filteredPublishers.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">No se encontraron publishers.</TableCell></TableRow>}
               {filteredPublishers.map((publisher) => (
                 <PublisherRow
                   key={publisher.id}
                   publisher={publisher}
-                  onSave={(data) => handleUpdatePublisher(publisher.id, data)}
-                  onDelete={() => handleDeletePublisher(publisher.id)}
+                  onSave={handleUpdatePublisher}
+                  onDelete={handleDeletePublisher}
                 />
               ))}
             </TableBody>
@@ -344,5 +484,3 @@ export default function PublishersPage() {
     </div>
   );
 }
-
-    
