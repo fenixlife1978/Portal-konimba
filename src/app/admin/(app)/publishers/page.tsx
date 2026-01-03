@@ -79,8 +79,8 @@ type Publisher = {
 };
 
 const createPublisherSchema = z.object({
-    firstName: z.string().min(1, "El nombre es requerido."),
-    lastName: z.string().min(1, "El apellido es requerido."),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
     email: z.string().email("Debe ser un email válido."),
     password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
     phone: z.string().optional(),
@@ -111,12 +111,12 @@ function CreatePublisherModal({ onSave, onOpenChange }: { onSave: (data: CreateP
             <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-4">
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label htmlFor="firstName">Nombre *</Label>
+                        <Label htmlFor="firstName">Nombre</Label>
                         <Input id="firstName" {...register('firstName')} />
                         {errors.firstName && <p className="text-sm text-destructive">{errors.firstName.message}</p>}
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="lastName">Apellido *</Label>
+                        <Label htmlFor="lastName">Apellido</Label>
                         <Input id="lastName" {...register('lastName')} />
                         {errors.lastName && <p className="text-sm text-destructive">{errors.lastName.message}</p>}
                     </div>
@@ -143,7 +143,7 @@ function CreatePublisherModal({ onSave, onOpenChange }: { onSave: (data: CreateP
                     </div>
                 </div>
                  <div className="space-y-2">
-                    <Label htmlFor="subId">Sub ID (Alias)</Label>
+                    <Label htmlFor="subId">Sub ID</Label>
                     <Input id="subId" {...register('subId')} />
                 </div>
             </div>
@@ -233,7 +233,7 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
           />
         </div>
         <div>
-            <Label htmlFor="subId">Alias (Sub ID)</Label>
+            <Label htmlFor="subId">Sub ID</Label>
             <Input id="subId" value={formData.subId || ''} onChange={(e) => setFormData({ ...formData, subId: e.target.value })} />
         </div>
 
@@ -464,7 +464,7 @@ export default function PublishersPage() {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Alias (Sub ID)</TableHead>
+                <TableHead>Sub ID</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
