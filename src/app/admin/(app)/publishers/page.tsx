@@ -364,7 +364,7 @@ export default function PublishersPage() {
   const [filter, setFilter] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const publishersCollectionRef = useMemo(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
+  const publishersCollectionRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
   const { data: publishers, isLoading } = useCollection<Publisher>(publishersCollectionRef);
 
   const handleCreatePublisher = async (data: CreatePublisherFormData) => {

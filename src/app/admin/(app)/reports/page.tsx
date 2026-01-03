@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useCollection, useDoc } from '@/firebase';
+import { useCollection, useDoc, useUser } from '@/firebase';
 import { db } from '@/firebase/config';
 import { collection, query, where, getDocs, orderBy, Timestamp, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -117,9 +117,10 @@ const periodOptionsForSelect = [
 // Main Component
 export default function ReportsPage() {
   const firestore = db;
+  const { user } = useUser();
   
   // Data fetching for publishers
-  const publishersRef = useMemo(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
+  const publishersRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
   const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
   
   const offersRef = useMemo(() => firestore ? collection(firestore, 'offers') : null, [firestore]);

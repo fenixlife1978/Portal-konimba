@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useCollection } from '@/firebase';
+import { useCollection, useUser } from '@/firebase';
 import { db } from '@/firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,7 @@ type LeadFormData = z.infer<typeof leadFormSchema>;
 
 export default function LeadsPage() {
   const firestore = db;
+  const { user } = useUser();
   const { toast } = useToast();
 
   const { control, handleSubmit, reset, watch, formState: { errors } } = useForm<LeadFormData>({
@@ -42,7 +43,7 @@ export default function LeadsPage() {
   });
 
   // Data fetching
-  const publishersRef = useMemo(() => firestore ? collection(firestore, 'publishers') : null, [firestore]);
+  const publishersRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
   const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
 
   const offersRef = useMemo(() => firestore ? collection(firestore, 'offers') : null, [firestore]);

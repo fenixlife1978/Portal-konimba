@@ -126,7 +126,7 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-8">
       <h1 className="text-3xl font-bold font-headline text-foreground">
-        Hola Administrador, {user?.displayName || '...'}.
+        Hola Administrador, {user?.displayName || '...'}
       </h1>
 
       {/* KPI Cards */}
