@@ -20,7 +20,6 @@ import {
   IconPayment,
   IconOffer,
   IconReport,
-  IconReceipt as IconReceiptCustom,
   IconSettings,
 } from '@/components/custom-icons';
 
@@ -119,7 +118,6 @@ export default function AdminDashboardPage() {
     { title: 'Gestión de Pagos', href: '/admin/payments', icon: <IconPayment className="h-full w-full fill-chart-3" /> },
     { title: 'Gestión de Ofertas', href: '/admin/offers', icon: <IconOffer className="h-full w-full fill-chart-4" /> },
     { title: 'Reportes', href: '/admin/reports', icon: <IconReport className="h-full w-full fill-chart-5" /> },
-    { title: 'Recibos', href: '/admin/receipts', icon: <IconReceiptCustom className="h-full w-full fill-indigo-400" /> },
     { title: 'Configuración', href: '/admin/settings', icon: <IconSettings className="h-full w-full fill-pink-400" /> },
   ];
 
