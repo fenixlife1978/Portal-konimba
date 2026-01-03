@@ -21,14 +21,15 @@ import {
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, FileText } from 'lucide-react';
+import { ArrowLeft, Loader2, FileText, Download } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
+import { exportToPDF } from '@/lib/export-pdf';
 
 
 // Types
 type Publisher = { id: string; firstName: string; lastName: string; email: string; paymentMethod?: string; country?: string; };
-type CompanySettings = { usdToVesRate?: number; usdToCopRate?: number };
+type CompanySettings = { usdToVesRate?: number; usdToCopRate?: number; companyName?: string };
 type Offer = { id: string; name: string; paymentAmount: number; };
 type Lead = { 
   id: string; 
@@ -71,6 +72,45 @@ const periodOptions = [
     { value: 'fortnight-2', label: '2da Quincena' },
 ];
 
+const processReport = (reportData: ReportData | null) => {
+    if (!reportData) return null;
+
+    const { leads, offersMap, daysInPeriod } = reportData;
+
+    const leadsByOffer = new Map<string, { offerName: string, days: Map<number, number> }>();
+    leads.forEach(lead => {
+        const day = parseInt(lead.date.split('-')[2]);
+        if (!leadsByOffer.has(lead.offerId)) {
+            leadsByOffer.set(lead.offerId, { offerName: lead.offerName || 'Oferta Desconocida', days: new Map() });
+        }
+        const offerEntry = leadsByOffer.get(lead.offerId)!;
+        offerEntry.days.set(day, (offerEntry.days.get(day) || 0) + lead.quantity);
+    });
+
+    let totalLeads = 0;
+    let totalEarnings = 0;
+
+    const tableRows = Array.from(leadsByOffer.entries()).map(([offerId, data]) => {
+        const offer = offersMap.get(offerId);
+        const offerPayment = offer?.paymentAmount || 0;
+        const totalOfferLeads = Array.from(data.days.values()).reduce((sum, qty) => sum + qty, 0);
+        const offerEarnings = totalOfferLeads * offerPayment;
+        totalLeads += totalOfferLeads;
+        totalEarnings += offerEarnings;
+        
+        return {
+            ...data,
+            offerId,
+            totalOfferLeads,
+            offerEarnings,
+            offerPayment
+        };
+    });
+
+    return { dayColumns: daysInPeriod, tableRows, totalLeads, totalEarnings };
+}
+
+
 export default function PerformancePage() {
   const firestore = db;
   const { user, isUserLoading } = useUser();
@@ -93,6 +133,8 @@ export default function PerformancePage() {
   
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
 
   const onSubmit = async (data: ReportFormData) => {
     if (!user || !firestore) return;
@@ -161,6 +203,48 @@ export default function PerformancePage() {
     }
   };
 
+  const handleExport = async () => {
+    if (!reportData || !publisherData) return;
+    setIsExporting(true);
+
+    const processed = processReport(reportData);
+    if (!processed) {
+        setIsExporting(false);
+        toast({ variant: 'destructive', title: "Error", description: "No hay datos procesados para exportar."});
+        return;
+    }
+    
+    const reportTitle = `Reporte de Rendimiento - ${publisherData.firstName} ${publisherData.lastName}`;
+    const fileName = `Reporte_Rendimiento_${publisherData.lastName}_${reportData.periodLabel.replace(' ','_')}.pdf`;
+
+    const head = [["Oferta", ...processed.dayColumns.map(String), "Total Leads", "Precio (USD)", "Ganancia (USD)"]];
+    const body = processed.tableRows.map(row => [
+        row.offerName,
+        ...processed.dayColumns.map(day => row.days.get(day) || ''),
+        row.totalOfferLeads,
+        `$${row.offerPayment.toFixed(2)}`,
+        `$${row.offerEarnings.toFixed(2)}`
+    ]);
+    const foot = [
+         [{ content: 'TOTALES', colSpan: processed.dayColumns.length + 1, styles: { fontStyle: 'bold', halign: 'right' } },
+         { content: processed.totalLeads, styles: { fontStyle: 'bold', halign: 'center' } },
+         { content: '', styles: { fontStyle: 'bold', halign: 'center' } },
+         { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }]
+    ];
+
+    await exportToPDF({
+        head,
+        body,
+        foot,
+        fileName,
+        reportTitle,
+        companyName: settingsData?.companyName,
+        showFooter: true
+    });
+
+    setIsExporting(false);
+  }
+
 
   if (isLoadingPublisher || isUserLoading) {
     return (
@@ -224,10 +308,16 @@ export default function PerformancePage() {
                         {errors.year && <p className="text-sm text-destructive">{errors.year.message}</p>}
                     </div>
                 </div>
-                 <Button type="submit" disabled={isGenerating}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    {isGenerating ? 'Generando...' : 'Generar Reporte'}
-                </Button>
+                 <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={isGenerating}>
+                        {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                        {isGenerating ? 'Generando...' : 'Generar Reporte'}
+                    </Button>
+                    <Button type="button" onClick={handleExport} variant="outline" disabled={!reportData || isExporting}>
+                        {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Exportar a PDF
+                    </Button>
+                </div>
             </form>
          </CardContent>
        </Card>
@@ -259,45 +349,7 @@ export default function PerformancePage() {
 function ReportDisplay({ reportData, publisher, period, settings }: { reportData: ReportData, publisher: Publisher, period: string, settings: CompanySettings | null | undefined }) {
     const [manualRate, setManualRate] = useState<number>(0);
     
-    const processReport = () => {
-        if (!reportData) return null;
-
-        const { leads, offersMap, daysInPeriod } = reportData;
-
-        const leadsByOffer = new Map<string, { offerName: string, days: Map<number, number> }>();
-        leads.forEach(lead => {
-            const day = parseInt(lead.date.split('-')[2]);
-            if (!leadsByOffer.has(lead.offerId)) {
-                leadsByOffer.set(lead.offerId, { offerName: lead.offerName || 'Oferta Desconocida', days: new Map() });
-            }
-            const offerEntry = leadsByOffer.get(lead.offerId)!;
-            offerEntry.days.set(day, (offerEntry.days.get(day) || 0) + lead.quantity);
-        });
-
-        let totalLeads = 0;
-        let totalEarnings = 0;
-
-        const tableRows = Array.from(leadsByOffer.entries()).map(([offerId, data]) => {
-            const offer = offersMap.get(offerId);
-            const offerPayment = offer?.paymentAmount || 0;
-            const totalOfferLeads = Array.from(data.days.values()).reduce((sum, qty) => sum + qty, 0);
-            const offerEarnings = totalOfferLeads * offerPayment;
-            totalLeads += totalOfferLeads;
-            totalEarnings += offerEarnings;
-            
-            return {
-                ...data,
-                offerId,
-                totalOfferLeads,
-                offerEarnings,
-                offerPayment
-            };
-        });
-
-        return { dayColumns: daysInPeriod, tableRows, totalLeads, totalEarnings };
-    }
-
-    const processed = processReport();
+    const processed = processReport(reportData);
     
     const getConversion = () => {
         if (!processed || !publisher) return { amount: processed?.totalEarnings || 0, currency: 'USD' };
