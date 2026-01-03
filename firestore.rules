@@ -57,14 +57,14 @@ service cloud.firestore {
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
-      // Admins can create any publisher profile and list all of them.
-      allow create, list, write: if isAdmin();
+      // Admins can perform any write operation and list all publishers.
+      allow write, list: if isAdmin();
       
-      // Publishers can create their own profile upon registration.
+      // A user can create their own publisher profile upon registration.
       allow create: if isOwner(publisherId);
       
       // Publishers can only read and update their own data.
-      // Admins can also get individual documents.
+      // Admins can also get and update individual documents.
       allow get, update: if isOwner(publisherId) || isAdmin();
     }
 
@@ -124,10 +124,17 @@ service cloud.firestore {
      */
     match /payments/{paymentId} {
       allow write: if isAdmin();
+      
       // A publisher can only read a payment document if it belongs to them and its status is 'paid'.
-      allow read: if isAdmin() || (isSignedIn() && isOwner(resource.data.publisherId) && resource.data.status == 'paid');
-      // Publishers can list their own payments based on their publisherId.
-      allow list: if isAdmin() || (isSignedIn() && request.query.where.publisherId == request.auth.uid);
+      allow get: if isAdmin() || (isSignedIn() && isOwner(resource.data.publisherId) && resource.data.status == 'paid');
+      
+      // Publishers can list their own payments, but the query MUST filter by publisherId and status 'paid'.
+      allow list: if isAdmin() || 
+                     (isSignedIn() && 
+                      request.query.where[0][0] == 'publisherId' && 
+                      request.query.where[0][2] == request.auth.uid &&
+                      request.query.where[1][0] == 'status' &&
+                      request.query.where[1][2] == 'paid');
     }
   }
 }

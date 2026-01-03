@@ -1,5 +1,5 @@
-import jsPDF from 'jspdf';
-import autoTable, { UserOptions } from 'jspdf-autotable';
+import type { jsPDF } from 'jspdf';
+import type { UserOptions } from 'jspdf-autotable';
 
 // Store the pdf instance for multi-page/multi-table reports
 let pdfInstance: jsPDF | null = null;
@@ -55,6 +55,9 @@ export const exportToPDF = async (
     options: ExportOptions,
     returnInstance: boolean = false
 ): Promise<jsPDF | void> => {
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+
   const {
     head,
     body,
@@ -113,9 +116,20 @@ export const exportToPDF = async (
       // --- Add Header ---
       const logoUrl = "https://i.supaimg.com/f1d0ffb2-fc91-4d68-b225-ad61b19b274e.jpg"; // 👉 tu logo externo
       try {
-        const logoDataUrl = await getImageDataUrl(logoUrl);
-        const format = logoDataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
-        pdf.addImage(logoDataUrl, format, margin, 10, 20, 20); // x, y, width, height
+        const response = await fetch(logoUrl);
+        if (!response.ok) throw new Error("Logo fetch failed");
+        const blob = await response.blob();
+        const reader = new FileReader();
+        await new Promise<void>((resolve, reject) => {
+            reader.onloadend = () => {
+                const logoDataUrl = reader.result as string;
+                const format = logoDataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
+                pdf.addImage(logoDataUrl, format, margin, 10, 20, 20); // x, y, width, height
+                resolve();
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
       } catch (error) {
         console.error("Could not load logo for PDF, using text fallback.", error);
       }
@@ -284,7 +298,7 @@ export const exportToPDF = async (
         pdf.text('Resumen General de la Nómina', margin, finalY);
         finalY += 8;
 
-        const summaryBody = [];
+        const summaryBody: any[] = [];
         const { totalUSD, usdToVesRate, usdToCopRate, totalToPayInVES_USD, totalToPayInCOP_USD, totalToPayInUSDT } = paymentSummary;
 
         summaryBody.push([{ content: `Monto Total Nómina (USD): $${totalUSD.toFixed(2)}`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [230, 230, 230] } }]);
@@ -292,21 +306,21 @@ export const exportToPDF = async (
         if (totalToPayInVES_USD > 0 && usdToVesRate) {
             const totalVES = totalToPayInVES_USD * usdToVesRate;
             summaryBody.push([
-                { content: `Tasa Aplicable (VES): ${usdToVesRate.toFixed(2)}`, styles: { fontStyle: 'bold' } },
-                { content: `Pago Total en Bolívares (VES): $${totalToPayInVES_USD.toFixed(2)} x ${usdToVesRate.toFixed(2)} = ${totalVES.toLocaleString('es-VE', {minimumFractionDigits: 2})} VES`, styles: { halign: 'right' } }
+                { content: `Tasa Aplicable (VES): ${usdToVesRate.toFixed(2)}`, styles: { fontStyle: 'normal' } },
+                { content: `Pago Total en Bolívares (VES): $${totalToPayInVES_USD.toFixed(2)} x ${usdToVesRate.toFixed(2)} = ${totalVES.toLocaleString('es-VE', {minimumFractionDigits: 2})} VES`, styles: { halign: 'right', fontStyle: 'bold' } }
             ]);
         }
         if (totalToPayInCOP_USD > 0 && usdToCopRate) {
             const totalCOP = totalToPayInCOP_USD * usdToCopRate;
              summaryBody.push([
-                { content: `Tasa Aplicable (COP): ${usdToCopRate.toFixed(2)}`, styles: { fontStyle: 'bold' } },
-                { content: `Pago Total en Pesos (COP): $${totalToPayInCOP_USD.toFixed(2)} x ${usdToCopRate.toFixed(2)} = ${totalCOP.toLocaleString('es-CO', {style: 'currency', currency: 'COP'})}`, styles: { halign: 'right' } }
+                { content: `Tasa Aplicable (COP): ${usdToCopRate.toFixed(2)}`, styles: { fontStyle: 'normal' } },
+                { content: `Pago Total en Pesos (COP): $${totalToPayInCOP_USD.toFixed(2)} x ${usdToCopRate.toFixed(2)} = ${totalCOP.toLocaleString('es-CO', {style: 'currency', currency: 'COP'})}`, styles: { halign: 'right', fontStyle: 'bold' } }
             ]);
         }
         if (totalToPayInUSDT > 0) {
             summaryBody.push([
-                { content: `Pagos en USDT (Binance):`, styles: { fontStyle: 'bold' } },
-                { content: `$${totalToPayInUSDT.toFixed(2)}`, styles: { halign: 'right' } }
+                { content: `Pagos en USDT (Binance):`, styles: { fontStyle: 'normal' } },
+                { content: `$${totalToPayInUSDT.toFixed(2)}`, styles: { halign: 'right', fontStyle: 'bold' } }
             ]);
         }
 
@@ -315,6 +329,10 @@ export const exportToPDF = async (
             startY: finalY,
             theme: 'grid',
             styles: { fontSize: 9 },
+            columnStyles: {
+                0: { cellWidth: 100 },
+                1: { cellWidth: 'auto' }
+            }
         });
     }
 
