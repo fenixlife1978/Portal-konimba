@@ -10,10 +10,6 @@ import {
   updateDoc,
   serverTimestamp,
   deleteDoc,
-  setDoc,
-  addDoc,
-  getDocs,
-  writeBatch,
 } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -43,6 +39,9 @@ import {
   Pencil,
   Trash2,
   ArrowLeft,
+  Save,
+  X,
+  Check,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -53,11 +52,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/firebase/config';
 
 type Publisher = {
   id: string;
@@ -99,7 +93,6 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
         phone: publisher.phone || '',
         address: publisher.address || '',
         country: publisher.country || '',
-        subId: publisher.subId || '',
         paymentMethod: publisher.paymentMethod || '',
         bank: publisher.bank || '',
         accountNumber: publisher.accountNumber || '',
@@ -158,11 +151,7 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
             onChange={(e) => setFormData({ ...formData, address: e.target.value })}
           />
         </div>
-        <div>
-            <Label htmlFor="subId">Sub ID</Label>
-            <Input id="subId" value={formData.subId || ''} onChange={(e) => setFormData({ ...formData, subId: e.target.value })} />
-        </div>
-
+        
         <Separator className='my-4' />
         <h3 className="font-bold">Información de Pago</h3>
         <div>
@@ -240,6 +229,56 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
   );
 }
 
+// Inline Editable Sub ID Cell Component
+function EditableSubIdCell({ publisher, onSave }: { publisher: Publisher; onSave: (id: string, data: Partial<Publisher>) => Promise<void>; }) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [subId, setSubId] = useState(publisher.subId || '');
+    const { toast } = useToast();
+
+    const handleSave = async () => {
+        if (subId !== (publisher.subId || '')) {
+            try {
+                await onSave(publisher.id, { subId });
+                toast({ title: "Sub ID actualizado" });
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'Error al guardar' });
+            }
+        }
+        setIsEditing(false);
+    };
+
+    const handleCancel = () => {
+        setSubId(publisher.subId || '');
+        setIsEditing(false);
+    }
+
+    if (isEditing) {
+        return (
+            <div className="flex items-center gap-2">
+                <Input 
+                    value={subId} 
+                    onChange={(e) => setSubId(e.target.value)} 
+                    className="h-8"
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                />
+                <Button size="icon" className="h-8 w-8" onClick={handleSave}><Check className="h-4 w-4" /></Button>
+                <Button size="icon" variant="outline" className="h-8 w-8" onClick={handleCancel}><X className="h-4 w-4" /></Button>
+            </div>
+        );
+    }
+
+    return (
+        <div 
+            className="flex items-center gap-2 group cursor-pointer"
+            onClick={() => setIsEditing(true)}
+        >
+            <span>{publisher.subId || <span className="text-muted-foreground">N/A</span>}</span>
+            <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+    );
+}
+
 function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; onSave: (id: string, data: Partial<Publisher>) => Promise<void>; onDelete: (id: string) => Promise<void>; }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -248,7 +287,9 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
     <TableRow>
       <TableCell>{publisher.firstName} {publisher.lastName}</TableCell>
       <TableCell>{publisher.email}</TableCell>
-      <TableCell>{publisher.subId}</TableCell>
+      <TableCell>
+        <EditableSubIdCell publisher={publisher} onSave={onSave} />
+      </TableCell>
       <TableCell><Badge variant={publisher.status === 'active' ? 'default' : 'secondary'}>{publisher.status}</Badge></TableCell>
       <TableCell className="text-right">
         <DropdownMenu>
