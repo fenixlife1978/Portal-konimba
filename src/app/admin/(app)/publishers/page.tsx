@@ -82,14 +82,7 @@ function SubIdModal({
   onSave: (data: { subId: string }) => Promise<void>;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [subId, setSubId] = useState('');
-
-  // ✅ sincroniza solo cuando cambia el publisher o se abre/cierra el modal
-  useEffect(() => {
-    if (publisher) {
-        setSubId(publisher.subId ?? '');
-    }
-  }, [publisher, onOpenChange]);
+  const [subId, setSubId] = useState(publisher.subId ?? '');
 
   const handleSaveSubId = async () => {
     await onSave({ subId });
