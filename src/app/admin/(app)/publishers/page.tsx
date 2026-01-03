@@ -127,11 +127,6 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
   const [formData, setFormData] = useState<Partial<Publisher>>({});
 
   useEffect(() => {
-    const mobilePaymentPhoneCode = publisher.mobilePaymentPhone?.substring(0,4) || '';
-    const mobilePaymentPhoneNumber = publisher.mobilePaymentPhone?.substring(4) || '';
-    const mobilePaymentIdPrefix = publisher.mobilePaymentId?.charAt(0) || '';
-    const mobilePaymentIdNumber = publisher.mobilePaymentId?.substring(1) || '';
-
     setFormData({
         firstName: publisher.firstName || '',
         lastName: publisher.lastName || '',
@@ -142,8 +137,8 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
         bank: publisher.bank || '',
         accountNumber: publisher.accountNumber || '',
         mobilePaymentBank: publisher.mobilePaymentBank || '',
-        mobilePaymentPhone: `${mobilePaymentPhoneCode}${mobilePaymentPhoneNumber}`,
-        mobilePaymentId: `${mobilePaymentIdPrefix}${mobilePaymentIdNumber}`,
+        mobilePaymentPhone: publisher.mobilePaymentPhone || '',
+        mobilePaymentId: publisher.mobilePaymentId || '',
         usdtAddress: publisher.usdtAddress || '',
     });
   }, [publisher]);
