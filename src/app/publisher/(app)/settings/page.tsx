@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Loader2, Edit, Trash2, CreditCard } from 'lucide-react';
+import { ArrowLeft, Loader2, Edit, Trash2, CreditCard, Save } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -30,7 +30,12 @@ import banksCo from '@/lib/banks-co.json';
 const phoneCodes = ["0412", "0414", "0416", "0424", "0426"];
 const idPrefixes = ["V", "E", "J", "G", "P"];
 
-type FormData = {
+type PersonalInfoData = {
+  firstName: string;
+  lastName: string;
+}
+
+type PaymentFormData = {
   country: 'VE' | 'CO' | '';
   paymentMethod: 'transferencia' | 'pagoMovil' | 'usdt' | '';
   bank?: string;
@@ -43,7 +48,7 @@ type FormData = {
   usdtAddress?: string;
 };
 
-type FormErrors = Partial<Record<keyof FormData, string>>;
+type FormErrors = Partial<Record<keyof PaymentFormData, string>>;
 
 type ViewState = 'loading' | 'display' | 'edit' | 'create';
 
@@ -120,57 +125,104 @@ export default function SettingsPage() {
   const { data: publisherData, isLoading: isLoadingData } = useDoc<any>(publisherRef);
 
   const [viewState, setViewState] = useState<ViewState>('loading');
-  const [formData, setFormData] = useState<FormData>({
+  
+  const [personalInfo, setPersonalInfo] = useState<PersonalInfoData>({ firstName: '', lastName: '' });
+  const [isSavingPersonalInfo, setIsSavingPersonalInfo] = useState(false);
+
+  const [formData, setFormData] = useState<PaymentFormData>({
     country: '', paymentMethod: '', bank: '', accountNumber: '',
     mobilePaymentBank: '', mobilePaymentPhoneCode: '', mobilePaymentPhoneNumber: '',
     mobilePaymentIdPrefix: '', mobilePaymentIdNumber: '', usdtAddress: ''
   });
   const [errors, setErrors] = useState<FormErrors>({});
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
 
   useEffect(() => {
     if (isLoadingData) {
       setViewState('loading');
       return;
     }
-    if (publisherData && publisherData.paymentMethod) {
-      const data: Partial<FormData> = {
-          country: publisherData.country || '',
-          paymentMethod: publisherData.paymentMethod || '',
-          bank: publisherData.bank || '',
-          accountNumber: publisherData.accountNumber || '',
-          mobilePaymentBank: publisherData.mobilePaymentBank || publisherData.bank,
-          usdtAddress: publisherData.usdtAddress || '',
-      };
-      
-      if (publisherData.mobilePaymentPhone) {
-        const phoneString = String(publisherData.mobilePaymentPhone);
-        if (phoneString.length > 7) {
-            const code = phoneString.substring(0, 4);
-            if (phoneCodes.includes(code)) {
-                data.mobilePaymentPhoneCode = code;
-                data.mobilePaymentPhoneNumber = phoneString.substring(4);
-            }
+
+    if (publisherData) {
+      // Personal Info
+      setPersonalInfo({
+        firstName: publisherData.firstName || '',
+        lastName: publisherData.lastName || '',
+      });
+
+      // Payment Info
+      if (publisherData.paymentMethod) {
+        const paymentInfo: Partial<PaymentFormData> = {
+            country: publisherData.country || '',
+            paymentMethod: publisherData.paymentMethod || '',
+            bank: publisherData.bank || '',
+            accountNumber: publisherData.accountNumber || '',
+            mobilePaymentBank: publisherData.mobilePaymentBank || publisherData.bank,
+            usdtAddress: publisherData.usdtAddress || '',
+        };
+        
+        if (publisherData.mobilePaymentPhone) {
+          const phoneString = String(publisherData.mobilePaymentPhone);
+          if (phoneString.length > 7) {
+              const code = phoneString.substring(0, 4);
+              if (phoneCodes.includes(code)) {
+                paymentInfo.mobilePaymentPhoneCode = code;
+                paymentInfo.mobilePaymentPhoneNumber = phoneString.substring(4);
+              }
+          }
         }
-      }
-      if (publisherData.mobilePaymentId) {
-        const idString = String(publisherData.mobilePaymentId);
-        if (idString.length > 1) {
-            const prefix = idString.charAt(0).toUpperCase();
-            if (idPrefixes.includes(prefix)) {
-                data.mobilePaymentIdPrefix = prefix;
-                data.mobilePaymentIdNumber = idString.substring(1);
-            }
+        if (publisherData.mobilePaymentId) {
+          const idString = String(publisherData.mobilePaymentId);
+          if (idString.length > 1) {
+              const prefix = idString.charAt(0).toUpperCase();
+              if (idPrefixes.includes(prefix)) {
+                paymentInfo.mobilePaymentIdPrefix = prefix;
+                paymentInfo.mobilePaymentIdNumber = idString.substring(1);
+              }
+          }
         }
+        setFormData(prev => ({...prev, ...paymentInfo}));
+        setViewState('display');
+      } else {
+        setViewState('create');
       }
-      setFormData(prev => ({...prev, ...data}));
-      setViewState('display');
     } else {
       setViewState('create');
     }
   }, [publisherData, isLoadingData]);
   
-  const handleInputChange = (field: keyof FormData, value: string) => {
+  const handlePersonalInfoChange = (field: keyof PersonalInfoData, value: string) => {
+    setPersonalInfo(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSavePersonalInfo = async () => {
+    if (!personalInfo.firstName || !personalInfo.lastName) {
+      toast({ variant: 'destructive', title: "Campos requeridos", description: "El nombre y el apellido no pueden estar vacíos." });
+      return;
+    }
+    setIsSavingPersonalInfo(true);
+    if (!publisherRef) {
+      toast({ variant: 'destructive', title: "Error", description: "No se pudo obtener la referencia del usuario." });
+      setIsSavingPersonalInfo(false);
+      return;
+    }
+
+    try {
+      await setDoc(publisherRef, {
+        firstName: personalInfo.firstName,
+        lastName: personalInfo.lastName,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      toast({ title: "Información Guardada", description: "Tus datos personales se han actualizado." });
+    } catch (error: any) {
+      console.error("Personal Info Save Error:", error);
+      toast({ variant: 'destructive', title: "Error al guardar", description: error.message });
+    } finally {
+      setIsSavingPersonalInfo(false);
+    }
+  };
+
+  const handlePaymentInputChange = (field: keyof PaymentFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
         setErrors(prev => ({ ...prev, [field]: undefined }));
@@ -187,7 +239,7 @@ export default function SettingsPage() {
       setErrors({});
   }
 
-  const validateForm = (): boolean => {
+  const validatePaymentForm = (): boolean => {
     const newErrors: FormErrors = {};
     const { 
         country, paymentMethod, bank, accountNumber,
@@ -225,20 +277,20 @@ export default function SettingsPage() {
     return Object.keys(newErrors).length === 0;
   }
   
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSavePayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) {
+    if (!validatePaymentForm()) {
         toast({ variant: 'destructive', title: "Formulario incompleto", description: "Por favor, revisa los campos marcados en rojo." });
         return;
     }
-    await performSave(formData);
+    await performSavePayment(formData);
   };
   
-  const performSave = async (data: FormData) => {
-    setIsSaving(true);
+  const performSavePayment = async (data: PaymentFormData) => {
+    setIsSavingPayment(true);
     if (!publisherRef) {
         toast({ variant: 'destructive', title: "Error", description: "No se pudo obtener la referencia del usuario." });
-        setIsSaving(false);
+        setIsSavingPayment(false);
         return;
     }
     
@@ -271,15 +323,15 @@ export default function SettingsPage() {
       console.error("Firestore Save Error:", error);
       toast({ variant: 'destructive', title: "Error al guardar", description: error.message || "No se pudieron guardar los cambios." });
     } finally {
-      setIsSaving(false);
+      setIsSavingPayment(false);
     }
   }
 
   const handleDeleteAndChange = async () => {
-    setIsSaving(true);
+    setIsSavingPayment(true);
      if (!publisherRef) {
         toast({ variant: 'destructive', title: "Error", description: "No se pudo obtener la referencia del usuario." });
-        setIsSaving(false);
+        setIsSavingPayment(false);
         return;
     }
      const dataToSave = {
@@ -300,11 +352,11 @@ export default function SettingsPage() {
     } catch (error: any) {
         toast({ variant: 'destructive', title: "Error al eliminar", description: error.message || "No se pudo eliminar el método de pago." });
     } finally {
-        setIsSaving(false);
+        setIsSavingPayment(false);
     }
   }
 
-  const renderContent = () => {
+  const renderPaymentContent = () => {
     switch(viewState) {
         case 'loading':
             return <div className="flex items-center justify-center pt-16"><Loader2 className="h-8 w-8 animate-spin" /> <span className="ml-2">Cargando configuración...</span></div>;
@@ -335,7 +387,7 @@ export default function SettingsPage() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="paymentMethod">Método de Pago Principal *</Label>
-                            <Select onValueChange={(val) => handleInputChange('paymentMethod', val)} value={formData.paymentMethod} disabled={!formData.country}>
+                            <Select onValueChange={(val) => handlePaymentInputChange('paymentMethod', val)} value={formData.paymentMethod} disabled={!formData.country}>
                                 <SelectTrigger id="paymentMethod"><SelectValue placeholder="Selecciona un método" /></SelectTrigger>
                                 <SelectContent>
                                     {formData.country === 'VE' && <SelectItem value="pagoMovil">Pago Móvil</SelectItem>}
@@ -355,7 +407,7 @@ export default function SettingsPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <Label htmlFor="bank">Banco *</Label>
-                                <Select onValueChange={(val) => handleInputChange('bank', val)} value={formData.bank}>
+                                <Select onValueChange={(val) => handlePaymentInputChange('bank', val)} value={formData.bank}>
                                     <SelectTrigger><SelectValue placeholder="Selecciona un banco" /></SelectTrigger>
                                     <SelectContent>
                                         {formData.country === 'VE' && banksVe.map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
@@ -366,7 +418,7 @@ export default function SettingsPage() {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="accountNumber">Número de Cuenta *</Label>
-                                <Input id="accountNumber" value={formData.accountNumber} onChange={(e) => handleInputChange('accountNumber', e.target.value)} placeholder={formData.country === 'VE' ? '20 dígitos para Venezuela' : 'Número de cuenta para Colombia'} maxLength={formData.country === 'VE' ? 20 : undefined} />
+                                <Input id="accountNumber" value={formData.accountNumber} onChange={(e) => handlePaymentInputChange('accountNumber', e.target.value)} placeholder={formData.country === 'VE' ? '20 dígitos para Venezuela' : 'Número de cuenta para Colombia'} maxLength={formData.country === 'VE' ? 20 : undefined} />
                                 {errors.accountNumber && <p className="text-sm text-destructive">{errors.accountNumber}</p>}
                             </div>
                             </div>
@@ -379,7 +431,7 @@ export default function SettingsPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <Label htmlFor="mobilePaymentBank">Banco *</Label>
-                                <Select onValueChange={(val) => handleInputChange('mobilePaymentBank', val)} value={formData.mobilePaymentBank}>
+                                <Select onValueChange={(val) => handlePaymentInputChange('mobilePaymentBank', val)} value={formData.mobilePaymentBank}>
                                     <SelectTrigger><SelectValue placeholder="Selecciona un banco" /></SelectTrigger>
                                     <SelectContent>
                                         {banksVe.map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
@@ -390,13 +442,13 @@ export default function SettingsPage() {
                             <div className="space-y-2">
                                 <Label>Número de Teléfono *</Label>
                                 <div className="flex gap-2">
-                                    <Select onValueChange={(val) => handleInputChange('mobilePaymentPhoneCode', val)} value={formData.mobilePaymentPhoneCode}>
+                                    <Select onValueChange={(val) => handlePaymentInputChange('mobilePaymentPhoneCode', val)} value={formData.mobilePaymentPhoneCode}>
                                         <SelectTrigger className="w-[120px]"><SelectValue placeholder="Código"/></SelectTrigger>
                                         <SelectContent>
                                             {phoneCodes.map(code => <SelectItem key={code} value={code}>{code}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
-                                    <Input value={formData.mobilePaymentPhoneNumber} onChange={(e) => handleInputChange('mobilePaymentPhoneNumber', e.target.value)} placeholder="XXXXXXX" maxLength={7} />
+                                    <Input value={formData.mobilePaymentPhoneNumber} onChange={(e) => handlePaymentInputChange('mobilePaymentPhoneNumber', e.target.value)} placeholder="XXXXXXX" maxLength={7} />
                                 </div>
                                 {errors.mobilePaymentPhoneCode && !errors.mobilePaymentPhoneNumber && <p className="text-sm text-destructive">{errors.mobilePaymentPhoneCode}</p>}
                                 {errors.mobilePaymentPhoneNumber && <p className="text-sm text-destructive">{errors.mobilePaymentPhoneNumber}</p>}
@@ -404,13 +456,13 @@ export default function SettingsPage() {
                             <div className="space-y-2 col-span-1 md:col-span-2">
                                 <Label>Cédula o RIF *</Label>
                                 <div className="flex gap-2">
-                                    <Select onValueChange={(val) => handleInputChange('mobilePaymentIdPrefix', val)} value={formData.mobilePaymentIdPrefix}>
+                                    <Select onValueChange={(val) => handlePaymentInputChange('mobilePaymentIdPrefix', val)} value={formData.mobilePaymentIdPrefix}>
                                         <SelectTrigger className="w-[100px]"><SelectValue placeholder="Tipo"/></SelectTrigger>
                                         <SelectContent>
                                             {idPrefixes.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
-                                    <Input value={formData.mobilePaymentIdNumber} onChange={(e) => handleInputChange('mobilePaymentIdNumber', e.target.value)} placeholder="12345678" />
+                                    <Input value={formData.mobilePaymentIdNumber} onChange={(e) => handlePaymentInputChange('mobilePaymentIdNumber', e.target.value)} placeholder="12345678" />
                                 </div>
                                 {errors.mobilePaymentIdPrefix && !errors.mobilePaymentIdNumber && <p className="text-sm text-destructive">{errors.mobilePaymentIdPrefix}</p>}
                                 {errors.mobilePaymentIdNumber && <p className="text-sm text-destructive">{errors.mobilePaymentIdNumber}</p>}
@@ -429,7 +481,7 @@ export default function SettingsPage() {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="usdtAddress">Correo electrónico de Binance *</Label>
-                                <Input id="usdtAddress" type="email" value={formData.usdtAddress} onChange={(e) => handleInputChange('usdtAddress', e.target.value)} placeholder="tu.correo@email.com" />
+                                <Input id="usdtAddress" type="email" value={formData.usdtAddress} onChange={(e) => handlePaymentInputChange('usdtAddress', e.target.value)} placeholder="tu.correo@email.com" />
                                 {errors.usdtAddress && <p className="text-sm text-destructive">{errors.usdtAddress}</p>}
                             </div>
                             </div>
@@ -438,11 +490,11 @@ export default function SettingsPage() {
                     </CardContent>
                     <CardContent>
                          <div className="flex gap-2">
-                            <Button type="submit" disabled={isSaving}>
-                                {isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</>) : 'Guardar Cambios'}
+                            <Button type="submit" disabled={isSavingPayment}>
+                                {isSavingPayment ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</>) : 'Guardar Cambios de Pago'}
                             </Button>
                             {viewState === 'edit' && (
-                                <Button variant="outline" onClick={() => setViewState('display')} disabled={isSaving}>
+                                <Button variant="outline" onClick={() => setViewState('display')} disabled={isSavingPayment}>
                                     Cancelar
                                 </Button>
                             )}
@@ -468,30 +520,38 @@ export default function SettingsPage() {
        <Card className="mb-8">
           <CardHeader>
             <CardTitle>Información Personal</CardTitle>
-            <CardDescription>Estos son tus datos personales registrados en el sistema.</CardDescription>
+            <CardDescription>Estos son tus datos personales. Puedes corregirlos si es necesario.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="fullName">Nombre Completo</Label>
-                    <Input id="fullName" value={`${publisherData?.firstName || ''} ${publisherData?.lastName || ''}`} readOnly className="bg-muted/50" />
+                    <Label htmlFor="firstName">Nombre</Label>
+                    <Input id="firstName" value={personalInfo.firstName} onChange={(e) => handlePersonalInfoChange('firstName', e.target.value)} />
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                 <div className="space-y-2">
+                    <Label htmlFor="lastName">Apellido</Label>
+                    <Input id="lastName" value={personalInfo.lastName} onChange={(e) => handlePersonalInfoChange('lastName', e.target.value)} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="email">Email (No editable)</Label>
                     <Input id="email" value={publisherData?.email || ''} readOnly className="bg-muted/50" />
                 </div>
              </div>
           </CardContent>
+           <CardContent>
+                <Button onClick={handleSavePersonalInfo} disabled={isSavingPersonalInfo}>
+                    {isSavingPersonalInfo ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Guardar Información
+                </Button>
+           </CardContent>
         </Card>
 
         <Separator className="my-8" />
         
         <h2 className="text-2xl font-bold font-headline text-foreground mb-4">Configuración de Pagos</h2>
-      <form onSubmit={handleSave}>
-        {renderContent()}
+      <form onSubmit={handleSavePayment}>
+        {renderPaymentContent()}
       </form>
     </div>
   );
 }
-
-    
