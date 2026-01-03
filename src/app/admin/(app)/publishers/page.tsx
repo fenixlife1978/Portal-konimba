@@ -3,17 +3,14 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useCollection, useUser } from '@/firebase';
-import { db, auth } from '@/firebase/config';
+import { db } from '@/firebase/config';
 import {
   collection,
   doc,
   updateDoc,
   serverTimestamp,
   deleteDoc,
-  setDoc,
-  addDoc,
 } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -42,7 +39,6 @@ import {
   Pencil,
   Trash2,
   ArrowLeft,
-  UserPlus,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -53,9 +49,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 
 type Publisher = {
   id: string;
@@ -78,92 +71,6 @@ type Publisher = {
   mobilePaymentId?: string;
   usdtAddress?: string;
 };
-
-const createPublisherSchema = z.object({
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
-    email: z.string().email("Debe ser un email válido.").optional().or(z.literal('')),
-    password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres.").optional().or(z.literal('')),
-    phone: z.string().optional(),
-    country: z.string().optional(),
-    subId: z.string().optional(),
-});
-type CreatePublisherFormData = z.infer<typeof createPublisherSchema>;
-
-function CreatePublisherModal({ onSave, onOpenChange }: { onSave: (data: CreatePublisherFormData) => Promise<void>; onOpenChange: (open: boolean) => void }) {
-    const { register, handleSubmit, formState: { errors } } = useForm<CreatePublisherFormData>({
-        resolver: zodResolver(createPublisherSchema),
-        defaultValues: {
-            firstName: '',
-            lastName: '',
-            email: '',
-            password: '',
-            phone: '',
-            country: '',
-            subId: ''
-        }
-    });
-
-    const handleFormSubmit = async (data: CreatePublisherFormData) => {
-        await onSave(data);
-    };
-
-    return (
-        <form onSubmit={handleSubmit(handleFormSubmit)}>
-            <DialogHeader>
-                <DialogTitle>Crear Nuevo Publisher</DialogTitle>
-                <DialogDescription>
-                Completa los datos para registrar un nuevo publisher. Si incluyes email y contraseña, se creará una cuenta para que pueda iniciar sesión.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-4">
-                <div className="space-y-2">
-                    <Label htmlFor="subId">Sub ID</Label>
-                    <Input id="subId" {...register('subId')} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="firstName">Nombre</Label>
-                        <Input id="firstName" {...register('firstName')} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="lastName">Apellido</Label>
-                        <Input id="lastName" {...register('lastName')} />
-                    </div>
-                </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="phone">Teléfono</Label>
-                        <Input id="phone" {...register('phone')} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="country">País</Label>
-                        <Input id="country" {...register('country')} />
-                    </div>
-                </div>
-
-                <Separator />
-                <p className="text-sm text-muted-foreground">Opcional: Crea credenciales de acceso</p>
-
-                <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" {...register('email')} />
-                    {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="password">Contraseña Inicial</Label>
-                    <Input id="password" type="password" {...register('password')} />
-                    {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
-                </div>
-            </div>
-            <DialogFooter>
-                <DialogClose asChild><Button type="button" variant="outline">Cerrar</Button></DialogClose>
-                <Button type="submit">Crear Publisher</Button>
-            </DialogFooter>
-        </form>
-    );
-}
-
 
 /* ---------- EditDetailsModal ---------- */
 interface EditDetailsModalProps {
@@ -366,76 +273,9 @@ export default function PublishersPage() {
   const { user } = useUser();
   const { toast } = useToast();
   const [filter, setFilter] = useState('');
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const publishersCollectionRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
   const { data: publishers, isLoading } = useCollection<Publisher>(publishersCollectionRef);
-
-  const handleCreatePublisher = async (data: CreatePublisherFormData) => {
-    if (!firestore || !user) {
-      toast({ variant: "destructive", title: "Error", description: "El administrador no está autenticado." });
-      return;
-    }
-    
-    const { email, password, ...profileData } = data;
-
-    // Case 1: Create Auth user and Firestore profile
-    if (email && password) {
-      try {
-        const adminUser = auth.currentUser;
-        if (!adminUser) throw new Error("La sesión del administrador se ha perdido. Por favor, inicia sesión de nuevo.");
-
-        const { user: newPublisherUser } = await createUserWithEmailAndPassword(auth, email, password);
-
-        const publisherRef = doc(firestore, 'publishers', newPublisherUser.uid);
-        await setDoc(publisherRef, {
-            id: newPublisherUser.uid,
-            email,
-            ...profileData,
-            status: 'active',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        });
-        toast({ title: "Publisher Creado con Acceso", description: "El nuevo publisher ha sido registrado y puede iniciar sesión." });
-        
-        // This is a workaround for client-side auth state changes.
-        // It's not ideal but prevents the admin from being logged out.
-        if (auth.currentUser?.uid !== adminUser.uid) {
-           await auth.signOut();
-           // A full page reload or redirect to login might be necessary in a real app.
-           // For now, we just close the modal.
-        }
-
-        setIsCreateModalOpen(false);
-
-      } catch (error: any) {
-        let description = "Ocurrió un error desconocido.";
-        if (error.code === 'auth/email-already-in-use') {
-            description = "El correo electrónico ya está registrado. Por favor, utiliza otro.";
-        } else if (error.code === 'auth/weak-password') {
-            description = "La contraseña es demasiado débil (mínimo 6 caracteres).";
-        }
-        toast({ variant: "destructive", title: "Error al crear publisher", description });
-      }
-    } 
-    // Case 2: Create only a Firestore profile without auth
-    else {
-        try {
-            await addDoc(collection(firestore, 'publishers'), {
-                ...profileData,
-                email: '', // Ensure email is empty
-                status: 'inactive', // Mark as inactive as they can't log in
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            });
-             toast({ title: "Publisher Pre-registrado", description: "El perfil del publisher ha sido creado sin acceso para iniciar sesión." });
-             setIsCreateModalOpen(false);
-        } catch (error: any) {
-            toast({ variant: "destructive", title: "Error al pre-registrar", description: error.message });
-        }
-    }
-  };
-
 
   const handleUpdatePublisher = async (id: string, data: Partial<Publisher>) => {
     if (!firestore) return;
@@ -473,17 +313,9 @@ export default function PublishersPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
             <h1 className="text-3xl font-bold font-headline text-foreground">Gestión de Publishers</h1>
-            <p className="text-muted-foreground">Crea, modifica y gestiona los perfiles de los publishers.</p>
+            <p className="text-muted-foreground">Modifica y gestiona los perfiles de los publishers.</p>
         </div>
         <div className="flex gap-2">
-            <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-                <DialogTrigger asChild>
-                    <Button><UserPlus className="mr-2 h-4 w-4" />Crear Publisher</Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[625px]">
-                    <CreatePublisherModal onSave={handleCreatePublisher} onOpenChange={setIsCreateModalOpen} />
-                </DialogContent>
-            </Dialog>
             <Button asChild variant="outline">
             <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Volver al panel</Link>
             </Button>
