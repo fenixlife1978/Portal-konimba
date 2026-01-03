@@ -35,7 +35,6 @@ type Publisher = {
     email: string; 
     paymentMethod?: string; 
     country?: string;
-    subId?: string;
 };
 type CompanySettings = { 
     companyName?: string; 
@@ -266,7 +265,6 @@ export default function PerformancePage() {
         companyEmail: settingsData?.companyEmail,
         companySocialMedia: settingsData?.companySocialMedia,
         publisherName: `${publisherData.firstName} ${publisherData.lastName}`,
-        publisherSubId: publisherData.subId,
         showFooter: true
     });
 
@@ -412,11 +410,6 @@ function ReportDisplay({ reportData, publisher, period, settings }: { reportData
                 <CardTitle>Hola, {publisher.firstName} {publisher.lastName}</CardTitle>
                 <CardDescription className="flex justify-between items-center">
                     <span>{period}</span>
-                    {publisher.subId && (
-                        <span className="font-semibold text-sm bg-muted px-2 py-1 rounded">
-                            SUB ID: {publisher.subId}
-                        </span>
-                    )}
                 </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
@@ -488,3 +481,5 @@ function ReportDisplay({ reportData, publisher, period, settings }: { reportData
         </Card>
     );
 }
+
+    

@@ -473,10 +473,6 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="subId">SUB ID</Label>
-                    <Input id="subId" value={publisherData?.subId || 'No asignado'} readOnly className="bg-muted/50" />
-                </div>
-                <div className="space-y-2">
                     <Label htmlFor="fullName">Nombre Completo</Label>
                     <Input id="fullName" value={`${publisherData?.firstName || ''} ${publisherData?.lastName || ''}`} readOnly className="bg-muted/50" />
                 </div>
@@ -497,3 +493,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    

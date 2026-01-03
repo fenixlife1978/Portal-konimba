@@ -10,10 +10,6 @@
           "type": "string",
           "description": "Unique identifier for the Publisher entity."
         },
-        "subId": {
-          "type": "string",
-          "description": "A custom secondary identifier for the publisher, also known as an Alias."
-        },
         "firstName": {
           "type": "string",
           "description": "The first name of the publisher."
@@ -291,3 +287,5 @@
     "reasoning": "Based on the provided information, the application \"Siren's Portal\" requires a Firestore structure that supports admin and publisher roles, managing user data, payments, leads, offers, and reports. The structure emphasizes authorization independence and clear security rules. To achieve this, we will leverage path-based ownership and dedicated collections for global roles. \n\n1.  **Publishers:** Publisher data is stored under `/publishers/{publisherId}`. This enforces path-based ownership, simplifying security rules. \n2.  **Admin Roles:** Admin roles are managed using the `/roles_admin/{uid}` collection. The existence of a document in this collection grants admin privileges.\n\n The structure promotes authorization independence by avoiding `get()` calls in security rules. List operations are secured using structural segregation. For instance, only admins can `list` publishers, and publishers can only `list` their own payment data. The structure ensures that all documents within a collection share the same security requirements."
   }
 }
+
+    

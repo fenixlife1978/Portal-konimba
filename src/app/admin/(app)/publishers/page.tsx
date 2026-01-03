@@ -52,7 +52,6 @@ import { Separator } from '@/components/ui/separator';
 
 type Publisher = {
   id: string;
-  subId: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -71,50 +70,6 @@ type Publisher = {
   mobilePaymentId?: string;
   usdtAddress?: string;
 };
-
-/* ---------- SubIdModal ---------- */
-function SubIdModal({
-  publisher,
-  onSave,
-  onOpenChange,
-}: {
-  publisher: Publisher;
-  onSave: (data: { subId: string }) => Promise<void>;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const [subId, setSubId] = useState(publisher.subId ?? '');
-
-  const handleSaveSubId = async () => {
-    await onSave({ subId });
-    onOpenChange(false);
-  };
-
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle>Asignar/Modificar Alias</DialogTitle>
-        <DialogDescription>
-          Establece el Alias (SUB ID) para el publisher {publisher.firstName} {publisher.lastName}.
-        </DialogDescription>
-      </DialogHeader>
-      <div className="py-4">
-        <Label htmlFor="subIdModalInput">Alias (SUB ID)</Label>
-        <Input
-          id="subIdModalInput"
-          value={subId}
-          onChange={(e) => setSubId(e.target.value)}
-          placeholder="Ej: KON-123"
-        />
-      </div>
-      <DialogFooter>
-        <DialogClose asChild>
-          <Button variant="outline">Cancelar</Button>
-        </DialogClose>
-        <Button onClick={handleSaveSubId}>Guardar Alias</Button>
-      </DialogFooter>
-    </>
-  );
-}
 
 /* ---------- EditDetailsModal ---------- */
 interface EditDetailsModalProps {
@@ -269,14 +224,12 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
   );
 }
 
-function PublisherRow({ publisher, onSave, onDelete, onUpdateSubId }: { publisher: Publisher; onSave: (data: Partial<Publisher>) => Promise<void>; onDelete: () => Promise<void>; onUpdateSubId: (data: { subId: string }) => Promise<void>; }) {
+function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; onSave: (data: Partial<Publisher>) => Promise<void>; onDelete: () => Promise<void>; }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [isEditingSubId, setIsEditingSubId] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   return (
     <TableRow>
-      <TableCell className="font-medium">{publisher.subId || <span className="text-muted-foreground">N/A</span>}</TableCell>
       <TableCell>{publisher.firstName} {publisher.lastName}</TableCell>
       <TableCell>{publisher.email}</TableCell>
       <TableCell><Badge variant={publisher.status === 'active' ? 'default' : 'secondary'}>{publisher.status}</Badge></TableCell>
@@ -286,10 +239,6 @@ function PublisherRow({ publisher, onSave, onDelete, onUpdateSubId }: { publishe
             <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <Dialog open={isEditingSubId} onOpenChange={setIsEditingSubId}>
-              <DialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()}>Asignar Alias</DropdownMenuItem></DialogTrigger>
-              <DialogContent><SubIdModal publisher={publisher} onSave={onUpdateSubId} onOpenChange={setIsEditingSubId} /></DialogContent>
-            </Dialog>
              <Dialog open={isEditing} onOpenChange={setIsEditing}>
                 <DialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()}><Pencil className="mr-2 h-4 w-4" />Ver / Editar Detalles</DropdownMenuItem></DialogTrigger>
                 <DialogContent className="sm:max-w-[625px]"><EditDetailsModal publisher={publisher} onSave={onSave} onOpenChange={setIsEditing} /></DialogContent>
@@ -346,8 +295,7 @@ export default function PublishersPage() {
     return publishers.filter(p =>
       p.firstName?.toLowerCase().includes(filter.toLowerCase()) ||
       p.lastName?.toLowerCase().includes(filter.toLowerCase()) ||
-      p.email?.toLowerCase().includes(filter.toLowerCase()) ||
-      p.subId?.toLowerCase().includes(filter.toLowerCase())
+      p.email?.toLowerCase().includes(filter.toLowerCase())
     );
   }, [publishers, filter]);
 
@@ -364,7 +312,7 @@ export default function PublishersPage() {
         <CardContent className="pt-6">
            <div className="mb-4">
               <Input
-                placeholder="Buscar por nombre, email o Alias..."
+                placeholder="Buscar por nombre o email..."
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               />
@@ -372,7 +320,6 @@ export default function PublishersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Alias (SUB ID)</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Estado</TableHead>
@@ -380,15 +327,14 @@ export default function PublishersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={5} className="text-center">Cargando publishers...</TableCell></TableRow>}
-              {!isLoading && filteredPublishers.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">No se encontraron publishers.</TableCell></TableRow>}
+              {isLoading && <TableRow><TableCell colSpan={4} className="text-center">Cargando publishers...</TableCell></TableRow>}
+              {!isLoading && filteredPublishers.length === 0 && <TableRow><TableCell colSpan={4} className="text-center">No se encontraron publishers.</TableCell></TableRow>}
               {filteredPublishers.map((publisher) => (
                 <PublisherRow
                   key={publisher.id}
                   publisher={publisher}
                   onSave={(data) => handleUpdatePublisher(publisher.id, data)}
                   onDelete={() => handleDeletePublisher(publisher.id)}
-                  onUpdateSubId={(data) => handleUpdatePublisher(publisher.id, data)}
                 />
               ))}
             </TableBody>
@@ -398,3 +344,5 @@ export default function PublishersPage() {
     </div>
   );
 }
+
+    
