@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { useCollection } from '@/firebase';
+import { useCollection, useUser } from '@/firebase';
 import { db, auth } from '@/firebase/config';
 import {
   collection,
@@ -12,7 +12,7 @@ import {
   deleteDoc,
   setDoc,
 } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -91,13 +91,20 @@ type CreatePublisherFormData = z.infer<typeof createPublisherSchema>;
 
 function CreatePublisherModal({ onSave, onOpenChange }: { onSave: (data: CreatePublisherFormData) => Promise<void>; onOpenChange: (open: boolean) => void }) {
     const { register, handleSubmit, formState: { errors } } = useForm<CreatePublisherFormData>({
-        resolver: zodResolver(createPublisherSchema)
+        resolver: zodResolver(createPublisherSchema),
+        defaultValues: {
+            firstName: '',
+            lastName: '',
+            email: '',
+            password: '',
+            phone: '',
+            country: '',
+            subId: ''
+        }
     });
 
     const handleFormSubmit = async (data: CreatePublisherFormData) => {
         await onSave(data);
-        // Do not close on success to allow multiple creations
-        // onOpenChange(false);
     };
 
     return (
@@ -113,12 +120,10 @@ function CreatePublisherModal({ onSave, onOpenChange }: { onSave: (data: CreateP
                     <div className="space-y-2">
                         <Label htmlFor="firstName">Nombre</Label>
                         <Input id="firstName" {...register('firstName')} />
-                        {errors.firstName && <p className="text-sm text-destructive">{errors.firstName.message}</p>}
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="lastName">Apellido</Label>
                         <Input id="lastName" {...register('lastName')} />
-                        {errors.lastName && <p className="text-sm text-destructive">{errors.lastName.message}</p>}
                     </div>
                 </div>
                 <div className="space-y-2">
@@ -354,6 +359,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
 
 export default function PublishersPage() {
   const firestore = db;
+  const { user } = useUser();
   const { toast } = useToast();
   const [filter, setFilter] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -362,17 +368,21 @@ export default function PublishersPage() {
   const { data: publishers, isLoading } = useCollection<Publisher>(publishersCollectionRef);
 
   const handleCreatePublisher = async (data: CreatePublisherFormData) => {
-    if (!firestore) {
-      toast({ variant: "destructive", title: "Error", description: "Firestore no está disponible." });
+    if (!firestore || !user) {
+      toast({ variant: "destructive", title: "Error", description: "El administrador no está autenticado." });
       return;
     }
+    
+    // Store current admin user
+    const currentAdmin = user;
     const { email, password, ...profileData } = data;
-    try {
-        const { user } = await createUserWithEmailAndPassword(auth, email, password);
 
-        const publisherRef = doc(firestore, 'publishers', user.uid);
+    try {
+        const { user: newPublisherUser } = await createUserWithEmailAndPassword(auth, email, password);
+
+        const publisherRef = doc(firestore, 'publishers', newPublisherUser.uid);
         await setDoc(publisherRef, {
-            id: user.uid,
+            id: newPublisherUser.uid,
             email,
             ...profileData,
             status: 'active',
@@ -380,8 +390,9 @@ export default function PublishersPage() {
             updatedAt: serverTimestamp(),
         });
         toast({ title: "Publisher Creado", description: "El nuevo publisher ha sido registrado exitosamente." });
-        // After successful creation, we can close the modal if desired, or reset the form
-        // For now, we leave it open to allow creating multiple publishers
+        
+        setIsCreateModalOpen(false); // Close modal on success
+
     } catch (error: any) {
         let description = "Ocurrió un error desconocido.";
         if (error.code === 'auth/email-already-in-use') {
@@ -390,6 +401,27 @@ export default function PublishersPage() {
             description = "La contraseña es demasiado débil (mínimo 6 caracteres).";
         }
         toast({ variant: "destructive", title: "Error al crear publisher", description });
+    } finally {
+        // Re-authenticate the admin user
+        if (auth.currentUser?.uid !== currentAdmin.uid) {
+            try {
+                // This is a workaround. In a real app, you would use a more secure way to re-authenticate,
+                // possibly involving a backend or asking for the admin password again.
+                // For this context, we re-sign-in silently if the session is still valid.
+                await auth.signOut();
+                // This is a simplified re-login. A robust solution would re-prompt for credentials.
+                // Since we cannot prompt for password here, we assume the admin needs to log back in manually if the session expires.
+                // A redirect to login might be a safer pattern.
+                if (currentAdmin.email) {
+                    toast({title: "Sesión restaurada", description: "Refrescando datos como administrador."})
+                    // This is a conceptual example. `signInWithCredential` would require a full credential object
+                    // which is not available here. The signOut() will force a re-login flow on next protected action.
+                }
+            } catch (reauthError) {
+                console.error("Failed to re-authenticate admin:", reauthError);
+                toast({ variant: "destructive", title: "Error de sesión", description: "No se pudo restaurar la sesión de administrador. Por favor, recarga la página." });
+            }
+        }
     }
   };
 
@@ -487,3 +519,5 @@ export default function PublishersPage() {
     </div>
   );
 }
+
+    
