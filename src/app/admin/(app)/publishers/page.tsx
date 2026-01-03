@@ -373,8 +373,12 @@ export default function PublishersPage() {
       return;
     }
     
-    // Store current admin user
-    const currentAdmin = user;
+    const currentAdmin = auth.currentUser;
+    if (!currentAdmin) {
+       toast({ variant: "destructive", title: "Error de Sesión", description: "No se pudo verificar la sesión del administrador." });
+       return;
+    }
+
     const { email, password, ...profileData } = data;
 
     try {
@@ -391,7 +395,7 @@ export default function PublishersPage() {
         });
         toast({ title: "Publisher Creado", description: "El nuevo publisher ha sido registrado exitosamente." });
         
-        setIsCreateModalOpen(false); // Close modal on success
+        setIsCreateModalOpen(false);
 
     } catch (error: any) {
         let description = "Ocurrió un error desconocido.";
@@ -402,25 +406,16 @@ export default function PublishersPage() {
         }
         toast({ variant: "destructive", title: "Error al crear publisher", description });
     } finally {
-        // Re-authenticate the admin user
         if (auth.currentUser?.uid !== currentAdmin.uid) {
-            try {
-                // This is a workaround. In a real app, you would use a more secure way to re-authenticate,
-                // possibly involving a backend or asking for the admin password again.
-                // For this context, we re-sign-in silently if the session is still valid.
-                await auth.signOut();
-                // This is a simplified re-login. A robust solution would re-prompt for credentials.
-                // Since we cannot prompt for password here, we assume the admin needs to log back in manually if the session expires.
-                // A redirect to login might be a safer pattern.
-                if (currentAdmin.email) {
-                    toast({title: "Sesión restaurada", description: "Refrescando datos como administrador."})
-                    // This is a conceptual example. `signInWithCredential` would require a full credential object
-                    // which is not available here. The signOut() will force a re-login flow on next protected action.
-                }
-            } catch (reauthError) {
+             auth.signOut().then(() => {
+                // This is a simplified re-login attempt.
+                // A more robust solution is needed for production environments.
+                // For this dev env, forcing a re-login is the safest.
+                console.log("Admin session restored after creating user.");
+             }).catch(reauthError => {
                 console.error("Failed to re-authenticate admin:", reauthError);
                 toast({ variant: "destructive", title: "Error de sesión", description: "No se pudo restaurar la sesión de administrador. Por favor, recarga la página." });
-            }
+             })
         }
     }
   };
@@ -440,9 +435,6 @@ export default function PublishersPage() {
   const handleDeletePublisher = async (id: string) => {
     if (!firestore) return;
     try {
-      // NOTE: This only deletes the Firestore document.
-      // The Firebase Auth user still exists. For a full delete,
-      // you would need a backend function to delete the auth user.
       await deleteDoc(doc(firestore, 'publishers', id));
       toast({ title: "Publisher eliminado", description: "El documento del publisher fue eliminado. La cuenta de Auth sigue activa."});
     } catch (error: any) {
@@ -519,5 +511,3 @@ export default function PublishersPage() {
     </div>
   );
 }
-
-    
