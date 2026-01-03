@@ -374,7 +374,7 @@ export default function PublishersPage() {
     }
     
     const currentAdmin = auth.currentUser;
-    if (!currentAdmin) {
+    if (!currentAdmin?.email) {
        toast({ variant: "destructive", title: "Error de Sesión", description: "No se pudo verificar la sesión del administrador." });
        return;
     }
@@ -407,15 +407,10 @@ export default function PublishersPage() {
         toast({ variant: "destructive", title: "Error al crear publisher", description });
     } finally {
         if (auth.currentUser?.uid !== currentAdmin.uid) {
-             auth.signOut().then(() => {
-                // This is a simplified re-login attempt.
-                // A more robust solution is needed for production environments.
-                // For this dev env, forcing a re-login is the safest.
-                console.log("Admin session restored after creating user.");
-             }).catch(reauthError => {
-                console.error("Failed to re-authenticate admin:", reauthError);
-                toast({ variant: "destructive", title: "Error de sesión", description: "No se pudo restaurar la sesión de administrador. Por favor, recarga la página." });
-             })
+            // The session has changed to the new user. Sign them out
+            // and then force the admin to log back in. This is the safest approach.
+            await auth.signOut();
+            // The redirection or session handling will be managed by the application's auth listeners.
         }
     }
   };
