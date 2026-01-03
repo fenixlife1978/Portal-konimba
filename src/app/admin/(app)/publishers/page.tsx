@@ -10,6 +10,10 @@ import {
   updateDoc,
   serverTimestamp,
   deleteDoc,
+  setDoc,
+  addDoc,
+  getDocs,
+  writeBatch,
 } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -49,6 +53,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/firebase/config';
 
 type Publisher = {
   id: string;
@@ -71,6 +80,7 @@ type Publisher = {
   mobilePaymentId?: string;
   usdtAddress?: string;
 };
+
 
 /* ---------- EditDetailsModal ---------- */
 interface EditDetailsModalProps {
