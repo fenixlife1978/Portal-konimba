@@ -40,7 +40,6 @@ import {
   Pencil,
   Trash2,
   ArrowLeft,
-  Loader2
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -51,13 +50,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
-import banksVe from '@/lib/banks-ve.json';
-import banksCo from '@/lib/banks-co.json';
-
-const phoneCodes = ["0412", "0414", "0416", "0424", "0426"];
-const idPrefixes = ["V", "E", "J", "G", "P"];
 
 type Publisher = {
   id: string;
@@ -71,7 +63,7 @@ type Publisher = {
   city?: string;
   state?: string;
   zipCode?: string;
-  country?: 'VE' | 'CO' | '';
+  country?: string; // ✅ ahora string libre
   paymentMethod?: 'transferencia' | 'pagoMovil' | 'usdt' | '';
   bank?: string;
   accountNumber?: string;
@@ -80,7 +72,6 @@ type Publisher = {
   mobilePaymentId?: string;
   usdtAddress?: string;
 };
-
 
 /* ---------- SubIdModal ---------- */
 function SubIdModal({
@@ -92,22 +83,16 @@ function SubIdModal({
   onSave: (data: { subId: string }) => Promise<void>;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [subId, setSubId] = useState(publisher.subId || '');
-  const [isSaving, setIsSaving] = useState(false);
+  const [subId, setSubId] = useState('');
 
-  // Sync state if the publisher prop changes
+  // ✅ sincroniza solo cuando cambia el publisher
   useEffect(() => {
-    setSubId(publisher.subId || '');
+    setSubId(publisher.subId ?? '');
   }, [publisher]);
 
   const handleSaveSubId = async () => {
-    setIsSaving(true);
-    try {
-        await onSave({ subId });
-        onOpenChange(false);
-    } finally {
-        setIsSaving(false);
-    }
+    await onSave({ subId });
+    onOpenChange(false);
   };
 
   return (
@@ -131,10 +116,7 @@ function SubIdModal({
         <DialogClose asChild>
           <Button variant="outline">Cancelar</Button>
         </DialogClose>
-        <Button onClick={handleSaveSubId} disabled={isSaving}>
-          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Guardar SUB ID
-        </Button>
+        <Button onClick={handleSaveSubId}>Guardar SUB ID</Button>
       </DialogFooter>
     </>
   );
@@ -149,9 +131,13 @@ interface EditDetailsModalProps {
 
 function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalProps) {
   const [formData, setFormData] = useState<Partial<Publisher>>({});
-  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    const mobilePaymentPhoneCode = publisher.mobilePaymentPhone?.substring(0,4) || '';
+    const mobilePaymentPhoneNumber = publisher.mobilePaymentPhone?.substring(4) || '';
+    const mobilePaymentIdPrefix = publisher.mobilePaymentId?.charAt(0) || '';
+    const mobilePaymentIdNumber = publisher.mobilePaymentId?.substring(1) || '';
+
     setFormData({
         firstName: publisher.firstName || '',
         lastName: publisher.lastName || '',
@@ -162,24 +148,16 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
         bank: publisher.bank || '',
         accountNumber: publisher.accountNumber || '',
         mobilePaymentBank: publisher.mobilePaymentBank || '',
-        mobilePaymentPhone: publisher.mobilePaymentPhone || '',
-        mobilePaymentId: publisher.mobilePaymentId || '',
+        mobilePaymentPhone: `${mobilePaymentPhoneCode}${mobilePaymentPhoneNumber}`,
+        mobilePaymentId: `${mobilePaymentIdPrefix}${mobilePaymentIdNumber}`,
         usdtAddress: publisher.usdtAddress || '',
     });
   }, [publisher]);
 
-  const handleInputChange = (field: keyof Publisher, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
 
   const handleSave = async () => {
-    setIsSaving(true);
-    try {
-        await onSave(formData);
-        onOpenChange(false);
-    } finally {
-        setIsSaving(false);
-    }
+    await onSave(formData);
+    onOpenChange(false);
   };
 
   return (
@@ -191,200 +169,153 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
         </DialogDescription>
       </DialogHeader>
       <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-4">
-        <h4 className="font-semibold text-foreground">Información Personal</h4>
-        <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="firstName">Nombre</Label>
-              <Input id="firstName" value={formData.firstName || ''} onChange={(e) => handleInputChange('firstName', e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="lastName">Apellido</Label>
-              <Input id="lastName" value={formData.lastName || ''} onChange={(e) => handleInputChange('lastName', e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="phone">Teléfono</Label>
-              <Input id="phone" value={formData.phone || ''} onChange={(e) => handleInputChange('phone', e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="address">Dirección</Label>
-              <Input id="address" value={formData.address || ''} onChange={(e) => handleInputChange('address', e.target.value)} />
-            </div>
+        <h3 className="font-bold">Información Personal</h3>
+        <div>
+          <Label htmlFor="firstName">Nombre</Label>
+          <Input
+            id="firstName"
+            value={formData.firstName || ''}
+            onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label htmlFor="lastName">Apellido</Label>
+          <Input
+            id="lastName"
+            value={formData.lastName || ''}
+            onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label htmlFor="phone">Teléfono</Label>
+          <Input
+            id="phone"
+            value={formData.phone || ''}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label htmlFor="address">Dirección</Label>
+          <Input
+            id="address"
+            value={formData.address || ''}
+            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+          />
         </div>
 
-        <Separator className="my-6" />
-
-        <h4 className="font-semibold text-foreground">Información Financiera</h4>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="country">País</Label>
-            <Select onValueChange={(val: 'VE' | 'CO' | '') => handleInputChange('country', val)} value={formData.country}>
-              <SelectTrigger id="country"><SelectValue placeholder="Seleccionar país" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="VE">Venezuela</SelectItem>
-                <SelectItem value="CO">Colombia</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="paymentMethod">Método de Pago</Label>
-            <Select onValueChange={(val) => handleInputChange('paymentMethod', val)} value={formData.paymentMethod} disabled={!formData.country}>
-              <SelectTrigger id="paymentMethod"><SelectValue placeholder="Seleccionar método" /></SelectTrigger>
-              <SelectContent>
-                {formData.country === 'VE' && <SelectItem value="pagoMovil">Pago Móvil</SelectItem>}
-                {(formData.country === 'VE' || formData.country === 'CO') && <SelectItem value="transferencia">Transferencia Bancaria</SelectItem>}
-                <SelectItem value="usdt">USDT (Binance)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <Separator className='my-4' />
+        <h3 className="font-bold">Información de Pago</h3>
+        <div>
+          <Label htmlFor="country">País</Label>
+          <Input
+            id="country"
+            value={formData.country || ''}
+            onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+          />
         </div>
-
-        {formData.paymentMethod === 'transferencia' && (
-          <div className="space-y-4 pt-4">
-            <h5 className="font-medium">Detalles de Transferencia</h5>
-             <div>
-                <Label htmlFor="bank">Banco</Label>
-                <Select onValueChange={(val) => handleInputChange('bank', val)} value={formData.bank}>
-                    <SelectTrigger><SelectValue placeholder="Selecciona un banco" /></SelectTrigger>
-                    <SelectContent>
-                        {formData.country === 'VE' && banksVe.map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
-                        {formData.country === 'CO' && banksCo.map(b => <SelectItem key={b.code} value={b.name}>{b.name}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-            </div>
-            <div>
-                <Label htmlFor="accountNumber">Número de Cuenta</Label>
-                <Input id="accountNumber" value={formData.accountNumber || ''} onChange={(e) => handleInputChange('accountNumber', e.target.value)} />
-            </div>
-          </div>
-        )}
-        
-        {formData.paymentMethod === 'pagoMovil' && formData.country === 'VE' && (
-          <div className="space-y-4 pt-4">
-            <h5 className="font-medium">Detalles de Pago Móvil</h5>
-             <div>
-                <Label htmlFor="mobilePaymentBank">Banco</Label>
-                 <Select onValueChange={(val) => handleInputChange('mobilePaymentBank', val)} value={formData.mobilePaymentBank}>
-                    <SelectTrigger><SelectValue placeholder="Selecciona un banco" /></SelectTrigger>
-                    <SelectContent>
-                        {banksVe.map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-            </div>
-            <div>
-                <Label htmlFor="mobilePaymentPhone">Teléfono</Label>
-                <Input id="mobilePaymentPhone" value={formData.mobilePaymentPhone || ''} onChange={(e) => handleInputChange('mobilePaymentPhone', e.target.value)} />
-            </div>
-             <div>
-                <Label htmlFor="mobilePaymentId">Cédula / RIF</Label>
-                <Input id="mobilePaymentId" value={formData.mobilePaymentId || ''} onChange={(e) => handleInputChange('mobilePaymentId', e.target.value)} />
-            </div>
-          </div>
-        )}
-
-        {formData.paymentMethod === 'usdt' && (
-          <div className="space-y-4 pt-4">
-            <h5 className="font-medium">Detalles de USDT</h5>
-            <div>
-              <Label>Plataforma</Label>
-              <Input value="Binance" readOnly />
-            </div>
-            <div>
-              <Label htmlFor="usdtAddress">Email de Binance</Label>
-              <Input id="usdtAddress" value={formData.usdtAddress || ''} onChange={(e) => handleInputChange('usdtAddress', e.target.value)} />
-            </div>
-          </div>
-        )}
+         <div>
+          <Label htmlFor="paymentMethod">Método de Pago</Label>
+          <Input
+            id="paymentMethod"
+            value={formData.paymentMethod || ''}
+            onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as any })}
+          />
+        </div>
+         <div>
+          <Label htmlFor="bank">Banco (Transferencia)</Label>
+          <Input
+            id="bank"
+            value={formData.bank || ''}
+            onChange={(e) => setFormData({ ...formData, bank: e.target.value })}
+          />
+        </div>
+         <div>
+          <Label htmlFor="accountNumber">Nº de Cuenta (Transferencia)</Label>
+          <Input
+            id="accountNumber"
+            value={formData.accountNumber || ''}
+            onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label htmlFor="mobilePaymentBank">Banco (Pago Móvil)</Label>
+          <Input
+            id="mobilePaymentBank"
+            value={formData.mobilePaymentBank || ''}
+            onChange={(e) => setFormData({ ...formData, mobilePaymentBank: e.target.value })}
+          />
+        </div>
+         <div>
+          <Label htmlFor="mobilePaymentPhone">Teléfono (Pago Móvil)</Label>
+          <Input
+            id="mobilePaymentPhone"
+            value={formData.mobilePaymentPhone || ''}
+            onChange={(e) => setFormData({ ...formData, mobilePaymentPhone: e.target.value })}
+          />
+        </div>
+         <div>
+          <Label htmlFor="mobilePaymentId">Cédula/RIF (Pago Móvil)</Label>
+          <Input
+            id="mobilePaymentId"
+            value={formData.mobilePaymentId || ''}
+            onChange={(e) => setFormData({ ...formData, mobilePaymentId: e.target.value })}
+          />
+        </div>
+         <div>
+          <Label htmlFor="usdtAddress">Email (USDT)</Label>
+          <Input
+            id="usdtAddress"
+            value={formData.usdtAddress || ''}
+            onChange={(e) => setFormData({ ...formData, usdtAddress: e.target.value })}
+          />
+        </div>
       </div>
       <DialogFooter>
         <DialogClose asChild>
           <Button variant="outline">Cancelar</Button>
         </DialogClose>
-        <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Guardar Cambios
-        </Button>
+        <Button onClick={handleSave}>Guardar Cambios</Button>
       </DialogFooter>
     </>
   );
 }
 
-
-/* ---------- PublisherRow ---------- */
-function PublisherRow({ publisher, onUpdate, onDelete }: { publisher: Publisher; onUpdate: (id: string, data: Partial<Publisher>) => void; onDelete: (id: string) => void }) {
-  const [isSubIdModalOpen, setIsSubIdModalOpen] = useState(false);
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-
-  const handleSaveSubId = async (data: { subId: string }) => {
-    await onUpdate(publisher.id, data);
-  };
-  
-  const handleSaveDetails = async (data: Partial<Publisher>) => {
-    await onUpdate(publisher.id, data);
-  };
+function PublisherRow({ publisher, onSave, onDelete, onUpdateSubId }: { publisher: Publisher; onSave: (data: Partial<Publisher>) => void; onDelete: () => void; onUpdateSubId: (data: { subId: string }) => void; }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [isEditingSubId, setIsEditingSubId] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   return (
     <TableRow>
-      <TableCell className="font-medium">{publisher.subId || 'N/A'}</TableCell>
-      <TableCell>{publisher.firstName}</TableCell>
-      <TableCell>{publisher.lastName}</TableCell>
+      <TableCell className="font-medium">{publisher.subId || <span className="text-muted-foreground">N/A</span>}</TableCell>
+      <TableCell>{publisher.firstName} {publisher.lastName}</TableCell>
       <TableCell>{publisher.email}</TableCell>
-      <TableCell>
-        <Badge variant={publisher.status === 'active' ? 'default' : 'secondary'}>
-          {publisher.status}
-        </Badge>
-      </TableCell>
+      <TableCell><Badge variant={publisher.status === 'active' ? 'default' : 'secondary'}>{publisher.status}</Badge></TableCell>
       <TableCell className="text-right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
+            <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <Dialog open={isSubIdModalOpen} onOpenChange={setIsSubIdModalOpen}>
-              <DialogTrigger asChild>
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                  Asignar SUB ID
-                </DropdownMenuItem>
-              </DialogTrigger>
+            <Dialog open={isEditingSubId} onOpenChange={setIsEditingSubId}>
+              <DialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()}>Asignar SUB ID</DropdownMenuItem></DialogTrigger>
+              <DialogContent><SubIdModal publisher={publisher} onSave={onUpdateSubId} onOpenChange={setIsEditingSubId} /></DialogContent>
+            </Dialog>
+             <Dialog open={isEditing} onOpenChange={setIsEditing}>
+                <DialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()}><Pencil className="mr-2 h-4 w-4" />Ver / Editar Detalles</DropdownMenuItem></DialogTrigger>
+                <DialogContent className="sm:max-w-[625px]"><EditDetailsModal publisher={publisher} onSave={onSave} onOpenChange={setIsEditing} /></DialogContent>
+            </Dialog>
+            <DropdownMenuSeparator />
+            <Dialog open={isDeleting} onOpenChange={setIsDeleting}>
+              <DialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Eliminar Publisher</DropdownMenuItem></DialogTrigger>
               <DialogContent>
-                <SubIdModal publisher={publisher} onSave={handleSaveSubId} onOpenChange={setIsSubIdModalOpen} />
+                <DialogHeader><DialogTitle>¿Estás seguro?</DialogTitle><DialogDescription>Esta acción eliminará al publisher permanentemente y no se podrá deshacer.</DialogDescription></DialogHeader>
+                <DialogFooter>
+                  <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
+                  <Button variant="destructive" onClick={async () => { await onDelete(); setIsDeleting(false); }}>Sí, eliminar</Button>
+                </DialogFooter>
               </DialogContent>
             </Dialog>
-
-            <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
-                <DialogTrigger asChild>
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                        Ver / Editar Detalles
-                    </DropdownMenuItem>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[625px]">
-                    <EditDetailsModal publisher={publisher} onSave={handleSaveDetails} onOpenChange={setIsDetailsModalOpen} />
-                </DialogContent>
-            </Dialog>
-
-            <DropdownMenuSeparator />
-
-            <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-                <DialogTrigger asChild>
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Eliminar Publisher
-                    </DropdownMenuItem>
-                </DialogTrigger>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>¿Estás seguro?</DialogTitle>
-                        <DialogDescription>Esta acción eliminará al publisher permanentemente. Esta acción no se puede deshacer.</DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-                        <Button variant="destructive" onClick={() => onDelete(publisher.id)}>Sí, eliminar</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>
@@ -402,32 +333,32 @@ export default function PublishersPage() {
 
   const handleUpdatePublisher = async (id: string, data: Partial<Publisher>) => {
     if (!firestore) return;
-    const publisherRef = doc(firestore, 'publishers', id);
     try {
+      const publisherRef = doc(firestore, 'publishers', id);
       await updateDoc(publisherRef, { ...data, updatedAt: serverTimestamp() });
-      toast({ title: 'Publisher actualizado', description: 'Los datos del publisher se han guardado.' });
+      toast({ title: "Publisher actualizado" });
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error al actualizar', description: error.message });
+      toast({ variant: "destructive", title: "Error", description: error.message });
     }
   };
 
   const handleDeletePublisher = async (id: string) => {
     if (!firestore) return;
     try {
-        await deleteDoc(doc(firestore, 'publishers', id));
-        toast({ title: "Publisher Eliminado" });
+      await deleteDoc(doc(firestore, 'publishers', id));
+      toast({ title: "Publisher eliminado" });
     } catch (error: any) {
-        toast({ variant: "destructive", title: "Error al eliminar", description: error.message });
+      toast({ variant: "destructive", title: "Error al eliminar", description: error.message });
     }
   };
-
+  
   const filteredPublishers = useMemo(() => {
     if (!publishers) return [];
     return publishers.filter(p =>
-      p.firstName.toLowerCase().includes(filter.toLowerCase()) ||
-      p.lastName.toLowerCase().includes(filter.toLowerCase()) ||
-      p.email.toLowerCase().includes(filter.toLowerCase()) ||
-      (p.subId && p.subId.toLowerCase().includes(filter.toLowerCase()))
+      p.firstName?.toLowerCase().includes(filter.toLowerCase()) ||
+      p.lastName?.toLowerCase().includes(filter.toLowerCase()) ||
+      p.email?.toLowerCase().includes(filter.toLowerCase()) ||
+      p.subId?.toLowerCase().includes(filter.toLowerCase())
     );
   }, [publishers, filter]);
 
@@ -435,56 +366,40 @@ export default function PublishersPage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold font-headline text-foreground">Gestión de Publishers</h1>
-        <div className="flex gap-2 items-center">
-             <Input 
-                placeholder="Filtrar por nombre, email, SUB ID..."
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="w-full max-w-sm"
-             />
-            <Button asChild variant="outline">
-                <Link href="/admin">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Volver al panel
-                </Link>
-            </Button>
-        </div>
+        <Button asChild variant="outline">
+          <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Volver al panel</Link>
+        </Button>
       </div>
 
       <Card>
-        <CardContent>
+        <CardContent className="pt-6">
+           <div className="mb-4">
+              <Input
+                placeholder="Buscar por nombre, email o SUB ID..."
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              />
+            </div>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>SUB ID</TableHead>
                 <TableHead>Nombre</TableHead>
-                <TableHead>Apellido</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center">
-                    Cargando publishers...
-                  </TableCell>
-                </TableRow>
-              )}
-              {!isLoading && filteredPublishers.length === 0 && (
-                 <TableRow>
-                  <TableCell colSpan={6} className="text-center">
-                    No se encontraron publishers.
-                  </TableCell>
-                </TableRow>
-              )}
+              {isLoading && <TableRow><TableCell colSpan={5} className="text-center">Cargando publishers...</TableCell></TableRow>}
+              {!isLoading && filteredPublishers.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">No se encontraron publishers.</TableCell></TableRow>}
               {filteredPublishers.map((publisher) => (
                 <PublisherRow
                   key={publisher.id}
                   publisher={publisher}
-                  onUpdate={handleUpdatePublisher}
-                  onDelete={handleDeletePublisher}
+                  onSave={(data) => handleUpdatePublisher(publisher.id, data)}
+                  onDelete={() => handleDeletePublisher(publisher.id)}
+                  onUpdateSubId={(data) => handleUpdatePublisher(publisher.id, data)}
                 />
               ))}
             </TableBody>
