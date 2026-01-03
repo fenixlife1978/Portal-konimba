@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -85,10 +84,12 @@ function SubIdModal({
 }) {
   const [subId, setSubId] = useState('');
 
-  // ✅ sincroniza solo cuando cambia el publisher
+  // ✅ sincroniza solo cuando cambia el publisher o se abre/cierra el modal
   useEffect(() => {
-    setSubId(publisher.subId ?? '');
-  }, [publisher]);
+    if (publisher) {
+        setSubId(publisher.subId ?? '');
+    }
+  }, [publisher, onOpenChange]);
 
   const handleSaveSubId = async () => {
     await onSave({ subId });
@@ -409,7 +410,3 @@ export default function PublishersPage() {
     </div>
   );
 }
-
-    
-
-    
