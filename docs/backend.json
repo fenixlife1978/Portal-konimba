@@ -12,7 +12,7 @@
         },
         "subId": {
           "type": "string",
-          "description": "A custom secondary identifier for the publisher."
+          "description": "A custom secondary identifier for the publisher, also known as an Alias."
         },
         "firstName": {
           "type": "string",

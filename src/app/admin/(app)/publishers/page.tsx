@@ -92,13 +92,13 @@ function SubIdModal({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Asignar/Modificar SUB ID</DialogTitle>
+        <DialogTitle>Asignar/Modificar Alias</DialogTitle>
         <DialogDescription>
-          Establece el SUB ID para el publisher {publisher.firstName} {publisher.lastName}.
+          Establece el Alias (SUB ID) para el publisher {publisher.firstName} {publisher.lastName}.
         </DialogDescription>
       </DialogHeader>
       <div className="py-4">
-        <Label htmlFor="subIdModalInput">SUB ID</Label>
+        <Label htmlFor="subIdModalInput">Alias (SUB ID)</Label>
         <Input
           id="subIdModalInput"
           value={subId}
@@ -110,7 +110,7 @@ function SubIdModal({
         <DialogClose asChild>
           <Button variant="outline">Cancelar</Button>
         </DialogClose>
-        <Button onClick={handleSaveSubId}>Guardar SUB ID</Button>
+        <Button onClick={handleSaveSubId}>Guardar Alias</Button>
       </DialogFooter>
     </>
   );
@@ -287,7 +287,7 @@ function PublisherRow({ publisher, onSave, onDelete, onUpdateSubId }: { publishe
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <Dialog open={isEditingSubId} onOpenChange={setIsEditingSubId}>
-              <DialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()}>Asignar SUB ID</DropdownMenuItem></DialogTrigger>
+              <DialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()}>Asignar Alias</DropdownMenuItem></DialogTrigger>
               <DialogContent><SubIdModal publisher={publisher} onSave={onUpdateSubId} onOpenChange={setIsEditingSubId} /></DialogContent>
             </Dialog>
              <Dialog open={isEditing} onOpenChange={setIsEditing}>
@@ -364,7 +364,7 @@ export default function PublishersPage() {
         <CardContent className="pt-6">
            <div className="mb-4">
               <Input
-                placeholder="Buscar por nombre, email o SUB ID..."
+                placeholder="Buscar por nombre, email o Alias..."
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               />
@@ -372,7 +372,7 @@ export default function PublishersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>SUB ID</TableHead>
+                <TableHead>Alias (SUB ID)</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Estado</TableHead>
