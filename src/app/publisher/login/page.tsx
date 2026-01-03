@@ -20,6 +20,7 @@ import { Logo } from "@/components/ui/logo";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Cookies from "js-cookie";
+import { Loader2 } from "lucide-react";
 
 type CompanySettings = {
   companyName?: string;
@@ -32,7 +33,7 @@ export default function PublisherAuthPage() {
   const [registerName, setRegisterName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
-  const [isCheckingRole, setIsCheckingRole] = useState(false); // Cambiado a false por defecto
+  const [isLoading, setIsLoading] = useState(false);
 
   const auth = useAuth();
   const firestore = db;
@@ -43,79 +44,35 @@ export default function PublisherAuthPage() {
   const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
+  // If user is already logged in, redirect them to their dashboard.
   useEffect(() => {
-    // Si Firebase aún está cargando el estado del usuario, no hacemos nada
-    if (isUserLoading) return;
-
-    // Si NO hay usuario autenticado, nos aseguramos de que no se quede cargando
-    if (!user) {
-      setIsCheckingRole(false);
-      return;
+    if (!isUserLoading && user) {
+      router.replace('/publisher');
     }
+  }, [user, isUserLoading, router]);
 
-    const checkRoleAndRedirect = async () => {
-      if (!firestore) return;
-      setIsCheckingRole(true);
-
-      try {
-        const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-        const publisherRef = doc(firestore, 'publishers', user.uid);
-
-        const [adminDoc, publisherDoc] = await Promise.all([
-          getDoc(adminRoleRef),
-          getDoc(publisherRef)
-        ]);
-
-        if (adminDoc.exists()) {
-          router.replace('/admin');
-          return;
-        }
-
-        if (publisherDoc.exists()) {
-          router.replace('/publisher');
-          return;
-        }
-
-        // Si el usuario está logueado pero NO tiene rol (ej. cuenta nueva sin datos)
-        // Borramos cookie y deslogueamos para evitar el bucle
-        Cookies.remove('session');
-        if (auth) await auth.signOut();
-        toast({
-          variant: "destructive",
-          title: "Acceso denegado",
-          description: "Tu cuenta no tiene permisos asignados."
-        });
-        setIsCheckingRole(false);
-
-      } catch (error) {
-        console.error("Error validando permisos:", error);
-        setIsCheckingRole(false);
-      }
-    };
-
-    checkRoleAndRedirect();
-  }, [user, isUserLoading, firestore, auth, router, toast]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth) return;
     
-    setIsCheckingRole(true);
+    setIsLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       const token = await userCredential.user.getIdToken();
-      
-      // Guardar cookie ANTES de cualquier redirección
       Cookies.set('session', token, { expires: 7, secure: true, sameSite: 'strict' });
-      
-      // El useEffect de arriba detectará el cambio de 'user' y hará la redirección
+      // The useEffect above will handle the redirect.
+      // We manually trigger a refresh to make sure middleware and layouts re-evaluate.
+      router.refresh();
+
     } catch (error: any) {
-      setIsCheckingRole(false);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Credenciales inválidas o cuenta no existente."
+        title: "Error de Acceso",
+        description: "Credenciales inválidas o la cuenta no existe. Por favor, verifica tus datos."
       });
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -123,18 +80,21 @@ export default function PublisherAuthPage() {
     e.preventDefault();
     if (!auth || !firestore) return;
     
-    setIsCheckingRole(true);
+    setIsLoading(true);
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
         const token = await userCredential.user.getIdToken();
         Cookies.set('session', token, { expires: 7, secure: true, sameSite: 'strict' });
 
+        const [firstName, ...lastNameParts] = registerName.trim().split(' ');
+        const lastName = lastNameParts.join(' ');
+
         await updateProfile(userCredential.user, { displayName: registerName });
 
         await setDoc(doc(firestore, 'publishers', userCredential.user.uid), {
             id: userCredential.user.uid,
-            firstName: registerName.split(' ')[0] || '',
-            lastName: registerName.split(' ').slice(1).join(' ') || '',
+            firstName: firstName || '',
+            lastName: lastName || '',
             email: userCredential.user.email,
             status: 'active',
             createdAt: serverTimestamp(),
@@ -142,27 +102,36 @@ export default function PublisherAuthPage() {
         
         router.refresh();
     } catch (error: any) {
-        setIsCheckingRole(false);
-        toast({ variant: "destructive", title: "Error", description: "No se pudo completar el registro." });
+        toast({ 
+            variant: "destructive", 
+            title: "Error de Registro", 
+            description: "No se pudo completar el registro. El email podría ya estar en uso." 
+        });
+    } finally {
+        setIsLoading(false);
     }
   };
 
-  // Solo mostramos pantalla de carga si Firebase está verificando el estado inicial
-  // o si estamos en proceso de redirección tras confirmar el rol.
-  if (isUserLoading || (user && isCheckingRole)) {
+  if (isUserLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
-        <p className="mt-4 text-sm text-muted-foreground">Validando sesión...</p>
+        <p className="mt-4 text-sm text-muted-foreground">Cargando...</p>
       </div>
     );
+  }
+  
+  // If user is logged in, we render nothing while the redirect happens.
+  if (user) {
+    return null;
   }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-muted/30 p-4">
-      <div className="mb-8 flex flex-col items-center">
+      <div className="mb-8 flex flex-col items-center text-center">
         <Logo className="h-16 w-16" src={settingsData?.logoUrl} />
         <h1 className="text-2xl font-bold mt-4">{settingsData?.companyName || "Cargando..."}</h1>
+        <p className="text-muted-foreground">Portal de Publishers</p>
       </div>
 
       <Tabs defaultValue="login" className="w-full max-w-sm">
@@ -175,20 +144,42 @@ export default function PublisherAuthPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Bienvenido</CardTitle>
+                <CardDescription>Accede a tu panel de control.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Input type="email" placeholder="Email" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
-                <Input type="password" placeholder="Contraseña" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
+                <Input type="email" placeholder="Email" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} disabled={isLoading} />
+                <Input type="password" placeholder="Contraseña" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} disabled={isLoading} />
               </CardContent>
               <CardFooter>
-                <Button className="w-full" type="submit" disabled={isCheckingRole}>
-                  {isCheckingRole ? "Iniciando..." : "Acceder"}
+                <Button className="w-full" type="submit" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isLoading ? "Validando..." : "Acceder"}
                 </Button>
               </CardFooter>
             </Card>
           </form>
         </TabsContent>
-        {/* ... (Contenido de Registro igual al anterior) */}
+        <TabsContent value="register">
+          <form onSubmit={handleRegister}>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Crear Cuenta</CardTitle>
+                    <CardDescription>Regístrate para acceder a tu panel.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <Input type="text" placeholder="Nombre y Apellido" required value={registerName} onChange={(e) => setRegisterName(e.target.value)} disabled={isLoading} />
+                    <Input type="email" placeholder="Email" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} disabled={isLoading} />
+                    <Input type="password" placeholder="Contraseña (mínimo 6 caracteres)" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} disabled={isLoading} />
+                </CardContent>
+                <CardFooter>
+                    <Button className="w-full" type="submit" disabled={isLoading}>
+                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      {isLoading ? "Creando cuenta..." : "Registrarse"}
+                    </Button>
+                </CardFooter>
+            </Card>
+          </form>
+        </TabsContent>
       </Tabs>
     </div>
   );
