@@ -40,6 +40,9 @@ export default function AdminAuthPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
+  
+  const superAdminEmail = 'vallecondo@gmail.com';
+  const superAdminUID = 'EUVaG6bzMsYOUz3co2Ey0Qh6S2R2';
 
   const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
@@ -76,7 +79,7 @@ export default function AdminAuthPage() {
 
     checkAdminRole();
 
-  }, [user, isUserLoading, router, firestore, auth, toast]);
+  }, [user, isUserLoading, router, firestore, auth]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,11 +88,27 @@ export default function AdminAuthPage() {
       const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       const loggedInUser = userCredential.user;
 
-      // Immediately check for admin role after login
       const adminRoleRef = doc(firestore, 'roles_admin', loggedInUser.uid);
       const docSnap = await getDoc(adminRoleRef);
+      
+      let isAdmin = docSnap.exists();
 
-      if (docSnap.exists()) {
+      // Special case: If the super admin logs in for the first time, create their role document.
+      if (!isAdmin && loggedInUser.email === superAdminEmail && loggedInUser.uid === superAdminUID) {
+        try {
+            await setDoc(adminRoleRef, { role: 'superadmin' });
+            toast({ title: "Rol de Super Admin Creado", description: "Tu cuenta de administrador principal ha sido configurada." });
+            isAdmin = true; // Now they are an admin
+        } catch (roleError) {
+             toast({
+                variant: "destructive",
+                title: "Error de configuración",
+                description: "No se pudo crear el rol de superadmin. Revisa las reglas de Firestore.",
+            });
+        }
+      }
+
+      if (isAdmin) {
         // User is an admin, the useEffect will handle the redirect.
         // We set isCheckingAdmin to true to show a loading state while redirecting.
         setIsCheckingAdmin(true);
@@ -125,6 +144,8 @@ export default function AdminAuthPage() {
   
     let userCredential;
     try {
+      // This function should only be callable by a super admin.
+      // The rules for 'roles_admin' should enforce this.
       userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
       const newUser = userCredential.user;
       
@@ -146,7 +167,7 @@ export default function AdminAuthPage() {
       if (error.code === 'auth/email-already-in-use') {
         description = "Este correo electrónico ya está en uso. Por favor, utiliza otro."
       } else if (error.code === 'permission-denied') {
-        description = "No tienes permisos para crear una cuenta de administrador.";
+        description = "No tienes permisos para crear una cuenta de administrador. Solo el superadmin puede hacerlo.";
       } else if (error.message) {
         description = error.message;
       }
