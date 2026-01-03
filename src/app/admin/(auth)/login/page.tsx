@@ -62,21 +62,13 @@ export default function AdminAuthPage() {
         if (docSnap.exists()) {
           router.push('/admin');
         } else {
-          toast({
-            variant: "destructive",
-            title: "Acceso denegado",
-            description: "No tienes permisos de administrador. Se cerrará tu sesión.",
-          });
+          // This case is for users who are already logged in but are not admins.
+          // The login function will now handle this for new logins.
           if(auth) await auth.signOut();
           setIsCheckingAdmin(false);
         }
       } catch (error) {
         console.error("Error checking admin role:", error);
-        toast({
-            variant: "destructive",
-            title: "Error de verificación",
-            description: "No se pudo verificar el rol de administrador.",
-          });
         if(auth) await auth.signOut();
         setIsCheckingAdmin(false);
       }
@@ -88,10 +80,29 @@ export default function AdminAuthPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
+    if (!auth || !firestore) return;
     try {
-      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      // The useEffect will handle the role check and redirect on successful login
+      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      const loggedInUser = userCredential.user;
+
+      // Immediately check for admin role after login
+      const adminRoleRef = doc(firestore, 'roles_admin', loggedInUser.uid);
+      const docSnap = await getDoc(adminRoleRef);
+
+      if (docSnap.exists()) {
+        // User is an admin, the useEffect will handle the redirect.
+        // We set isCheckingAdmin to true to show a loading state while redirecting.
+        setIsCheckingAdmin(true);
+      } else {
+        // User is not an admin, show error and sign out.
+        toast({
+          variant: "destructive",
+          title: "Acceso denegado",
+          description: "No tienes permisos de administrador.",
+        });
+        await auth.signOut();
+      }
+
     } catch (error: any) {
       console.error("Admin Login Error:", error);
       let description = "Ocurrió un error al intentar iniciar sesión.";
