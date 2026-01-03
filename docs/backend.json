@@ -162,6 +162,19 @@
           "type": "string",
           "description": "The physical address of the company."
         },
+        "companyPhone": {
+          "type": "string",
+          "description": "The contact phone number for the company."
+        },
+        "companyEmail": {
+          "type": "string",
+          "description": "The contact email address for the company.",
+          "format": "email"
+        },
+        "companySocialMedia": {
+          "type": "string",
+          "description": "A relevant social media handle or URL for the company (e.g., @MyCompany)."
+        },
         "logoUrl": {
           "type": "string",
           "description": "URL for the company logo.",

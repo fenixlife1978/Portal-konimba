@@ -32,6 +32,9 @@ import {
 const settingsSchema = z.object({
   companyName: z.string().min(1, 'El nombre de la empresa es requerido.'),
   companyAddress: z.string().min(1, 'La dirección es requerida.'),
+  companyPhone: z.string().optional(),
+  companyEmail: z.string().email('Debe ser un email válido.').or(z.literal('')),
+  companySocialMedia: z.string().optional(),
   logoUrl: z.string().url('Debe ser una URL válida.').or(z.literal('')),
   usdToVesRate: z.coerce.number().positive('La tasa debe ser un número positivo.'),
   usdToCopRate: z.coerce.number().positive('La tasa debe ser un número positivo.'),
@@ -105,6 +108,9 @@ export default function SettingsPage() {
     defaultValues: {
       companyName: '',
       companyAddress: '',
+      companyPhone: '',
+      companyEmail: '',
+      companySocialMedia: '',
       logoUrl: '',
       usdToVesRate: 0,
       usdToCopRate: 0,
@@ -223,9 +229,9 @@ export default function SettingsPage() {
       <form onSubmit={handleSubmit(onSubmit)}>
         <Card>
           <CardHeader>
-            <CardTitle>Información General</CardTitle>
+            <CardTitle>Información General y Contacto</CardTitle>
             <CardDescription>
-              Gestiona los datos principales y el logo de tu empresa.
+              Gestiona los datos principales, logo e información de contacto de tu empresa.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -259,29 +265,67 @@ export default function SettingsPage() {
                 </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="companyName">Nombre de la Empresa</Label>
-              <Controller
-                name="companyName"
-                control={control}
-                render={({ field }) => (
-                  <Input {...field} id="companyName" placeholder="Ej: Siren's Portal Inc." />
-                )}
-              />
-              {errors.companyName && <p className="text-sm text-destructive">{errors.companyName.message}</p>}
-            </div>
+             <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="companyName">Nombre de la Empresa</Label>
+                  <Controller
+                    name="companyName"
+                    control={control}
+                    render={({ field }) => (
+                      <Input {...field} id="companyName" placeholder="Ej: Siren's Portal Inc." />
+                    )}
+                  />
+                  {errors.companyName && <p className="text-sm text-destructive">{errors.companyName.message}</p>}
+                </div>
 
-             <div className="space-y-2">
-              <Label htmlFor="companyAddress">Dirección de la Empresa</Label>
-              <Controller
-                name="companyAddress"
-                control={control}
-                render={({ field }) => (
-                  <Input {...field} id="companyAddress" placeholder="Ej: Av. Principal, Edificio Central, Piso 1" />
-                )}
-              />
-              {errors.companyAddress && <p className="text-sm text-destructive">{errors.companyAddress.message}</p>}
-            </div>
+                 <div className="space-y-2">
+                  <Label htmlFor="companyAddress">Dirección de la Empresa</Label>
+                  <Controller
+                    name="companyAddress"
+                    control={control}
+                    render={({ field }) => (
+                      <Input {...field} id="companyAddress" placeholder="Ej: Av. Principal, Edificio Central, Piso 1" />
+                    )}
+                  />
+                  {errors.companyAddress && <p className="text-sm text-destructive">{errors.companyAddress.message}</p>}
+                </div>
+                
+                 <div className="space-y-2">
+                  <Label htmlFor="companyPhone">Teléfono de Contacto</Label>
+                  <Controller
+                    name="companyPhone"
+                    control={control}
+                    render={({ field }) => (
+                      <Input {...field} id="companyPhone" placeholder="Ej: +58 212 555 1234" />
+                    )}
+                  />
+                  {errors.companyPhone && <p className="text-sm text-destructive">{errors.companyPhone.message}</p>}
+                </div>
+
+                 <div className="space-y-2">
+                  <Label htmlFor="companyEmail">Email de Contacto</Label>
+                  <Controller
+                    name="companyEmail"
+                    control={control}
+                    render={({ field }) => (
+                      <Input {...field} id="companyEmail" type="email" placeholder="Ej: contacto@empresa.com" />
+                    )}
+                  />
+                  {errors.companyEmail && <p className="text-sm text-destructive">{errors.companyEmail.message}</p>}
+                </div>
+                
+                 <div className="space-y-2">
+                  <Label htmlFor="companySocialMedia">Red Social (Usuario o URL)</Label>
+                  <Controller
+                    name="companySocialMedia"
+                    control={control}
+                    render={({ field }) => (
+                      <Input {...field} id="companySocialMedia" placeholder="Ej: @MiEmpresa" />
+                    )}
+                  />
+                  {errors.companySocialMedia && <p className="text-sm text-destructive">{errors.companySocialMedia.message}</p>}
+                </div>
+             </div>
           </CardContent>
 
           <Separator className="my-6" />

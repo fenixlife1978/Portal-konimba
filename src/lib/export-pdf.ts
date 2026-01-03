@@ -19,6 +19,9 @@ interface ExportOptions {
     reportTitle?: string;
     companyName?: string;
     companyAddress?: string;
+    companyPhone?: string;
+    companyEmail?: string;
+    companySocialMedia?: string;
     showFooter?: boolean;
     isSubtable?: boolean;
     addPage?: boolean;
@@ -50,6 +53,9 @@ export const exportToPDF = async (
     reportTitle = 'Reporte',
     companyName = "Portal Konimba",
     companyAddress,
+    companyPhone,
+    companyEmail,
+    companySocialMedia,
     showFooter = true,
     isSubtable = false,
     addPage = false,
@@ -101,27 +107,44 @@ export const exportToPDF = async (
         console.error("Could not load logo for PDF, using text fallback.", error);
       }
       
+      // Company Info Block
       const companyInfoX = margin + 25;
       pdf.setFontSize(14);
       pdf.setFont('helvetica', 'bold');
       pdf.text(companyName, companyInfoX, 15);
       
+      let companyInfoY = 20;
+      pdf.setFontSize(8);
+      pdf.setFont('helvetica', 'normal');
+      
       if(companyAddress) {
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(companyAddress, companyInfoX, 21);
+        pdf.text(companyAddress, companyInfoX, companyInfoY);
+        companyInfoY += 4;
       }
+       if(companyPhone) {
+        pdf.text(`Tel: ${companyPhone}`, companyInfoX, companyInfoY);
+        companyInfoY += 4;
+      }
+      if(companyEmail) {
+        pdf.text(`Email: ${companyEmail}`, companyInfoX, companyInfoY);
+        companyInfoY += 4;
+      }
+       if(companySocialMedia) {
+        pdf.text(`Social: ${companySocialMedia}`, companyInfoX, companyInfoY);
+      }
+      
 
+      // Report Title and Date (Right aligned)
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'normal');
       pdf.text(reportTitle, pdfWidth - margin, 15, { align: 'right' });
     
       pdf.setFontSize(10);
       pdf.setTextColor(150);
-      const dateStr = new Date().toLocaleDateString('es-VE');
+      const dateStr = new Date().toLocaleDateString('es-VE', { year: 'numeric', month: 'long', day: 'numeric' });
       pdf.text(dateStr, pdfWidth - margin, 23, { align: 'right' });
       
-      startY = 35;
+      startY = Math.max(companyInfoY, 25) + 10;
   }
 
 

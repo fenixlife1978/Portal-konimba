@@ -29,7 +29,15 @@ import { exportToPDF } from '@/lib/export-pdf';
 
 // Types
 type Publisher = { id: string; firstName: string; lastName: string; email: string; paymentMethod?: string; country?: string; };
-type CompanySettings = { usdToVesRate?: number; usdToCopRate?: number; companyName?: string; companyAddress?: string; };
+type CompanySettings = { 
+    companyName?: string; 
+    companyAddress?: string; 
+    companyPhone?: string;
+    companyEmail?: string;
+    companySocialMedia?: string;
+    usdToVesRate?: number; 
+    usdToCopRate?: number; 
+};
 type Offer = { id: string; name: string; paymentAmount: number; };
 type Lead = { 
   id: string; 
@@ -134,34 +142,38 @@ export default function PerformancePage() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [reportPeriod, setReportPeriod] = useState<string | null>(null);
+  const [pageTitle, setPageTitle] = useState('Reporte de Rendimiento');
 
 
   const onSubmit = async (data: ReportFormData) => {
     if (!user || !firestore) return;
     setIsGenerating(true);
     setReportData(null);
-    setReportPeriod(null);
+    setPageTitle('Generando reporte...');
     
     const { month, year, period } = data;
 
     let startDay = 1;
     let endDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-    let periodLabel = `${months.find(m => m.value === month)?.label} ${year}`;
-    let daysInPeriodArray: number[];
+    let periodLabel = "";
+    
+    const monthName = months.find(m => m.value === month)?.label;
     
     if (period === 'fortnight-1') {
         endDay = 15;
-        periodLabel = `1ra Quincena - ${periodLabel}`;
+        periodLabel = `del 01 al 15 de ${monthName} ${year}`;
     } else if (period === 'fortnight-2') {
         startDay = 16;
-        periodLabel = `2da Quincena - ${periodLabel}`;
+        periodLabel = `del 16 al ${endDay} de ${monthName} ${year}`;
+    } else {
+        periodLabel = `del 01 al ${endDay} de ${monthName} ${year}`;
     }
-    
-    daysInPeriodArray = Array.from({ length: (endDay - startDay) + 1 }, (_, i) => startDay + i);
+
+    setPageTitle(`Reporte ${periodLabel}`);
+
+    const daysInPeriodArray = Array.from({ length: (endDay - startDay) + 1 }, (_, i) => startDay + i);
     const startDate = `${year}-${month.padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
     const endDate = `${year}-${month.padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
-    setReportPeriod(`del ${startDate} al ${endDate}`);
 
     try {
       const leadsQuery = query(
@@ -177,6 +189,7 @@ export default function PerformancePage() {
       if (leads.length === 0) {
         setReportData(null);
         toast({ title: "Sin resultados", description: "No tienes leads registrados para este período." });
+        setPageTitle('Reporte de Rendimiento');
         setIsGenerating(false);
         return;
       }
@@ -201,13 +214,14 @@ export default function PerformancePage() {
         title: "Error al generar reporte",
         description: error.message || "No se pudieron obtener tus datos de rendimiento.",
       });
+      setPageTitle('Reporte de Rendimiento');
     } finally {
       setIsGenerating(false);
     }
   };
 
   const handleExport = async () => {
-    if (!reportData || !publisherData || !reportPeriod) return;
+    if (!reportData || !publisherData || !pageTitle) return;
     setIsExporting(true);
 
     const processed = processReport(reportData);
@@ -217,8 +231,7 @@ export default function PerformancePage() {
         return;
     }
     
-    const reportTitle = `Reporte de Rendimiento - ${publisherData.firstName} ${publisherData.lastName}`;
-    const fileName = `Reporte_Rendimiento_${publisherData.lastName}_${reportData.periodLabel.replace(' ','_')}.pdf`;
+    const fileName = `Reporte_Rendimiento_${publisherData.lastName}_${reportData.periodLabel.replace(/ /g, '_')}.pdf`;
 
     const head = [["Oferta", ...processed.dayColumns.map(String), "Total Leads", "Precio (USD)", "Ganancia (USD)"]];
     const body = processed.tableRows.map(row => [
@@ -240,9 +253,12 @@ export default function PerformancePage() {
         body,
         foot,
         fileName,
-        reportTitle,
+        reportTitle: pageTitle,
         companyName: settingsData?.companyName,
         companyAddress: settingsData?.companyAddress,
+        companyPhone: settingsData?.companyPhone,
+        companyEmail: settingsData?.companyEmail,
+        companySocialMedia: settingsData?.companySocialMedia,
         showFooter: true
     });
 
@@ -263,7 +279,7 @@ export default function PerformancePage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold font-headline text-foreground">
-          {reportPeriod ? `Reporte ${reportPeriod}` : 'Reporte de Rendimiento'}
+          {pageTitle}
         </h1>
         <Button asChild variant="outline">
           <Link href="/publisher">
@@ -334,7 +350,7 @@ export default function PerformancePage() {
        )}
 
        {reportData && publisherData ? (
-           <ReportDisplay reportData={reportData} publisher={publisherData} period={reportData.periodLabel} settings={settingsData} />
+           <ReportDisplay reportData={reportData} publisher={publisherData} period={pageTitle} settings={settingsData} />
        ) : (
            !isGenerating && (
              <Card className="mt-8">
