@@ -57,11 +57,12 @@ service cloud.firestore {
      * @path /publishers/{publisherId}
      */
     match /publishers/{publisherId} {
-      // Admins have full read/write access.
-      allow read, write: if isAdmin();
+      // Admins have full write access and can list all publishers.
+      allow write, list: if isAdmin();
       
-      // Publishers can only read and update their own data. They cannot create or delete their profile.
-      allow read, update: if isOwner(publisherId);
+      // Publishers can only read and update their own data.
+      // Admins can also get individual documents.
+      allow get, update: if isOwner(publisherId) || isAdmin();
     }
 
     /**
