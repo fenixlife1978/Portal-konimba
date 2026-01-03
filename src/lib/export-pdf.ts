@@ -18,6 +18,7 @@ interface ExportOptions {
     fileName?: string;
     reportTitle?: string;
     companyName?: string;
+    companyAddress?: string;
     showFooter?: boolean;
     isSubtable?: boolean;
     addPage?: boolean;
@@ -48,6 +49,7 @@ export const exportToPDF = async (
     fileName = 'report.pdf',
     reportTitle = 'Reporte',
     companyName = "Portal Konimba",
+    companyAddress,
     showFooter = true,
     isSubtable = false,
     addPage = false,
@@ -86,23 +88,30 @@ export const exportToPDF = async (
   const pdfWidth = pdf.internal.pageSize.getWidth();
   const margin = 15;
 
-  let startY = 25;
+  let startY = 15;
 
   if (!isSubtable) {
       // --- Add Header ---
       const logoUrl = "https://i.supaimg.com/f1d0ffb2-fc91-4d68-b225-ad61b19b274e.jpg"; // 👉 tu logo externo
       try {
         const logoDataUrl = await getImageDataUrl(logoUrl);
-        // Detecta formato automáticamente
         const format = logoDataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
-        pdf.addImage(logoDataUrl, format, margin, 10, 30, 10);
+        pdf.addImage(logoDataUrl, format, margin, 10, 20, 20); // x, y, width, height
       } catch (error) {
         console.error("Could not load logo for PDF, using text fallback.", error);
-        pdf.setFontSize(18);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(companyName, margin, margin + 8);
       }
       
+      const companyInfoX = margin + 25;
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(companyName, companyInfoX, 15);
+      
+      if(companyAddress) {
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(companyAddress, companyInfoX, 21);
+      }
+
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'normal');
       pdf.text(reportTitle, pdfWidth - margin, 15, { align: 'right' });
@@ -111,7 +120,10 @@ export const exportToPDF = async (
       pdf.setTextColor(150);
       const dateStr = new Date().toLocaleDateString('es-VE');
       pdf.text(dateStr, pdfWidth - margin, 23, { align: 'right' });
+      
+      startY = 35;
   }
+
 
   const drawTable = (tableOptions: UserOptions) => {
     autoTable(pdf, tableOptions);
@@ -178,7 +190,7 @@ export const exportToPDF = async (
         head,
         body,
         foot,
-        startY: margin + 25,
+        startY,
         theme: 'grid',
         styles: {
             font: 'helvetica',

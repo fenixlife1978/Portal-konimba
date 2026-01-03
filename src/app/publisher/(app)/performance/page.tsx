@@ -29,7 +29,7 @@ import { exportToPDF } from '@/lib/export-pdf';
 
 // Types
 type Publisher = { id: string; firstName: string; lastName: string; email: string; paymentMethod?: string; country?: string; };
-type CompanySettings = { usdToVesRate?: number; usdToCopRate?: number; companyName?: string };
+type CompanySettings = { usdToVesRate?: number; usdToCopRate?: number; companyName?: string; companyAddress?: string; };
 type Offer = { id: string; name: string; paymentAmount: number; };
 type Lead = { 
   id: string; 
@@ -242,6 +242,7 @@ export default function PerformancePage() {
         fileName,
         reportTitle,
         companyName: settingsData?.companyName,
+        companyAddress: settingsData?.companyAddress,
         showFooter: true
     });
 
