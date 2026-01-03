@@ -21,6 +21,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Cookies from "js-cookie"; // NUEVO: Importación de cookies
 
 type CompanySettings = {
   companyName?: string;
@@ -76,7 +77,10 @@ export default function PublisherAuthPage() {
             title: "Acceso no permitido",
             description: "Los administradores no pueden iniciar sesión en el panel de publishers.",
           });
-          if (auth) await auth.signOut();
+          if (auth) {
+            await auth.signOut();
+            Cookies.remove('session'); // Limpiar cookie si se intenta entrar con rol equivocado
+          }
           setIsCheckingRole(false);
           return;
         }
@@ -106,7 +110,16 @@ export default function PublisherAuthPage() {
     e.preventDefault();
     if (!auth) return;
     try {
-      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      // 1. Iniciar sesión en Firebase
+      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      
+      // 2. Generar Token y Guardar en Cookie para el Middleware
+      const token = await userCredential.user.getIdToken();
+      Cookies.set('session', token, { expires: 7, secure: true, sameSite: 'strict' });
+      
+      // 3. Refrescar estado de rutas
+      router.refresh();
+
     } catch (error: any) {
       console.error("Publisher Login Error:", error);
       let description = "No se pudo iniciar sesión. Verifica tus credenciales.";
@@ -138,6 +151,10 @@ export default function PublisherAuthPage() {
         const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
         const newUser = userCredential.user;
         
+        // 1. Generar Token y Guardar en Cookie para el Middleware
+        const token = await newUser.getIdToken();
+        Cookies.set('session', token, { expires: 7, secure: true, sameSite: 'strict' });
+
         await updateProfile(newUser, { displayName: registerName });
 
         const publisherRef = doc(firestore, 'publishers', newUser.uid);
@@ -152,7 +169,8 @@ export default function PublisherAuthPage() {
         });
         
         toast({ title: "¡Registro exitoso!", description: "Tu cuenta ha sido creada. Serás redirigido." });
-        // El useEffect se encargará de redirigir al usuario al panel de publisher
+        router.refresh();
+
     } catch (error: any) {
         console.error("Publisher Registration Error:", error);
         let description = "No se pudo crear la cuenta.";
@@ -165,7 +183,7 @@ export default function PublisherAuthPage() {
     }
   };
 
-
+  
   const handlePasswordReset = async () => {
     const emailToReset = loginEmail || registerEmail;
     if (!emailToReset) {
