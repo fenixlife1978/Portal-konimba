@@ -712,26 +712,26 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
                     </div>
                 </form>
 
-                 <SelectionModal
-                    open={periodModalOpen}
-                    onOpenChange={setPeriodModalOpen}
-                    title="Seleccionar Período"
-                    options={periodOptions}
-                    value={watchedPeriod}
-                    onValueChange={(value) => setValue('period', value)}
-                    fieldName="period"
-                />
+                type Period = "monthly" | "fortnight-1" | "fortnight-2";
 
-                <SelectionModal
-                    open={monthModalOpen}
-                    onOpenChange={setMonthModalOpen}
-                    title="Seleccionar Mes"
-                    options={months}
-                    value={watchedMonth}
-                    onValueChange={(value) => setValue('month', value)}
-                    fieldName="month"
-                />
+const periodOptions: { value: Period; label: string }[] = [
+  { value: "monthly", label: "Mensual" },
+  { value: "fortnight-1", label: "Primera Quincena" },
+  { value: "fortnight-2", label: "Segunda Quincena" },
+];
 
+<SelectionModal
+  open={periodModalOpen}
+  onOpenChange={setPeriodModalOpen}
+  title="Seleccionar Período"
+  options={periodOptions}
+  value={watchedPeriod as Period}
+  onValueChange={(value: Period) => setValue("period", value)}
+  fieldName="period"
+/>
+
+
+                
                 <SelectionModal
                     open={yearModalOpen}
                     onOpenChange={setYearModalOpen}

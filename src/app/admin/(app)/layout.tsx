@@ -1,4 +1,5 @@
 'use client';
+
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
@@ -20,14 +21,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const firestore = db;
   const router = useRouter();
 
-  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const settingsRef = useMemo(
+    () => (firestore ? doc(firestore, 'settings', 'company') : null),
+    [firestore]
+  );
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (auth) {
-      signOut(auth).then(() => {
-        router.push('/'); // Redirect to home page after logout
-      });
+      try {
+        await signOut(auth);
+        router.push('/'); // ✅ redirige al home tras logout
+      } catch (error) {
+        console.error('Error al cerrar sesión:', error);
+      }
     }
   };
 
@@ -38,21 +45,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin" className="flex items-center gap-3 group">
             <Logo className="h-12 w-12" src={settingsData?.logoUrl} />
             <span className="text-xl font-bold font-headline text-foreground hidden sm:inline">
-              {settingsData?.companyName || "Portal Konimba"}
+              {settingsData?.companyName || 'Portal Konimba'}
             </span>
           </Link>
 
           <div className="flex items-center gap-4">
-             <Button onClick={handleLogout} variant="ghost">
+            <Button onClick={handleLogout} variant="ghost">
               <LogOut className="mr-2 h-4 w-4" />
               Cerrar Sesión
             </Button>
           </div>
         </div>
       </header>
-      <main className="container mx-auto p-4 sm:p-8">
-        {children}
-      </main>
+
+      <main className="container mx-auto p-4 sm:p-8">{children}</main>
     </div>
   );
 }
