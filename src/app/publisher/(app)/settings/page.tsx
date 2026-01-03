@@ -196,8 +196,8 @@ export default function SettingsPage() {
   };
 
   const handleSavePersonalInfo = async () => {
-    if (!personalInfo.firstName || !personalInfo.lastName) {
-      toast({ variant: 'destructive', title: "Campos requeridos", description: "El nombre y el apellido no pueden estar vacíos." });
+    if (!personalInfo.firstName) {
+      toast({ variant: 'destructive', title: "Campo requerido", description: "El nombre no puede estar vacío." });
       return;
     }
     setIsSavingPersonalInfo(true);

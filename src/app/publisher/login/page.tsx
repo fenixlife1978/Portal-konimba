@@ -14,12 +14,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth, useUser, useDoc } from "@/firebase"; 
 import { db } from '@/firebase/config';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/ui/logo";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type CompanySettings = {
   companyName?: string;
@@ -27,9 +28,12 @@ type CompanySettings = {
 };
 
 export default function PublisherAuthPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isCheckingRole, setIsCheckingRole] = useState(true); 
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [registerName, setRegisterName] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [isCheckingRole, setIsCheckingRole] = useState(true);
 
   const auth = useAuth();
   const firestore = db;
@@ -102,7 +106,7 @@ export default function PublisherAuthPage() {
     e.preventDefault();
     if (!auth) return;
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
     } catch (error: any) {
       console.error("Publisher Login Error:", error);
       let description = "No se pudo iniciar sesión. Verifica tus credenciales.";
@@ -117,8 +121,54 @@ export default function PublisherAuthPage() {
     }
   };
 
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth || !firestore) return;
+    
+    const nameParts = registerName.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    if (!firstName) {
+        toast({ variant: "destructive", title: "Error de registro", description: "Por favor, introduce al menos un nombre." });
+        return;
+    }
+
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
+        const newUser = userCredential.user;
+        
+        await updateProfile(newUser, { displayName: registerName });
+
+        const publisherRef = doc(firestore, 'publishers', newUser.uid);
+        await setDoc(publisherRef, {
+            id: newUser.uid,
+            firstName,
+            lastName,
+            email: newUser.email,
+            status: 'active',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        });
+        
+        toast({ title: "¡Registro exitoso!", description: "Tu cuenta ha sido creada. Serás redirigido." });
+        // El useEffect se encargará de redirigir al usuario al panel de publisher
+    } catch (error: any) {
+        console.error("Publisher Registration Error:", error);
+        let description = "No se pudo crear la cuenta.";
+        if (error.code === 'auth/email-already-in-use') {
+            description = "Este correo electrónico ya está en uso. Por favor, utiliza otro."
+        } else if (error.code === 'auth/weak-password') {
+            description = "La contraseña es demasiado débil (mínimo 6 caracteres)."
+        }
+        toast({ variant: "destructive", title: "Error de registro", description });
+    }
+  };
+
+
   const handlePasswordReset = async () => {
-    if (!email) {
+    const emailToReset = loginEmail || registerEmail;
+    if (!emailToReset) {
       toast({
         variant: "destructive",
         title: "Correo electrónico requerido",
@@ -128,7 +178,7 @@ export default function PublisherAuthPage() {
     }
     if (!auth) return;
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, emailToReset);
       toast({
         title: "Correo de recuperación enviado",
         description: "Revisa tu bandeja de entrada para restablecer tu contraseña.",
@@ -159,32 +209,66 @@ export default function PublisherAuthPage() {
         </div>
         <p className="text-muted-foreground mt-2">Acceso de Publisher</p>
       </div>
-      <form onSubmit={handleLogin} className="w-full max-w-sm">
-        <Card>
-          <CardHeader>
-          <CardTitle>Iniciar Sesión</CardTitle>
-          <CardDescription>
-              Accede a tu panel de publisher.
-          </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-          <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="tu@email.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <Button className="w-full" type="submit">Acceder</Button>
-            <Button variant="link" type="button" onClick={handlePasswordReset} className="text-sm font-normal">
-              ¿Olvidaste tu contraseña?
-            </Button>
-          </CardFooter>
-        </Card>
-      </form>
+
+       <Tabs defaultValue="login" className="w-full max-w-sm">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
+          <TabsTrigger value="register">Registrarse</TabsTrigger>
+        </TabsList>
+        <TabsContent value="login">
+          <form onSubmit={handleLogin}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Iniciar Sesión</CardTitle>
+                <CardDescription>Accede a tu panel de publisher.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="login-email">Email</Label>
+                  <Input id="login-email" type="email" placeholder="tu@email.com" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="login-password">Contraseña</Label>
+                  <Input id="login-password" type="password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
+                </div>
+              </CardContent>
+              <CardFooter className="flex flex-col gap-4">
+                <Button className="w-full" type="submit">Acceder</Button>
+                 <Button variant="link" type="button" onClick={handlePasswordReset} className="text-sm font-normal">
+                    ¿Olvidaste tu contraseña?
+                </Button>
+              </CardFooter>
+            </Card>
+          </form>
+        </TabsContent>
+        <TabsContent value="register">
+          <form onSubmit={handleRegister}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Crear Cuenta</CardTitle>
+                <CardDescription>Regístrate para acceder a tu panel de publisher.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                 <div className="space-y-2">
+                  <Label htmlFor="name">Nombre Completo</Label>
+                  <Input id="name" placeholder="Tu Nombre y Apellido" required value={registerName} onChange={(e) => setRegisterName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="register-email">Email</Label>
+                  <Input id="register-email" type="email" placeholder="tu@email.com" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="register-password">Contraseña</Label>
+                  <Input id="register-password" type="password" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full" type="submit">Crear Cuenta</Button>
+              </CardFooter>
+            </Card>
+          </form>
+        </TabsContent>
+      </Tabs>
       
       <Button asChild variant="link" className="mt-8">
         <Link href="/" >
