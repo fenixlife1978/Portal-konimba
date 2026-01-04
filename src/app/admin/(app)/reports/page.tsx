@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox } from '@/components/ui/combobox';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, FileText, Calendar as CalendarIcon, Download, Loader2 } from 'lucide-react';
+import { ArrowLeft, FileText, Calendar as CalendarIcon, Download, Loader2, Copy, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -40,6 +40,12 @@ type Publisher = {
     email: string; 
     country?: 'VE' | 'CO';
     paymentMethod?: 'pagoMovil' | 'transferencia' | 'usdt';
+    bank?: string;
+    accountNumber?: string;
+    mobilePaymentBank?: string;
+    mobilePaymentPhone?: string;
+    mobilePaymentId?: string;
+    usdtAddress?: string;
 };
 type Offer = { id: string; name: string; paymentAmount: number; status: 'active' | 'inactive' };
 type Lead = { 
@@ -149,16 +155,20 @@ export default function ReportsPage() {
       </div>
 
       <Tabs defaultValue="publisher-report">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="publisher-report">Reporte por Publisher</TabsTrigger>
-          <TabsTrigger value="general-payment-report">Reporte General de Pagos</TabsTrigger>
-          <TabsTrigger value="inactivity-report">Reporte de Inactividad</TabsTrigger>
+          <TabsTrigger value="general-payment-report">Rendimiento General</TabsTrigger>
+          <TabsTrigger value="payment-data-report">Datos de Pago</TabsTrigger>
+          <TabsTrigger value="inactivity-report">Inactividad</TabsTrigger>
         </TabsList>
         <TabsContent value="publisher-report">
             <PublisherReport publishers={publishers || []} isLoadingPublishers={isLoadingPublishers} companyName={settingsData?.companyName} />
         </TabsContent>
         <TabsContent value="general-payment-report">
             <GeneralPaymentReport publishers={publishers || []} offers={offers || []} settingsData={settingsData} />
+        </TabsContent>
+         <TabsContent value="payment-data-report">
+            <PaymentDataReport publishers={publishers || []} isLoadingPublishers={isLoadingPublishers} companyName={settingsData?.companyName} />
         </TabsContent>
         <TabsContent value="inactivity-report">
             <InactivityReport publishers={publishers || []} companyName={settingsData?.companyName} />
@@ -526,6 +536,31 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
     const [reportData, setReportData] = useState<GeneralReportResult | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    
+    const [selectedPublishers, setSelectedPublishers] = useState<Publisher[]>([]);
+    
+    const publisherOptions = useMemo(() => {
+    return publishers
+      ? publishers
+          .filter(p => !selectedPublishers.some(sp => sp.id === p.id))
+          .map(p => ({
+              value: p.id,
+              label: `${p.firstName} ${p.lastName} ${p.subId ? `(Sub ID: ${p.subId})` : ''}`,
+            }))
+      : [];
+  }, [publishers, selectedPublishers]);
+  
+    const handlePublisherSelect = (publisherId: string) => {
+        const publisherToAdd = publishers?.find(p => p.id === publisherId);
+        if (publisherToAdd) {
+        setSelectedPublishers(prev => [...prev, publisherToAdd]);
+        }
+    };
+    
+    const handleRemovePublisher = (publisherId: string) => {
+        setSelectedPublishers(prev => prev.filter(p => p.id !== publisherId));
+    };
+
 
     const watchedPeriod = watch('period');
     const watchedMonth = watch('month');
@@ -623,6 +658,16 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
         setIsGenerating(true);
         setReportData(null);
 
+        if (selectedPublishers.length === 0) {
+            toast({
+                variant: 'destructive',
+                title: 'No hay publishers seleccionados',
+                description: 'Por favor, añade al menos un publisher a la lista para generar el reporte.',
+            });
+            setIsGenerating(false);
+            return;
+        }
+
         const { month, year, period } = data;
         
         let startDay = 1;
@@ -643,16 +688,19 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
         const endDate = `${year}-${month.padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
 
         try {
+             const selectedPublisherIds = selectedPublishers.map(p => p.id);
+
             const leadsQuery = query(
                 collection(firestore, 'leads'),
                 where('date', '>=', startDate),
-                where('date', '<=', endDate)
+                where('date', '<=', endDate),
+                where('publisherId', 'in', selectedPublisherIds)
             );
             const leadsSnapshot = await getDocs(leadsQuery);
             const leads = leadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lead));
 
             if (leads.length === 0) {
-                toast({ title: "Sin resultados", description: "No se encontraron leads en el período seleccionado." });
+                toast({ title: "Sin resultados", description: "No se encontraron leads para los publishers seleccionados en el período." });
                 setIsGenerating(false);
                 return;
             }
@@ -737,8 +785,8 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Reporte General de Pagos</CardTitle>
-                <CardDescription>Ver todos los publishers que generaron ganancias en un período específico.</CardDescription>
+                <CardTitle>Reporte General de Rendimiento</CardTitle>
+                <CardDescription>Selecciona un grupo de publishers y un período para generar un reporte de rendimiento consolidado.</CardDescription>
             </CardHeader>
             <CardContent>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -768,8 +816,34 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
                             {errors.year && <p className="text-sm text-destructive">{errors.year.message}</p>}
                         </div>
                     </div>
+
+                    <Separator />
+                    
+                     <div className="space-y-4">
+                        <Label>Publishers a Incluir</Label>
+                        <Combobox
+                            options={publisherOptions}
+                            onChange={handlePublisherSelect}
+                            value="" // We don't need to maintain a selected value here, it's just for adding
+                            placeholder="Buscar y añadir publisher al reporte..."
+                        />
+                         {selectedPublishers.length > 0 && (
+                            <div className="border rounded-lg p-2 space-y-2 max-h-40 overflow-y-auto">
+                                {selectedPublishers.map(p => (
+                                    <div key={p.id} className="flex justify-between items-center bg-muted/50 p-2 rounded">
+                                        <span className="text-sm">{p.firstName} {p.lastName} {p.subId ? `(${p.subId})` : ''}</span>
+                                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleRemovePublisher(p.id)}>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                     
+
                      <div className="flex gap-2">
-                        <Button type="submit" disabled={isGenerating}>
+                        <Button type="submit" disabled={isGenerating || selectedPublishers.length === 0}>
                              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
                             {isGenerating ? 'Generando...' : 'Generar Reporte'}
                         </Button>
@@ -887,9 +961,166 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
     );
 }
 
+// #################################################################################
+// ## TAB 3: Reporte de Datos de Pago
+// #################################################################################
+
+function PaymentDataReport({ publishers, isLoadingPublishers, companyName }: { publishers: Publisher[], isLoadingPublishers: boolean, companyName?: string }) {
+    const { toast } = useToast();
+    const [selectedPublishers, setSelectedPublishers] = useState<Publisher[]>([]);
+    const [reportData, setReportData] = useState<Publisher[] | null>(null);
+    const [isExporting, setIsExporting] = useState(false);
+    
+    const publisherOptions = useMemo(() => {
+        return publishers
+        .filter(p => !selectedPublishers.some(sp => sp.id === p.id))
+        .map(p => ({
+            value: p.id,
+            label: `${p.firstName} ${p.lastName} (${p.subId ? `SUB ID: ${p.subId} - ` : ''}${p.email})`,
+        })) || [];
+    }, [publishers, selectedPublishers]);
+    
+    const handlePublisherSelect = (publisherId: string) => {
+        const publisherToAdd = publishers?.find(p => p.id === publisherId);
+        if (publisherToAdd) {
+            setSelectedPublishers(prev => [...prev, publisherToAdd]);
+        }
+    };
+
+    const handleRemovePublisher = (publisherId: string) => {
+        setSelectedPublishers(prev => prev.filter(p => p.id !== publisherId));
+    };
+
+    const handleGenerateReport = () => {
+        if (selectedPublishers.length === 0) {
+            toast({
+                variant: 'destructive',
+                title: 'No hay publishers seleccionados',
+                description: 'Por favor, añade publishers a la lista para generar el reporte.',
+            });
+            return;
+        }
+        setReportData(selectedPublishers);
+    };
+
+    const getPaymentDetails = (publisher: Publisher) => {
+        switch (publisher.paymentMethod) {
+            case 'transferencia':
+                return `Banco: ${publisher.bank || 'N/A'}\nCta: ${publisher.accountNumber || 'N/A'}`;
+            case 'pagoMovil':
+                return `Banco: ${publisher.mobilePaymentBank || 'N/A'}\nTelf: ${publisher.mobilePaymentPhone || 'N/A'}\nID: ${publisher.mobilePaymentId || 'N/A'}`;
+            case 'usdt':
+                return `Plataforma: Binance\nEmail: ${publisher.usdtAddress || 'N/A'}`;
+            default:
+                return 'No configurado';
+        }
+    };
+
+    const handleCopy = (publisher: Publisher) => {
+        const details = getPaymentDetails(publisher);
+        navigator.clipboard.writeText(`Datos de pago para ${publisher.firstName} ${publisher.lastName}:\n${details}`);
+        toast({ title: 'Copiado', description: 'Los datos de pago han sido copiados al portapapeles.' });
+    };
+
+    const handleExport = async () => {
+        if (!reportData || reportData.length === 0) return;
+        setIsExporting(true);
+
+        const reportTitle = "Reporte de Datos de Pago de Publishers";
+        const fileName = "Reporte_Datos_Pago.pdf";
+
+        const head = [["Publisher", "País", "Método de Pago", "Detalles"]];
+        const body = reportData.map(p => [
+            `${p.firstName} ${p.lastName}`,
+            p.country || 'N/A',
+            p.paymentMethod || 'N/A',
+            getPaymentDetails(p),
+        ]);
+
+        await exportToPDF({ head, body, fileName, reportTitle, companyName });
+        setIsExporting(false);
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Reporte de Datos de Pago</CardTitle>
+                <CardDescription>Genera una lista con la información de pago de los publishers seleccionados para facilitar el proceso de pago.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="space-y-4">
+                    <Label>Seleccionar Publishers</Label>
+                    <Combobox
+                        options={publisherOptions}
+                        onChange={handlePublisherSelect}
+                        value=""
+                        placeholder="Buscar y añadir publisher al reporte..."
+                        loading={isLoadingPublishers}
+                    />
+                    {selectedPublishers.length > 0 && (
+                        <div className="border rounded-lg p-2 space-y-2 max-h-48 overflow-y-auto">
+                            {selectedPublishers.map(p => (
+                                <div key={p.id} className="flex justify-between items-center bg-muted/50 p-2 rounded">
+                                    <span className="text-sm">{p.firstName} {p.lastName}</span>
+                                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleRemovePublisher(p.id)}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                 <div className="flex gap-2">
+                    <Button onClick={handleGenerateReport} disabled={selectedPublishers.length === 0}>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Generar Reporte
+                    </Button>
+                    <Button variant="outline" onClick={handleExport} disabled={!reportData || isExporting}>
+                        {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Exportar a PDF
+                    </Button>
+                </div>
+            </CardContent>
+
+            {reportData && (
+                <CardContent id="payment-data-report-container">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Publisher</TableHead>
+                                <TableHead>País</TableHead>
+                                <TableHead>Método</TableHead>
+                                <TableHead>Detalles</TableHead>
+                                <TableHead className="text-right">Acción</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {reportData.map(pub => (
+                                <TableRow key={pub.id}>
+                                    <TableCell className="font-medium">{pub.firstName} {pub.lastName}</TableCell>
+                                    <TableCell>{pub.country || 'N/A'}</TableCell>
+                                    <TableCell>{pub.paymentMethod || 'N/A'}</TableCell>
+                                    <TableCell className="whitespace-pre-line">{getPaymentDetails(pub)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button variant="outline" size="sm" onClick={() => handleCopy(pub)}>
+                                            <Copy className="mr-2 h-4 w-4" />
+                                            Copiar
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            )}
+        </Card>
+    );
+}
+
+
 
 // #################################################################################
-// ## TAB 3: Reporte de Inactividad
+// ## TAB 4: Reporte de Inactividad
 // #################################################################################
 
 function InactivityReport({ publishers, companyName }: { publishers: Publisher[], companyName?: string }) {
