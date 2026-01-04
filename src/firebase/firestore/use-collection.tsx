@@ -63,16 +63,20 @@ export function useCollection<T = any>(
 
   
   useEffect(() => {
-    // 🚨 Si no hay usuario autenticado o aún está cargando, no disparamos la query
-    if (loading || !user || !memoizedTargetRefOrQuery) {
+    // 🚨 Si no hay query, o si el usuario aún está cargando, establecemos el estado de carga y salimos.
+    if (!memoizedTargetRefOrQuery || loading) {
       setIsLoading(true);
       setData(null);
-      setError(null);
       return;
     }
+    
+    // Si terminó de cargar y no hay usuario, no hay nada que buscar.
+    if (!user) {
+        setIsLoading(false);
+        setData(null);
+        return;
+    }
 
-    setIsLoading(true);
-    setError(null);
 
     const unsubscribe = onSnapshot(
       memoizedTargetRefOrQuery,
