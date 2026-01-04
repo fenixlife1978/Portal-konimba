@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
-import { FirebaseProvider } from "@/firebase/provider";
+import { FirebaseProvider, AuthUserProvider } from "@/firebase/provider";
 import { PT_Sans } from "next/font/google";
 
 const ptSans = PT_Sans({
@@ -25,7 +25,9 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={`${ptSans.className} font-body antialiased`}>
         <FirebaseProvider>
-          {children}
+          <AuthUserProvider>
+            {children}
+          </AuthUserProvider>
         </FirebaseProvider>
         <Toaster />
       </body>
