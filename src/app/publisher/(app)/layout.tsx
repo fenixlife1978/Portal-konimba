@@ -65,18 +65,12 @@ export default function PublisherAppLayout({ children }: { children: React.React
   };
 
 
-  if (isUserLoading) {
+  if (isUserLoading || !user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <p>Cargando...</p>
       </div>
     );
-  }
-
-  // If there's no user, the useEffect will trigger a redirect, so we can render null or a loading spinner briefly.
-  // This prevents the layout from flashing while the redirect happens.
-  if (!user) {
-    return null;
   }
   
   return (
