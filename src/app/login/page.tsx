@@ -1,4 +1,5 @@
 'use client';
+
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
@@ -46,8 +47,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isUserLoading && user) {
-        // If user is already logged in, check their role and redirect
-        checkRoleAndRedirect(user.uid);
+      checkRoleAndRedirect(user.uid);
     }
   }, [user, isUserLoading]);
   
@@ -55,19 +55,18 @@ export default function LoginPage() {
     if (!firestore) return;
     const adminRoleRef = doc(firestore, 'roles_admin', uid);
     try {
-        const docSnap = await getDoc(adminRoleRef);
-        if (docSnap.exists()) {
-            router.replace('/admin');
-        } else {
-            router.replace('/publisher');
-        }
+      const docSnap = await getDoc(adminRoleRef);
+      if (docSnap.exists()) {
+        router.replace('/admin/dashboard');
+      } else {
+        router.replace('/publisher/receipts');
+      }
     } catch (error) {
-        // Default to publisher if role check fails
-        router.replace('/publisher');
+      router.replace('/publisher/receipts');
     }
   }
 
-
+  
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth || !firestore) return;
@@ -75,14 +74,23 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      // The useEffect will handle the redirect after state update
+      const uid = userCredential.user.uid;
+
+      const adminRoleRef = doc(firestore, 'roles_admin', uid);
+      const docSnap = await getDoc(adminRoleRef);
+
+      if (docSnap.exists()) {
+        router.replace('/admin/dashboard');
+      } else {
+        router.replace('/publisher/receipts');
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error de Acceso",
         description: "Credenciales inválidas o la cuenta no existe. Por favor, verifica tus datos."
       });
-       setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -92,30 +100,31 @@ export default function LoginPage() {
     
     setIsLoading(true);
     try {
-        const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
-        
-        const [firstName, ...lastNameParts] = registerName.trim().split(' ');
-        const lastName = lastNameParts.join(' ');
+      const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
+      const uid = userCredential.user.uid;
+      
+      const [firstName, ...lastNameParts] = registerName.trim().split(' ');
+      const lastName = lastNameParts.join(' ');
 
-        await updateProfile(userCredential.user, { displayName: registerName });
+      await updateProfile(userCredential.user, { displayName: registerName });
 
-        const publisherDocRef = doc(firestore, 'publishers', userCredential.user.uid);
-        setDocumentNonBlocking(publisherDocRef, {
-            id: userCredential.user.uid,
-            firstName: firstName || '',
-            lastName: lastName || '',
-            email: userCredential.user.email,
-            status: 'active',
-        }, { merge: true });
-        
-        // The useEffect will handle the redirect
+      const publisherDocRef = doc(firestore, 'publishers', uid);
+      setDocumentNonBlocking(publisherDocRef, {
+        id: uid,
+        firstName: firstName || '',
+        lastName: lastName || '',
+        email: userCredential.user.email,
+        status: 'active',
+      });
+
+      router.replace('/publisher/receipts');
     } catch (error: any) {
-        toast({ 
-            variant: "destructive", 
-            title: "Error de Registro", 
-            description: "No se pudo completar el registro. El email podría ya estar en uso." 
-        });
-        setIsLoading(false);
+      toast({ 
+        variant: "destructive", 
+        title: "Error de Registro", 
+        description: "No se pudo completar el registro. El email podría ya estar en uso." 
+      });
+      setIsLoading(false);
     }
   };
 
@@ -131,9 +140,9 @@ export default function LoginPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-muted/30 p-4">
       <div className="mb-8 flex flex-col items-center text-center">
-         <Link href="/" className="inline-block">
-            <Logo className="h-16 w-16" src={settingsData?.logoUrl} />
-         </Link>
+        <Link href="/" className="inline-block">
+          <Logo className="h-16 w-16" src={settingsData?.logoUrl} />
+        </Link>
         <h1 className="text-2xl font-bold mt-4">{settingsData?.companyName || "Cargando..."}</h1>
         <p className="text-muted-foreground">Portal de Acceso</p>
       </div>
@@ -151,14 +160,14 @@ export default function LoginPage() {
                 <CardDescription>Accede a tu panel de control.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                 <div className="space-y-2">
+                <div className="space-y-2">
                   <Label htmlFor="login-email">Email</Label>
                   <Input id="login-email" type="email" placeholder="Email" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} disabled={isLoading} />
-                 </div>
-                 <div className="space-y-2">
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="login-password">Contraseña</Label>
                   <Input id="login-password" type="password" placeholder="Contraseña" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} disabled={isLoading} />
-                 </div>
+                </div>
               </CardContent>
               <CardFooter>
                 <Button className="w-full" type="submit" disabled={isLoading}>
@@ -172,34 +181,34 @@ export default function LoginPage() {
         <TabsContent value="register">
           <form onSubmit={handleRegister}>
             <Card>
-                <CardHeader>
-                    <CardTitle>Crear Cuenta de Publisher</CardTitle>
-                    <CardDescription>Regístrate para acceder a tu panel.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="register-name">Nombre y Apellido</Label>
-                        <Input id="register-name" type="text" placeholder="Nombre y Apellido" required value={registerName} onChange={(e) => setRegisterName(e.target.value)} disabled={isLoading} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="register-email">Email</Label>
-                        <Input id="register-email" type="email" placeholder="Email" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} disabled={isLoading} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="register-password">Contraseña</Label>
-                        <Input id="register-password" type="password" placeholder="Mínimo 6 caracteres" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} disabled={isLoading} />
-                    </div>
-                </CardContent>
-                <CardFooter>
-                    <Button className="w-full" type="submit" disabled={isLoading}>
-                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      {isLoading ? "Creando cuenta..." : "Registrarse"}
-                    </Button>
-                </CardFooter>
-            </Card>
-          </form>
-        </TabsContent>
-      </Tabs>
+              <CardHeader>
+                <CardTitle>Crear Cuenta de Publisher</CardTitle>
+                <CardDescription>Regístrate para acceder a tu panel.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="register-name">Nombre y Apellido</Label>
+                  <Input id="register-name" type="text" placeholder="Nombre y Apellido" required value={registerName} onChange={(e) => setRegisterName(e.target.value)} disabled={isLoading} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="register-email">Email</Label>
+                  <Input id="register-email" type="email" placeholder="Email" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} disabled={isLoading} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="register-password">Contraseña</Label>
+                  <Input id="register-password" type="password" placeholder="Mínimo 6 caracteres" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} disabled={isLoading} />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full" type="submit" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isLoading ? "Creando cuenta..." : "Registrarse"}
+                </Button>
+              </CardFooter>
+             </Card>
+          </form>   {/* cierre del form */}
+        </TabsContent> {/* cierre del TabsContent */}
+      </Tabs> {/* cierre del Tabs */}
     </div>
   );
 }

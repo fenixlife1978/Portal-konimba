@@ -39,12 +39,12 @@ export default function Home() {
       <main className="w-full max-w-4xl animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-400">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <DashboardLink
-            href="/login"
+            href="/admin/login"
             title="Panel de Administrador"
             description="Gestiona publishers, leads, pagos y más."
           />
           <DashboardLink
-            href="/login"
+            href="/publisher/login"
             title="Panel de Publisher"
             description="Consulta tu rendimiento, pagos y configuración."
           />
