@@ -49,7 +49,7 @@ export default function LoginPage() {
         // If user is already logged in, check their role and redirect
         checkRoleAndRedirect(user.uid);
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading]);
   
   const checkRoleAndRedirect = async (uid: string) => {
     if (!firestore) return;
@@ -75,7 +75,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      // The useEffect will handle the redirect
+      // The useEffect will handle the redirect after state update
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -106,7 +106,7 @@ export default function LoginPage() {
             lastName: lastName || '',
             email: userCredential.user.email,
             status: 'active',
-        });
+        }, { merge: true });
         
         // The useEffect will handle the redirect
     } catch (error: any) {
