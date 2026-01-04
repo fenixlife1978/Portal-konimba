@@ -537,31 +537,6 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
     const [isGenerating, setIsGenerating] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     
-    const [selectedPublishers, setSelectedPublishers] = useState<Publisher[]>([]);
-    
-    const publisherOptions = useMemo(() => {
-    return publishers
-      ? publishers
-          .filter(p => !selectedPublishers.some(sp => sp.id === p.id))
-          .map(p => ({
-              value: p.id,
-              label: `${p.firstName} ${p.lastName} ${p.subId ? `(Sub ID: ${p.subId})` : ''}`,
-            }))
-      : [];
-  }, [publishers, selectedPublishers]);
-  
-    const handlePublisherSelect = (publisherId: string) => {
-        const publisherToAdd = publishers?.find(p => p.id === publisherId);
-        if (publisherToAdd) {
-        setSelectedPublishers(prev => [...prev, publisherToAdd]);
-        }
-    };
-    
-    const handleRemovePublisher = (publisherId: string) => {
-        setSelectedPublishers(prev => prev.filter(p => p.id !== publisherId));
-    };
-
-
     const watchedPeriod = watch('period');
     const watchedMonth = watch('month');
     const watchedYear = watch('year');
@@ -654,19 +629,12 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
     };
 
     const onSubmit = async (data: GeneralReportFormData) => {
-        if (!firestore) return;
-        setIsGenerating(true);
-        setReportData(null);
-
-        if (selectedPublishers.length === 0) {
-            toast({
-                variant: 'destructive',
-                title: 'No hay publishers seleccionados',
-                description: 'Por favor, añade al menos un publisher a la lista para generar el reporte.',
-            });
-            setIsGenerating(false);
+        if (!firestore || publishers.length === 0) {
+            toast({ variant: 'destructive', title: 'Datos faltantes', description: 'No se han podido cargar los publishers.' });
             return;
         }
+        setIsGenerating(true);
+        setReportData(null);
 
         const { month, year, period } = data;
         
@@ -688,19 +656,16 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
         const endDate = `${year}-${month.padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
 
         try {
-             const selectedPublisherIds = selectedPublishers.map(p => p.id);
-
             const leadsQuery = query(
                 collection(firestore, 'leads'),
                 where('date', '>=', startDate),
-                where('date', '<=', endDate),
-                where('publisherId', 'in', selectedPublisherIds)
+                where('date', '<=', endDate)
             );
             const leadsSnapshot = await getDocs(leadsQuery);
             const leads = leadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lead));
 
             if (leads.length === 0) {
-                toast({ title: "Sin resultados", description: "No se encontraron leads para los publishers seleccionados en el período." });
+                toast({ title: "Sin resultados", description: "No se encontraron leads en el período seleccionado." });
                 setIsGenerating(false);
                 return;
             }
@@ -714,7 +679,9 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
             }
             
             const leadsByPublisher = new Map<string, Lead[]>();
+            const activePublisherIds = new Set<string>();
             leads.forEach(lead => {
+                activePublisherIds.add(lead.publisherId);
                 if (!leadsByPublisher.has(lead.publisherId)) {
                     leadsByPublisher.set(lead.publisherId, []);
                 }
@@ -726,7 +693,10 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
             const totalLeadsByOffer = new Map<string, { offerName: string, totalLeads: number }>();
             
             const publisherReports: PublisherReportData[] = [];
-            for (const [pubId, pubLeads] of leadsByPublisher.entries()) {
+            for (const pubId of Array.from(activePublisherIds)) {
+                const pubLeads = leadsByPublisher.get(pubId) || [];
+                if (pubLeads.length === 0) continue;
+
                 const publisherInfo = publishers.find(p => p.id === pubId);
                 if (publisherInfo) {
                     let pubTotalLeads = 0;
@@ -786,7 +756,7 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
         <Card>
             <CardHeader>
                 <CardTitle>Reporte General de Rendimiento</CardTitle>
-                <CardDescription>Selecciona un grupo de publishers y un período para generar un reporte de rendimiento consolidado.</CardDescription>
+                <CardDescription>Genera un reporte de rendimiento consolidado para todos los publishers activos en un período específico.</CardDescription>
             </CardHeader>
             <CardContent>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -816,34 +786,9 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
                             {errors.year && <p className="text-sm text-destructive">{errors.year.message}</p>}
                         </div>
                     </div>
-
-                    <Separator />
-                    
-                     <div className="space-y-4">
-                        <Label>Publishers a Incluir</Label>
-                        <Combobox
-                            options={publisherOptions}
-                            onChange={handlePublisherSelect}
-                            value="" // We don't need to maintain a selected value here, it's just for adding
-                            placeholder="Buscar y añadir publisher al reporte..."
-                        />
-                         {selectedPublishers.length > 0 && (
-                            <div className="border rounded-lg p-2 space-y-2 max-h-40 overflow-y-auto">
-                                {selectedPublishers.map(p => (
-                                    <div key={p.id} className="flex justify-between items-center bg-muted/50 p-2 rounded">
-                                        <span className="text-sm">{p.firstName} {p.lastName} {p.subId ? `(${p.subId})` : ''}</span>
-                                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleRemovePublisher(p.id)}>
-                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
                      
-
                      <div className="flex gap-2">
-                        <Button type="submit" disabled={isGenerating || selectedPublishers.length === 0}>
+                        <Button type="submit" disabled={isGenerating}>
                              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
                             {isGenerating ? 'Generando...' : 'Generar Reporte'}
                         </Button>
