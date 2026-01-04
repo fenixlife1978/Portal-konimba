@@ -234,7 +234,7 @@ export default function PublisherReceiptsPage() {
                         )} />
                     </div>
                 </div>
-                <Button type="submit" disabled={isLoading}><Search className="mr-2 h-4 w-4"/>Consultar por Período</Button>
+                <Button type="submit" disabled={isLoading}><Search className="mr-2 h-4 w-4"/>Consultar</Button>
               </form>
             </TabsContent>
             <TabsContent value="range">
@@ -258,7 +258,7 @@ export default function PublisherReceiptsPage() {
                     <Controller name="endYear" control={rangeControl} render={({ field }) => (<Select onValueChange={field.onChange}><SelectTrigger><SelectValue placeholder="Año"/></SelectTrigger><SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select>)} />
                   </div>
                 </div>
-                <Button type="submit" disabled={isLoading}><Search className="mr-2 h-4 w-4"/>Consultar por Rango</Button>
+                <Button type="submit" disabled={isLoading}><Search className="mr-2 h-4 w-4"/>Consultar</Button>
                </form>
             </TabsContent>
           </Tabs>
