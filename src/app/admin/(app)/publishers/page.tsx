@@ -324,7 +324,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
              <Dialog open={isEditing} onOpenChange={setIsEditing}>
-                <DialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()}><Pencil className="mr-2 h-4 w-4" />Ver / Editar Detalles</DropdownMenuItem></DialogTrigger>
+                <DialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()}><Pencil className="mr-2 h-4 w-4" />Ver Detalles</DropdownMenuItem></DialogTrigger>
                 <DialogContent className="sm:max-w-[625px]"><EditDetailsModal publisher={publisher} onSave={(data) => onSave(publisher.id, data)} onOpenChange={setIsEditing} /></DialogContent>
             </Dialog>
             <DropdownMenuSeparator />
