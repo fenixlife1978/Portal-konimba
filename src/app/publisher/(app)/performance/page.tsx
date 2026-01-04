@@ -451,7 +451,7 @@ function ReportDisplay({ reportData, publisher, period, settings }: { reportData
             </CardContent>
              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
                 <div className="p-4 bg-muted rounded-lg flex flex-col justify-center">
-                    <span className="text-sm font-semibold text-foreground mb-2">Total Estimado a Cobrar (Tasa oficial)</span>
+                    <span className="text-sm font-semibold text-foreground mb-2">Total Estimado a Cobrar</span>
                     <span className="text-2xl font-extrabold text-primary">
                         {conversion.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {conversion.currency}
                     </span>
