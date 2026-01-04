@@ -108,7 +108,7 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
-  }, [queryPath, user, loading]); // 👈 dependemos también de user y loading
+  }, [queryPath, user, loading, memoizedTargetRefOrQuery]); // 👈 dependemos también de user y loading
 
   return { data, isLoading, error };
 }
