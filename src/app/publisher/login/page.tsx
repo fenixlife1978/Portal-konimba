@@ -24,7 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/ui/logo';
 import { doc } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 type CompanySettings = {
@@ -245,11 +245,15 @@ export default function PublisherLoginPage() {
                 </Button>
               </CardFooter>
             </Card>
-          </form>{' '}
-          {/* cierre del form */}
-        </TabsContent>{' '}
-        {/* cierre del TabsContent */}
+          </form>
+        </TabsContent>
       </Tabs>
+      <Button asChild variant="link" className="mt-8">
+        <Link href="/">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Volver a la página de inicio
+        </Link>
+      </Button>
     </div>
   );
 }
