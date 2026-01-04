@@ -12,12 +12,12 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth, useUser, useDoc } from "@/firebase"; 
-import { db } from '@/firebase/config';
+import { useAuth, useUser, useDoc, useFirestore } from "@/firebase"; 
 import { signInWithEmailAndPassword, updateProfile, createUserWithEmailAndPassword } from "firebase/auth";
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/ui/logo";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc } from "firebase/firestore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Cookies from "js-cookie";
 import { Loader2 } from "lucide-react";
@@ -36,7 +36,7 @@ export default function PublisherAuthPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const auth = useAuth();
-  const firestore = db;
+  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
@@ -91,13 +91,13 @@ export default function PublisherAuthPage() {
 
         await updateProfile(userCredential.user, { displayName: registerName });
 
-        await setDoc(doc(firestore, 'publishers', userCredential.user.uid), {
+        const publisherDocRef = doc(firestore, 'publishers', userCredential.user.uid);
+        setDocumentNonBlocking(publisherDocRef, {
             id: userCredential.user.uid,
             firstName: firstName || '',
             lastName: lastName || '',
             email: userCredential.user.email,
             status: 'active',
-            createdAt: serverTimestamp(),
         });
         
         router.refresh();

@@ -1,9 +1,9 @@
 'use client';
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { useCollection } from '@/firebase';
-import { db } from '@/firebase/config';
-import { collection, doc, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { useCollection, useFirestore } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
+import { addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -50,14 +50,14 @@ const offerSchema = z.object({
 
 type OfferFormData = z.infer<typeof offerSchema>;
 
-function OfferForm({ onSave, offer, onOpenChange }: { onSave: (data: OfferFormData) => Promise<void>; offer?: Offer | null, onOpenChange: (open: boolean) => void }) {
+function OfferForm({ onSave, offer, onOpenChange }: { onSave: (data: OfferFormData) => void; offer?: Offer | null, onOpenChange: (open: boolean) => void }) {
   const { register, handleSubmit, formState: { errors } } = useForm<OfferFormData>({
     resolver: zodResolver(offerSchema),
     defaultValues: offer || { name: '', paymentAmount: 0, status: 'active' },
   });
 
-  const handleFormSubmit = async (data: OfferFormData) => {
-    await onSave(data);
+  const handleFormSubmit = (data: OfferFormData) => {
+    onSave(data);
     onOpenChange(false);
   };
 
@@ -96,7 +96,7 @@ function OfferForm({ onSave, offer, onOpenChange }: { onSave: (data: OfferFormDa
   );
 }
 
-function OfferRow({ offer, onSave, onDelete }: { offer: Offer; onSave: (data: Partial<Offer>) => Promise<void>; onDelete: () => Promise<void> }) {
+function OfferRow({ offer, onSave, onDelete }: { offer: Offer; onSave: (data: Partial<Offer>) => void; onDelete: () => void }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -123,7 +123,7 @@ function OfferRow({ offer, onSave, onDelete }: { offer: Offer; onSave: (data: Pa
                 <DialogHeader><DialogTitle>¿Estás seguro?</DialogTitle><DialogDescription>Esta acción eliminará la oferta permanentemente.</DialogDescription></DialogHeader>
                 <DialogFooter>
                   <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-                  <Button variant="destructive" onClick={async () => { await onDelete(); setIsDeleting(false); }}>Sí, eliminar</Button>
+                  <Button variant="destructive" onClick={() => { onDelete(); setIsDeleting(false); }}>Sí, eliminar</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -135,37 +135,32 @@ function OfferRow({ offer, onSave, onDelete }: { offer: Offer; onSave: (data: Pa
 }
 
 export default function OffersPage() {
-  const firestore = db;
+  const firestore = useFirestore();
   const { toast } = useToast();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const offersCollectionRef = useMemo(() => firestore ? collection(firestore, 'offers') : null, [firestore]);
   const { data: offers, isLoading } = useCollection<Offer>(offersCollectionRef);
 
-  const handleSaveOffer = async (id: string | null, data: OfferFormData) => {
+  const handleSaveOffer = (id: string | null, data: OfferFormData) => {
     if (!firestore) return;
-    try {
-      if (id) {
-        const offerRef = doc(firestore, 'offers', id);
-        await updateDoc(offerRef, { ...data, updatedAt: serverTimestamp() });
-        toast({ title: "Oferta actualizada" });
-      } else {
-        await addDoc(collection(firestore, 'offers'), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-        toast({ title: "Oferta creada" });
-      }
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+    
+    if (id) {
+      const offerRef = doc(firestore, 'offers', id);
+      updateDocumentNonBlocking(offerRef, data);
+      toast({ title: "Oferta actualizada" });
+    } else {
+      const offersCollection = collection(firestore, 'offers');
+      addDocumentNonBlocking(offersCollection, data);
+      toast({ title: "Oferta creada" });
     }
   };
 
-  const handleDeleteOffer = async (id: string) => {
+  const handleDeleteOffer = (id: string) => {
     if (!firestore) return;
-    try {
-      await deleteDoc(doc(firestore, 'offers', id));
-      toast({ title: "Oferta eliminada" });
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Error al eliminar", description: error.message });
-    }
+    const offerRef = doc(firestore, 'offers', id);
+    deleteDocumentNonBlocking(offerRef);
+    toast({ title: "Oferta eliminada" });
   };
   
   return (

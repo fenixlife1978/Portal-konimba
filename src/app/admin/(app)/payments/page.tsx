@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useCollection, useDoc, useUser } from '@/firebase';
-import { db } from '@/firebase/config';
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, writeBatch, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { useCollection, useDoc, useUser, useFirestore } from '@/firebase';
+import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -72,7 +72,7 @@ const months = [
 ];
 
 export default function PaymentsPage() {
-  const firestore = db;
+  const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
 
@@ -205,10 +205,8 @@ export default function PaymentsPage() {
                 // Keep as USD
             } else if (publisherInfo?.country === 'VE' && (publisherInfo.paymentMethod === 'pagoMovil' || publisherInfo.paymentMethod === 'transferencia')) {
                 amountVES = earnings.total * usdToVes;
-                amountUSD = 0;
             } else if (publisherInfo?.country === 'CO' && publisherInfo.paymentMethod === 'transferencia') {
                 amountCOP = earnings.total * usdToCop;
-                amountUSD = 0;
             }
 
             const paymentData = {
@@ -280,18 +278,14 @@ export default function PaymentsPage() {
   }
 
   
-  const handleMarkAsPaid = async (paymentId: string) => {
+  const handleMarkAsPaid = (paymentId: string) => {
     if (!firestore) return;
-    try {
-        const paymentRef = doc(firestore, 'payments', paymentId);
-        await updateDoc(paymentRef, {
-            status: 'paid',
-            paidAt: serverTimestamp(),
-        });
-        toast({ title: "Pago Confirmado", description: "El pago ha sido marcado como completado." });
-    } catch (error: any) {
-        toast({ variant: "destructive", title: "Error al confirmar pago", description: error.message });
-    }
+    const paymentRef = doc(firestore, 'payments', paymentId);
+    updateDocumentNonBlocking(paymentRef, {
+        status: 'paid',
+        paidAt: serverTimestamp(),
+    });
+    toast({ title: "Pago Confirmado", description: "El pago ha sido marcado como completado." });
   };
 
   const handleExport = async () => {

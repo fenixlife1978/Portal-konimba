@@ -2,15 +2,13 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { useCollection, useUser } from '@/firebase';
-import { db } from '@/firebase/config';
+import { useCollection, useUser, useFirestore } from '@/firebase';
 import {
   collection,
   doc,
-  updateDoc,
   serverTimestamp,
-  deleteDoc,
 } from 'firebase/firestore';
+import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -79,7 +77,7 @@ type Publisher = {
 /* ---------- EditDetailsModal ---------- */
 interface EditDetailsModalProps {
   publisher: Publisher;
-  onSave: (data: Partial<Publisher>) => Promise<void>;
+  onSave: (data: Partial<Publisher>) => void;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -104,8 +102,8 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
   });
 
 
-  const handleSave = async () => {
-    await onSave(formData);
+  const handleSave = () => {
+    onSave(formData);
     onOpenChange(false);
   };
 
@@ -230,19 +228,15 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
 }
 
 // Inline Editable Sub ID Cell Component
-function EditableSubIdCell({ publisher, onSave }: { publisher: Publisher; onSave: (id: string, data: Partial<Publisher>) => Promise<void>; }) {
+function EditableSubIdCell({ publisher, onSave }: { publisher: Publisher; onSave: (id: string, data: Partial<Publisher>) => void; }) {
     const [isEditing, setIsEditing] = useState(false);
     const [subId, setSubId] = useState(publisher.subId || '');
     const { toast } = useToast();
 
-    const handleSave = async () => {
+    const handleSave = () => {
         if (subId !== (publisher.subId || '')) {
-            try {
-                await onSave(publisher.id, { subId });
-                toast({ title: "Sub ID actualizado" });
-            } catch (error) {
-                toast({ variant: 'destructive', title: 'Error al guardar' });
-            }
+            onSave(publisher.id, { subId });
+            toast({ title: "Sub ID actualizado" });
         }
         setIsEditing(false);
     };
@@ -279,7 +273,7 @@ function EditableSubIdCell({ publisher, onSave }: { publisher: Publisher; onSave
     );
 }
 
-function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; onSave: (id: string, data: Partial<Publisher>) => Promise<void>; onDelete: (id: string) => Promise<void>; }) {
+function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; onSave: (id: string, data: Partial<Publisher>) => void; onDelete: (id: string) => void; }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -308,7 +302,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
                 <DialogHeader><DialogTitle>¿Estás seguro?</DialogTitle><DialogDescription>Esta acción eliminará al publisher permanentemente y no se podrá deshacer.</DialogDescription></DialogHeader>
                 <DialogFooter>
                   <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-                  <Button variant="destructive" onClick={async () => { await onDelete(publisher.id); setIsDeleting(false); }}>Sí, eliminar</Button>
+                  <Button variant="destructive" onClick={() => { onDelete(publisher.id); setIsDeleting(false); }}>Sí, eliminar</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -320,7 +314,7 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
 }
 
 export default function PublishersPage() {
-  const firestore = db;
+  const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
   const [filter, setFilter] = useState('');
@@ -328,25 +322,18 @@ export default function PublishersPage() {
   const publishersCollectionRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
   const { data: publishers, isLoading } = useCollection<Publisher>(publishersCollectionRef);
 
-  const handleUpdatePublisher = async (id: string, data: Partial<Publisher>) => {
+  const handleUpdatePublisher = (id: string, data: Partial<Publisher>) => {
     if (!firestore) return;
-    try {
-      const publisherRef = doc(firestore, 'publishers', id);
-      await updateDoc(publisherRef, { ...data, updatedAt: serverTimestamp() });
-      toast({ title: "Publisher actualizado" });
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
-    }
+    const publisherRef = doc(firestore, 'publishers', id);
+    updateDocumentNonBlocking(publisherRef, data);
+    toast({ title: "Publisher actualizado" });
   };
 
-  const handleDeletePublisher = async (id: string) => {
+  const handleDeletePublisher = (id: string) => {
     if (!firestore) return;
-    try {
-      await deleteDoc(doc(firestore, 'publishers', id));
-      toast({ title: "Publisher eliminado", description: "El documento del publisher fue eliminado. La cuenta de Auth sigue activa."});
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Error al eliminar", description: error.message });
-    }
+    const publisherRef = doc(firestore, 'publishers', id);
+    deleteDocumentNonBlocking(publisherRef);
+    toast({ title: "Publisher eliminado", description: "El documento del publisher fue eliminado. La cuenta de Auth sigue activa."});
   };
   
   const filteredPublishers = useMemo(() => {

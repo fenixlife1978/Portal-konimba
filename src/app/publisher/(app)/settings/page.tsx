@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
-import { useUser, useDoc } from '@/firebase';
-import { db } from '@/firebase/config';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useUser, useDoc, useFirestore } from '@/firebase';
+import { doc, serverTimestamp } from 'firebase/firestore';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -118,7 +118,7 @@ function DisplayPaymentMethod({ publisherData, onEdit, onDelete }: { publisherDa
 // Main settings page component
 export default function SettingsPage() {
   const { user } = useUser();
-  const firestore = db;
+  const firestore = useFirestore();
   const { toast } = useToast();
   
   const publisherRef = useMemo(() => (firestore && user) ? doc(firestore, 'publishers', user.uid) : null, [firestore, user]);
@@ -195,31 +195,24 @@ export default function SettingsPage() {
     setPersonalInfo(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSavePersonalInfo = async () => {
+  const handleSavePersonalInfo = () => {
     if (!personalInfo.firstName) {
       toast({ variant: 'destructive', title: "Campo requerido", description: "El nombre no puede estar vacío." });
       return;
     }
-    setIsSavingPersonalInfo(true);
     if (!publisherRef) {
       toast({ variant: 'destructive', title: "Error", description: "No se pudo obtener la referencia del usuario." });
-      setIsSavingPersonalInfo(false);
       return;
     }
 
-    try {
-      await setDoc(publisherRef, {
-        firstName: personalInfo.firstName,
-        lastName: personalInfo.lastName,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-      toast({ title: "Información Guardada", description: "Tus datos personales se han actualizado." });
-    } catch (error: any) {
-      console.error("Personal Info Save Error:", error);
-      toast({ variant: 'destructive', title: "Error al guardar", description: error.message });
-    } finally {
-      setIsSavingPersonalInfo(false);
-    }
+    setIsSavingPersonalInfo(true);
+    setDocumentNonBlocking(publisherRef, {
+      firstName: personalInfo.firstName,
+      lastName: personalInfo.lastName,
+    }, { merge: true });
+
+    toast({ title: "Información Guardada", description: "Tus datos personales se han actualizado." });
+    setIsSavingPersonalInfo(false);
   };
 
   const handlePaymentInputChange = (field: keyof PaymentFormData, value: string) => {
@@ -277,27 +270,25 @@ export default function SettingsPage() {
     return Object.keys(newErrors).length === 0;
   }
   
-  const handleSavePayment = async (e: React.FormEvent) => {
+  const handleSavePayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validatePaymentForm()) {
         toast({ variant: 'destructive', title: "Formulario incompleto", description: "Por favor, revisa los campos marcados en rojo." });
         return;
     }
-    await performSavePayment(formData);
+    performSavePayment(formData);
   };
   
-  const performSavePayment = async (data: PaymentFormData) => {
-    setIsSavingPayment(true);
+  const performSavePayment = (data: PaymentFormData) => {
     if (!publisherRef) {
         toast({ variant: 'destructive', title: "Error", description: "No se pudo obtener la referencia del usuario." });
-        setIsSavingPayment(false);
         return;
     }
+    setIsSavingPayment(true);
     
     const dataToSave: any = {
         country: data.country,
         paymentMethod: data.paymentMethod,
-        updatedAt: serverTimestamp(),
         bank: null, accountNumber: null,
         mobilePaymentBank: null, mobilePaymentPhone: null, mobilePaymentId: null,
         usdtPlatform: null, usdtAddress: null,
@@ -315,45 +306,35 @@ export default function SettingsPage() {
         dataToSave.usdtAddress = data.usdtAddress;
     }
     
-    try {
-      await setDoc(publisherRef, dataToSave, { merge: true });
-      toast({ title: "Configuración guardada", description: "Tus datos de pago se han actualizado correctamente." });
-      setViewState('display'); // Go back to display view
-    } catch (error: any) {
-      console.error("Firestore Save Error:", error);
-      toast({ variant: 'destructive', title: "Error al guardar", description: error.message || "No se pudieron guardar los cambios." });
-    } finally {
-      setIsSavingPayment(false);
-    }
+    setDocumentNonBlocking(publisherRef, dataToSave, { merge: true });
+
+    toast({ title: "Configuración guardada", description: "Tus datos de pago se han actualizado correctamente." });
+    setIsSavingPayment(false);
+    setViewState('display'); // Go back to display view
   }
 
-  const handleDeleteAndChange = async () => {
-    setIsSavingPayment(true);
+  const handleDeleteAndChange = () => {
      if (!publisherRef) {
         toast({ variant: 'destructive', title: "Error", description: "No se pudo obtener la referencia del usuario." });
-        setIsSavingPayment(false);
         return;
     }
+    setIsSavingPayment(true);
      const dataToSave = {
-        updatedAt: serverTimestamp(),
         country: null, paymentMethod: null, bank: null, accountNumber: null,
         mobilePaymentBank: null, mobilePaymentPhone: null, mobilePaymentId: null,
         usdtPlatform: null, usdtAddress: null,
     };
-     try {
-        await setDoc(publisherRef, dataToSave, { merge: true });
-        toast({ title: "Método de pago eliminado", description: "Ahora puedes configurar uno nuevo." });
-        setFormData({
-            country: '', paymentMethod: '', bank: '', accountNumber: '',
-            mobilePaymentBank: '', mobilePaymentPhoneCode: '', mobilePaymentPhoneNumber: '',
-            mobilePaymentIdPrefix: '', mobilePaymentIdNumber: '', usdtAddress: ''
-        });
-        setViewState('create');
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: "Error al eliminar", description: error.message || "No se pudo eliminar el método de pago." });
-    } finally {
-        setIsSavingPayment(false);
-    }
+     
+    setDocumentNonBlocking(publisherRef, dataToSave, { merge: true });
+    
+    toast({ title: "Método de pago eliminado", description: "Ahora puedes configurar uno nuevo." });
+    setFormData({
+        country: '', paymentMethod: '', bank: '', accountNumber: '',
+        mobilePaymentBank: '', mobilePaymentPhoneCode: '', mobilePaymentPhoneNumber: '',
+        mobilePaymentIdPrefix: '', mobilePaymentIdNumber: '', usdtAddress: ''
+    });
+    setViewState('create');
+    setIsSavingPayment(false);
   }
 
   const renderPaymentContent = () => {

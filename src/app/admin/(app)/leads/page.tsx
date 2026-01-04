@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useCollection, useUser } from '@/firebase';
-import { db } from '@/firebase/config';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useCollection, useUser, useFirestore } from '@/firebase';
+import { collection, serverTimestamp } from 'firebase/firestore';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,7 +34,7 @@ const leadFormSchema = z.object({
 type LeadFormData = z.infer<typeof leadFormSchema>;
 
 export default function LeadsPage() {
-  const firestore = db;
+  const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
 
@@ -51,7 +51,7 @@ export default function LeadsPage() {
 
   const activeOffers = offers?.filter(o => o.status === 'active');
 
-  const onSubmit = async (data: LeadFormData) => {
+  const onSubmit = (data: LeadFormData) => {
     if (!firestore) return;
     
     const { day, month, year, publisherId, offerId, quantity } = data;
@@ -59,28 +59,23 @@ export default function LeadsPage() {
     const selectedPublisher = publishers?.find(p => p.id === publisherId);
     const selectedOffer = activeOffers?.find(o => o.id === offerId);
 
-    try {
-      await addDoc(collection(firestore, 'leads'), {
-        publisherId,
-        publisherName: `${selectedPublisher?.firstName} ${selectedPublisher?.lastName}`,
-        offerId,
-        offerName: selectedOffer?.name,
-        date,
-        quantity,
-        createdAt: serverTimestamp(),
-      });
-      toast({
-        title: "Leads cargados",
-        description: `Se han registrado ${quantity} leads para ${selectedPublisher?.firstName}.`,
-      });
-      reset({ publisherId: '', offerId: '', day: '', month: '', year: '', quantity: 0 });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error al cargar leads",
-        description: error.message || "No se pudieron guardar los datos.",
-      });
-    }
+    const leadsCollectionRef = collection(firestore, 'leads');
+    
+    addDocumentNonBlocking(leadsCollectionRef, {
+      publisherId,
+      publisherName: `${selectedPublisher?.firstName} ${selectedPublisher?.lastName}`,
+      offerId,
+      offerName: selectedOffer?.name,
+      date,
+      quantity,
+      // `createdAt` is added by the non-blocking function
+    });
+
+    toast({
+      title: "Leads cargados",
+      description: `Se han registrado ${quantity} leads para ${selectedPublisher?.firstName}.`,
+    });
+    reset({ publisherId: '', offerId: '', day: '', month: '', year: '', quantity: 0 });
   };
 
   // Date options

@@ -3,9 +3,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useDoc, useStorage } from '@/firebase';
-import { db } from '@/firebase/config';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useDoc, useStorage, useFirestore } from '@/firebase';
+import { doc, serverTimestamp } from 'firebase/firestore';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -93,7 +93,7 @@ function UrlUploadDialog({ onSave }: { onSave: (url: string) => void }) {
 
 
 export default function SettingsPage() {
-  const firestore = db;
+  const firestore = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
@@ -186,28 +186,18 @@ export default function SettingsPage() {
   };
 
 
-  const onSubmit = async (data: SettingsFormData) => {
+  const onSubmit = (data: SettingsFormData) => {
     if (!settingsRef) return;
     setIsSaving(true);
-    try {
-      await setDoc(settingsRef, {
-        ...data,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      toast({
-        title: "Configuración Guardada",
-        description: "Los datos de la empresa se han actualizado correctamente.",
-      });
-    } catch (error: any) {
-      console.error(error);
-      toast({
-        variant: "destructive",
-        title: "Error al guardar",
-        description: error.message || "No se pudieron guardar los cambios."
-      });
-    } finally {
-      setIsSaving(false);
-    }
+    
+    setDocumentNonBlocking(settingsRef, data, { merge: true });
+
+    toast({
+      title: "Configuración Guardada",
+      description: "Los datos de la empresa se han actualizado correctamente.",
+    });
+
+    setIsSaving(false);
   };
 
   const logoUrl = watch('logoUrl');
