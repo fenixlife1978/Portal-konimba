@@ -49,7 +49,7 @@ export default function LoginPage() {
         // If user is already logged in, check their role and redirect
         checkRoleAndRedirect(user.uid);
     }
-  }, [user, isUserLoading]);
+  }, [user, isUserLoading, router]);
   
   const checkRoleAndRedirect = async (uid: string) => {
     if (!firestore) return;
