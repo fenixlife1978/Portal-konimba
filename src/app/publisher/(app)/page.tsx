@@ -13,8 +13,9 @@ import {
   ArrowRight
 } from 'lucide-react';
 import {
-  IconPerformance,
+  IconReceipt,
   IconSettings,
+  IconPerformance,
 } from '@/components/custom-icons';
 
 // Types
@@ -107,6 +108,7 @@ export default function PublisherDashboardPage() {
   const publisherName = publisherData ? `${publisherData.firstName} ${publisherData.lastName}` : 'Cargando...';
 
   const menuItems = [
+    { title: 'Mis Pagos', href: '/publisher/receipts', icon: <IconReceipt className="h-full w-full" /> },
     { title: 'Mi Reporte', href: '/publisher/performance', icon: <IconPerformance className="h-full w-full" /> },
     { title: 'Configuración', href: '/publisher/settings', icon: <IconSettings className="h-full w-full" /> },
   ];
