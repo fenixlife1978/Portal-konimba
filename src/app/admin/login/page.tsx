@@ -18,7 +18,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/ui/logo';
 import { doc, getDoc } from 'firebase/firestore';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 type CompanySettings = {
@@ -153,6 +153,13 @@ export default function AdminLoginPage() {
           </CardFooter>
         </Card>
       </form>
+
+      <Button asChild variant="link" className="mt-8">
+        <Link href="/">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Volver a la página de inicio
+        </Link>
+      </Button>
     </div>
   );
 }
