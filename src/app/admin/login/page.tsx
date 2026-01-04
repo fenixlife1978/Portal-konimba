@@ -11,10 +11,20 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth, useUser, useDoc, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/ui/logo';
 import { doc, getDoc } from 'firebase/firestore';
@@ -25,6 +35,81 @@ type CompanySettings = {
   companyName?: string;
   logoUrl?: string;
 };
+
+// ForgotPasswordDialog Component
+function ForgotPasswordDialog() {
+  const [email, setEmail] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const auth = useAuth();
+  const { toast } = useToast();
+
+  const handlePasswordReset = async () => {
+    if (!email) {
+      toast({
+        variant: 'destructive',
+        title: 'Correo Requerido',
+        description: 'Por favor, introduce tu correo electrónico.',
+      });
+      return;
+    }
+    if (!auth) return;
+
+    setIsSending(true);
+    try {
+      // Nota: Firebase no proporciona una forma de verificar si un correo existe antes de enviar el correo de restablecimiento por razones de seguridad.
+      // Simplemente intentamos enviar y notificamos al usuario.
+      await sendPasswordResetEmail(auth, email);
+      toast({
+        title: 'Correo Enviado',
+        description:
+          'Si existe una cuenta con ese correo, recibirás un enlace para restablecer tu contraseña.',
+      });
+    } catch (error: any) {
+      // No mostramos errores específicos al usuario para no revelar si un correo existe o no.
+       toast({
+        title: 'Correo Enviado',
+        description:
+          'Si existe una cuenta con ese correo, recibirás un enlace para restablecer tu contraseña.',
+      });
+    } finally {
+      setIsSending(false);
+      // Cierra el diálogo por nosotros si es necesario
+      // O gestiona el estado de apertura desde el componente padre
+    }
+  };
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Recuperar Contraseña</DialogTitle>
+        <DialogDescription>
+          Introduce tu correo electrónico para recibir un enlace de recuperación.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="py-4 space-y-2">
+        <Label htmlFor="reset-email">Email</Label>
+        <Input
+          id="reset-email"
+          type="email"
+          placeholder="tu.correo@ejemplo.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={isSending}
+        />
+      </div>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline" disabled={isSending}>Cancelar</Button>
+        </DialogClose>
+        <Button onClick={handlePasswordReset} disabled={isSending}>
+          {isSending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isSending ? 'Enviando...' : 'Enviar Correo'}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
@@ -113,46 +198,56 @@ export default function AdminLoginPage() {
         <p className="text-muted-foreground">Portal de Acceso para Administradores</p>
       </div>
 
-      <form onSubmit={handleLogin}>
-        <Card className="w-full max-w-sm">
-          <CardHeader>
-            <CardTitle>Bienvenido Administrador</CardTitle>
-            <CardDescription>Accede a tu panel de control.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="login-email">Email</Label>
-              <Input
-                id="login-email"
-                type="email"
-                placeholder="Email de administrador"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="login-password">Contraseña</Label>
-              <Input
-                id="login-password"
-                type="password"
-                placeholder="Contraseña"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full" type="submit" disabled={isLoading}>
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {isLoading ? 'Validando...' : 'Acceder'}
-            </Button>
-          </CardFooter>
-        </Card>
-      </form>
+      <Dialog>
+        <form onSubmit={handleLogin}>
+          <Card className="w-full max-w-sm">
+            <CardHeader>
+              <CardTitle>Bienvenido Administrador</CardTitle>
+              <CardDescription>Accede a tu panel de control.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="login-email">Email</Label>
+                <Input
+                  id="login-email"
+                  type="email"
+                  placeholder="Email de administrador"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="login-password">Contraseña</Label>
+                <Input
+                  id="login-password"
+                  type="password"
+                  placeholder="Contraseña"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+               <div className="text-sm">
+                <DialogTrigger asChild>
+                  <Button variant="link" className="p-0 h-auto">
+                    ¿Olvidaste tu contraseña?
+                  </Button>
+                </DialogTrigger>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button className="w-full" type="submit" disabled={isLoading}>
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isLoading ? 'Validando...' : 'Acceder'}
+              </Button>
+            </CardFooter>
+          </Card>
+        </form>
+        <ForgotPasswordDialog />
+      </Dialog>
 
       <Button asChild variant="link" className="mt-8">
         <Link href="/">
