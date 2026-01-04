@@ -108,14 +108,18 @@ export default function PublisherReceiptsPage() {
     const monthLabel = months.find(m => m.value === month)?.label;
     
     if (period === 'all') {
-        const periodPrefix = `${year}-${month}`;
+        const periodPrefix = `${year}-${month.padStart(2, '0')}`;
+        const nextMonth = parseInt(month, 10) + 1;
+        const nextYear = nextMonth > 12 ? parseInt(year, 10) + 1 : parseInt(year, 10);
+        const nextMonthPrefix = `${nextYear}-${String(nextMonth > 12 ? 1 : nextMonth).padStart(2, '0')}`;
+
         baseQuery = query(baseQuery, 
             where('paymentPeriod', '>=', periodPrefix),
-            where('paymentPeriod', '<', `${year}-${parseInt(month) + 1}`)
+            where('paymentPeriod', '<', nextMonthPrefix)
         );
         setCurrentQueryDesc(`Mes de ${monthLabel} ${year}`);
     } else {
-        const periodId = `${year}-${month}-${period}`;
+        const periodId = `${year}-${month.padStart(2, '0')}-${period}`;
         baseQuery = query(baseQuery, where('paymentPeriod', '==', periodId));
         const periodLabel = period === 'fortnight-1' ? '1ra quincena' : '2da quincena';
         setCurrentQueryDesc(`${periodLabel} de ${monthLabel} ${year}`);
