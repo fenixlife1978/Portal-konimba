@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
+import { sendEmailVerification } from 'firebase/auth';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Loader2, Edit, Trash2, CreditCard, Save, Copy } from 'lucide-react';
+import { ArrowLeft, Loader2, Edit, Trash2, CreditCard, Save, Copy, ShieldCheck, ShieldAlert, MailCheck } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -159,6 +160,7 @@ export default function SettingsPage() {
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSavingPayment, setIsSavingPayment] = useState(false);
+  const [isSendingVerification, setIsSendingVerification] = useState(false);
 
   useEffect(() => {
     if (isLoadingData) {
@@ -360,6 +362,29 @@ export default function SettingsPage() {
     setIsSavingPayment(false);
   }
 
+  const handleSendVerificationEmail = async () => {
+    if (!user) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No se ha encontrado el usuario.' });
+        return;
+    }
+    setIsSendingVerification(true);
+    try {
+        await sendEmailVerification(user);
+        toast({
+            title: 'Correo enviado',
+            description: 'Se ha enviado un correo de verificación. Revisa tu bandeja de entrada (y la carpeta de spam).',
+        });
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Error al enviar correo',
+            description: error.message || 'No se pudo enviar el correo de verificación.',
+        });
+    } finally {
+        setIsSendingVerification(false);
+    }
+  };
+
   const renderPaymentContent = () => {
     switch(viewState) {
         case 'loading':
@@ -520,6 +545,40 @@ export default function SettingsPage() {
           <Link href="/publisher"><ArrowLeft className="mr-2 h-4 w-4" />Volver al panel</Link>
         </Button>
       </div>
+
+       <Card className="mb-8">
+            <CardHeader>
+                <CardTitle>Verificación de Correo Electrónico</CardTitle>
+                <CardDescription>
+                    Mantén tu cuenta segura verificando tu dirección de correo electrónico.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                {user?.emailVerified ? (
+                    <div className="flex items-center gap-3 p-4 bg-green-100 dark:bg-green-900/30 border border-green-500/50 rounded-lg">
+                        <ShieldCheck className="h-6 w-6 text-green-600 dark:text-green-400" />
+                        <div>
+                            <p className="font-semibold text-green-800 dark:text-green-300">Correo Verificado</p>
+                            <p className="text-sm text-green-700 dark:text-green-400/80">Tu dirección de correo ha sido verificada correctamente.</p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-500/50 rounded-lg">
+                         <div className="flex items-start gap-3">
+                            <ShieldAlert className="h-6 w-6 text-yellow-600 dark:text-yellow-400 mt-1" />
+                            <div>
+                                <p className="font-semibold text-yellow-800 dark:text-yellow-300">Correo No Verificado</p>
+                                <p className="text-sm text-yellow-700 dark:text-yellow-400/80">Por favor, verifica tu correo para asegurar tu cuenta.</p>
+                            </div>
+                        </div>
+                        <Button onClick={handleSendVerificationEmail} disabled={isSendingVerification}>
+                            {isSendingVerification ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MailCheck className="mr-2 h-4 w-4" />}
+                            {isSendingVerification ? 'Enviando...' : 'Enviar Correo de Verificación'}
+                        </Button>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
 
        <Card className="mb-8">
           <CardHeader>

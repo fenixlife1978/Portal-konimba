@@ -18,6 +18,7 @@ import {
   signInWithEmailAndPassword,
   updateProfile,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
 } from 'firebase/auth';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
@@ -94,7 +95,16 @@ export default function PublisherLoginPage() {
         registerEmail,
         registerPassword
       );
-      const uid = userCredential.user.uid;
+      const { user } = userCredential;
+      const uid = user.uid;
+
+      // Send verification email
+      await sendEmailVerification(user);
+      toast({
+        title: '¡Registro casi listo!',
+        description: 'Se ha enviado un correo de verificación. Por favor, revisa tu bandeja de entrada.',
+      });
+
 
       const [firstName, ...lastNameParts] = registerName.trim().split(' ');
       const lastName = lastNameParts.join(' ');
