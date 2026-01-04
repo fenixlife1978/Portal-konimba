@@ -557,7 +557,7 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
                  [{ content: 'Subtotales', colSpan: processed.dayColumns.length + 1, styles: { fontStyle: 'bold', halign: 'right' } },
                  { content: processed.totalLeads, styles: { fontStyle: 'bold', halign: 'center' } },
                  '',
-                 { content: `$${processed.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }]
+                 { content: `$${pubReport.totalEarnings.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right' } }]
             ];
     
             const subHeader = `${pubReport.publisherInfo.firstName} ${pubReport.publisherInfo.lastName} ${pubReport.publisherInfo.subId ? `(SUB ID: ${pubReport.publisherInfo.subId})` : ''}`;

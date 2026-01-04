@@ -23,7 +23,7 @@ interface ExportOptions {
     head?: any[][];
     body?: any[][];
     foot?: any[][];
-    tables?: { title: string, subHeader?: string, head: any[][], body: any[][], foot: any[][] }[];
+    tables?: { title?: string, subHeader?: string, head: any[][], body: any[][], foot: any[][] }[];
     fileName?: string;
     reportTitle?: string;
     companyName?: string;

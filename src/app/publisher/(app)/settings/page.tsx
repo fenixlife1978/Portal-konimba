@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Loader2, Edit, Trash2, CreditCard, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, Edit, Trash2, CreditCard, Save, Copy } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -54,6 +54,8 @@ type ViewState = 'loading' | 'display' | 'edit' | 'create';
 
 // Component to display the current payment method
 function DisplayPaymentMethod({ publisherData, onEdit, onDelete }: { publisherData: any, onEdit: () => void, onDelete: () => void }) {
+    const { toast } = useToast();
+
     const getPaymentMethodName = (method: string) => {
         if (method === 'transferencia') return 'Transferencia Bancaria';
         if (method === 'pagoMovil') return 'Pago Móvil (VE)';
@@ -75,6 +77,26 @@ function DisplayPaymentMethod({ publisherData, onEdit, onDelete }: { publisherDa
         return 'N/A';
     }
 
+    const handleCopyPaymentInfo = () => {
+        let textToCopy = `Datos de pago para: ${publisherData.firstName} ${publisherData.lastName}\n`;
+        switch (publisherData.paymentMethod) {
+            case 'transferencia':
+                textToCopy += `Método: Transferencia\nPaís: ${publisherData.country}\nBanco: ${publisherData.bank}\nCuenta: ${publisherData.accountNumber}`;
+                break;
+            case 'pagoMovil':
+                textToCopy += `Método: Pago Móvil\nPaís: Venezuela\nBanco: ${publisherData.mobilePaymentBank}\nTeléfono: ${publisherData.mobilePaymentPhone}\nCédula/RIF: ${publisherData.mobilePaymentId}`;
+                break;
+            case 'usdt':
+                textToCopy += `Método: USDT\nPlataforma: Binance\nEmail: ${publisherData.usdtAddress}`;
+                break;
+            default:
+                textToCopy = 'No hay método de pago configurado para copiar.';
+        }
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            toast({ title: 'Copiado al portapapeles', description: 'Tus datos de pago han sido copiados.' });
+        });
+    };
+
     return (
         <Card>
             <CardHeader>
@@ -89,11 +111,11 @@ function DisplayPaymentMethod({ publisherData, onEdit, onDelete }: { publisherDa
                         <p className="text-muted-foreground">{getMaskedData()}</p>
                     </div>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-4">
                     <Button onClick={onEdit}><Edit className="mr-2 h-4 w-4" />Modificar Datos</Button>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="destructive"><Trash2 className="mr-2 h-4 w-4" />Cambiar Método de Pago</Button>
+                            <Button variant="destructive"><Trash2 className="mr-2 h-4 w-4" />Cambiar Método</Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
@@ -108,6 +130,7 @@ function DisplayPaymentMethod({ publisherData, onEdit, onDelete }: { publisherDa
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
+                    <Button variant="outline" onClick={handleCopyPaymentInfo}><Copy className="mr-2 h-4 w-4" />Copiar Datos</Button>
                 </div>
             </CardContent>
         </Card>

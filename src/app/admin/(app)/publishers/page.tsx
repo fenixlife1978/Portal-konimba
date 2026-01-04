@@ -40,6 +40,7 @@ import {
   Save,
   X,
   Check,
+  Copy,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -83,6 +84,7 @@ interface EditDetailsModalProps {
 
 function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalProps) {
   const [formData, setFormData] = useState<Partial<Publisher>>({});
+  const { toast } = useToast();
 
   useState(() => {
     setFormData({
@@ -105,6 +107,30 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
   const handleSave = () => {
     onSave(formData);
     onOpenChange(false);
+  };
+  
+  const handleCopyPaymentInfo = () => {
+    let textToCopy = `Datos de pago para: ${publisher.firstName} ${publisher.lastName}\n`;
+
+    switch (publisher.paymentMethod) {
+      case 'transferencia':
+        textToCopy += `Método: Transferencia\nPaís: ${publisher.country}\nBanco: ${publisher.bank}\nCuenta: ${publisher.accountNumber}`;
+        break;
+      case 'pagoMovil':
+        textToCopy += `Método: Pago Móvil\nPaís: Venezuela\nBanco: ${publisher.mobilePaymentBank}\nTeléfono: ${publisher.mobilePaymentPhone}\nCédula/RIF: ${publisher.mobilePaymentId}`;
+        break;
+      case 'usdt':
+        textToCopy += `Método: USDT\nPlataforma: Binance\nEmail: ${publisher.usdtAddress}`;
+        break;
+      default:
+        textToCopy = 'No hay método de pago configurado para este publisher.';
+    }
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      toast({ title: 'Copiado al portapapeles', description: 'Los datos de pago se han copiado.' });
+    }).catch(err => {
+      toast({ variant: 'destructive', title: 'Error al copiar', description: 'No se pudo copiar la información.' });
+    });
   };
 
   return (
@@ -151,7 +177,13 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
         </div>
         
         <Separator className='my-4' />
-        <h3 className="font-bold">Información de Pago</h3>
+        <div className="flex justify-between items-center">
+            <h3 className="font-bold">Información de Pago</h3>
+            <Button variant="outline" size="sm" onClick={handleCopyPaymentInfo}>
+                <Copy className="mr-2 h-4 w-4" />
+                Copiar Info de Pago
+            </Button>
+        </div>
         <div>
           <Label htmlFor="country">País</Label>
           <Input
