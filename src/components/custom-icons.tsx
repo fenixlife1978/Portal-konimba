@@ -52,15 +52,6 @@ export const IconReport = ({ className }: { className?: string }) => (
   </IconWrapper>
 );
 
-export const IconReceipt = ({ className }: { className?: string }) => (
-  <IconWrapper className={className}>
-    <circle cx="24" cy="24" r="24" className="fill-current opacity-20" />
-    <path d="M16 13H32V35L28 32L24 35L20 32L16 35V13Z" fill="hsl(var(--primary-foreground))" />
-    <path d="M20 20H28" stroke="hsl(var(--card))" strokeWidth="2" strokeLinecap="round" />
-    <path d="M20 25H25" stroke="hsl(var(--card))" strokeWidth="2" strokeLinecap="round" />
-  </IconWrapper>
-);
-
 export const IconPerformance = ({ className }: { className?: string }) => (
   <IconWrapper className={className}>
     <circle cx="24" cy="24" r="24" className="fill-current opacity-20" />
