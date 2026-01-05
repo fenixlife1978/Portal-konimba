@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { useAuthUser } from '@/firebase/provider'; // 👈 usamos el contexto de usuario autenticado
+import { useAuthUser } from '@/firebase/provider'; 
 
 /** Utility type to add an 'id' field to a given type T. */
 export type WithId<T> = T & { id: string };
@@ -35,7 +35,7 @@ export interface InternalQuery extends Query<DocumentData> {
 
 /**
  * React hook to subscribe to a Firestore collection or query in real-time.
- * Se asegura de esperar a que haya usuario autenticado antes de disparar la query.
+ * It now robustly waits for user authentication to complete before fetching data.
  */
 export function useCollection<T = any>(
   memoizedTargetRefOrQuery: CollectionReference<DocumentData> | Query<DocumentData> | null | undefined,
@@ -47,7 +47,7 @@ export function useCollection<T = any>(
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
-  const { user, loading } = useAuthUser(); // 👈 obtenemos el usuario actual
+  const { user, loading: isAuthLoading } = useAuthUser();
 
   const queryPath = useMemo(() => {
     if (!memoizedTargetRefOrQuery) return null;
@@ -56,28 +56,30 @@ export function useCollection<T = any>(
         ? (memoizedTargetRefOrQuery as CollectionReference).path
         : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
     } catch {
-     
       return JSON.stringify(memoizedTargetRefOrQuery);
     }
   }, [memoizedTargetRefOrQuery]);
 
   
   useEffect(() => {
-    // 🚨 Si no hay query, o si el usuario aún está cargando, establecemos el estado de carga y salimos.
-    if (!memoizedTargetRefOrQuery || loading) {
+    // 1. Si la autenticación está en curso o no hay una consulta válida, nos ponemos en estado de carga y esperamos.
+    if (isAuthLoading || !memoizedTargetRefOrQuery) {
       setIsLoading(true);
       setData(null);
+      setError(null);
       return;
     }
-    
-    // Si terminó de cargar y no hay usuario, no hay nada que buscar.
+
+    // 2. Si la autenticación ha terminado pero no hay usuario, no hay nada que buscar.
     if (!user) {
         setIsLoading(false);
         setData(null);
+        setError(null);
         return;
     }
 
-
+    // 3. Si llegamos aquí, la autenticación está lista, hay un usuario y una consulta válida. Procedemos.
+    setIsLoading(true);
     const unsubscribe = onSnapshot(
       memoizedTargetRefOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
@@ -100,15 +102,16 @@ export function useCollection<T = any>(
         console.warn("Firestore permission error caught:", contextualError);
 
         setError(contextualError);
-        setData([]); // 👉 devolvemos array vacío
+        setData([]); 
         setIsLoading(false);
 
         errorEmitter.emit('permission-error', contextualError);
       }
     );
 
+    // Limpieza al desmontar el componente o si la consulta cambia.
     return () => unsubscribe();
-  }, [queryPath, user, loading, memoizedTargetRefOrQuery]); // 👈 dependemos también de user y loading
+  }, [queryPath, user, isAuthLoading, memoizedTargetRefOrQuery]); // Dependencias correctas y completas.
 
   return { data, isLoading, error };
 }
