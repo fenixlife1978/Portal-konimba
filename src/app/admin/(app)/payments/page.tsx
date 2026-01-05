@@ -93,6 +93,7 @@ export default function PaymentsPage() {
   
   const [isCalculating, setIsCalculating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
   
   const [pendingPaymentPeriod, setPendingPaymentPeriod] = useState<string | null>(null);
   const [paidPaymentPeriod, setPaidPaymentPeriod] = useState<string | null>(null);
@@ -287,14 +288,21 @@ export default function PaymentsPage() {
     }
   }
   
-  const handleMarkAsPaid = (paymentId: string) => {
+  const handleMarkAsPaid = async (paymentId: string) => {
     if (!firestore) return;
+    setProcessingPaymentId(paymentId);
     const paymentRef = doc(firestore, 'payments', paymentId);
-    updateDocumentNonBlocking(paymentRef, {
-        status: 'paid',
-        paidAt: serverTimestamp(),
-    });
-    toast({ title: "Pago Confirmado", description: "El pago se ha marcado como pagado." });
+    try {
+        await updateDoc(paymentRef, {
+            status: 'paid',
+            paidAt: serverTimestamp(),
+        });
+        toast({ title: "Pago Confirmado", description: "El pago se ha marcado como pagado." });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo actualizar el pago.' });
+    } finally {
+        setProcessingPaymentId(null);
+    }
   };
   
   const handleMarkAllAsPaid = async (paymentsToUpdate: Payment[] | null) => {
@@ -447,6 +455,7 @@ export default function PaymentsPage() {
                     settingsData={settingsData}
                     onMarkAsPaid={handleMarkAsPaid}
                     onMarkAllAsPaid={() => handleMarkAllAsPaid(pendingPayments)}
+                    processingPaymentId={processingPaymentId}
                 />
             )}
         </TabsContent>
@@ -524,7 +533,7 @@ export default function PaymentsPage() {
 }
 
 
-function PendingPaymentsTable({ payments, isLoading, period, settingsData, onMarkAsPaid, onMarkAllAsPaid }: { payments: Payment[] | null, isLoading: boolean, period: string, settingsData: CompanySettings | null, onMarkAsPaid: (id: string) => void, onMarkAllAsPaid: () => void }) {
+function PendingPaymentsTable({ payments, isLoading, period, settingsData, onMarkAsPaid, onMarkAllAsPaid, processingPaymentId }: { payments: Payment[] | null, isLoading: boolean, period: string, settingsData: CompanySettings | null, onMarkAsPaid: (id: string) => void, onMarkAllAsPaid: () => void, processingPaymentId: string | null }) {
     const [isExporting, setIsExporting] = useState(false);
 
     const memoizedPaymentTotals = useMemo((): PaymentTotals | null => {
@@ -629,9 +638,17 @@ function PendingPaymentsTable({ payments, isLoading, period, settingsData, onMar
                     <TableCell className="text-right">{payment.amountCOP > 0 ? payment.amountCOP.toLocaleString('es-CO', {style: 'currency', currency: 'COP'}) : '-'}</TableCell>
                     <TableCell className="text-right">{payment.amountVES > 0 ? payment.amountVES.toLocaleString('es-VE', {style: 'currency', currency: 'VES'}) : '-'}</TableCell>
                     <TableCell className="text-center">
-                      <Button size="sm" onClick={() => onMarkAsPaid(payment.id)}>
-                        <Check className="mr-2 h-4 w-4" />
-                        Marcar como Pagado
+                      <Button 
+                        size="sm" 
+                        onClick={() => onMarkAsPaid(payment.id)} 
+                        disabled={processingPaymentId === payment.id}
+                      >
+                         {processingPaymentId === payment.id ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="mr-2 h-4 w-4" />
+                        )}
+                        {processingPaymentId === payment.id ? 'Procesando...' : 'Marcar como Pagado'}
                       </Button>
                     </TableCell>
                   </TableRow>
