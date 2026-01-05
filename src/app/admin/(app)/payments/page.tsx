@@ -6,13 +6,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useCollection, useDoc, useUser, useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, Timestamp, updateDoc, deleteDoc } from 'firebase/firestore';
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, Calculator, Check, Download, Trash2, FolderDown } from 'lucide-react';
+import { ArrowLeft, Loader2, Calculator, Check, Download, Trash2, FolderDown, History, Undo } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { exportToPDF } from '@/lib/export-pdf';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -27,6 +27,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { MoreHorizontal } from 'lucide-react';
+
 
 // Types
 type Publisher = { id: string; firstName: string; lastName: string; paymentMethod?: 'pagoMovil' | 'transferencia' | 'usdt'; country?: 'VE' | 'CO'; };
@@ -90,23 +94,28 @@ export default function PaymentsPage() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
-  // State for pending payments
   const [pendingPaymentPeriod, setPendingPaymentPeriod] = useState<string | null>(null);
+  const [paidPaymentPeriod, setPaidPaymentPeriod] = useState<string | null>(null);
   
-  // Data fetching
   const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
   
   const publishersRef = useMemo(() => (firestore && user) ? collection(firestore, 'publishers') : null, [firestore, user]);
   const { data: publishersData } = useCollection<Publisher>(publishersRef);
 
-  // Queries for payments
   const pendingPaymentsQuery = useMemo(() => {
     if (!firestore || !pendingPaymentPeriod) return null;
     return query(collection(firestore, "payments"), where("paymentPeriod", "==", pendingPaymentPeriod), where("status", "==", "pending"));
   }, [firestore, pendingPaymentPeriod]);
   
   const { data: pendingPayments, isLoading: isLoadingPending, error: pendingError } = useCollection<Payment>(pendingPaymentsQuery);
+  
+  const paidPaymentsQuery = useMemo(() => {
+    if (!firestore || !paidPaymentPeriod) return null;
+    return query(collection(firestore, "payments"), where("paymentPeriod", "==", paidPaymentPeriod), where("status", "==", "paid"));
+  }, [firestore, paidPaymentPeriod]);
+  
+  const { data: paidPayments, isLoading: isLoadingPaid, error: paidError } = useCollection<Payment>(paidPaymentsQuery);
 
 
   const { control, handleSubmit } = useForm<PaymentFormData>({
@@ -205,7 +214,7 @@ export default function PaymentsPage() {
                 publisherId,
                 publisherName: earnings.name,
                 paymentPeriod: currentPaymentPeriod,
-                amountUSD: earnings.total, // Store original USD amount for records
+                amountUSD: earnings.total,
                 amountVES: amountVES,
                 amountCOP: amountCOP,
                 status: 'pending',
@@ -225,12 +234,21 @@ export default function PaymentsPage() {
     }
   };
 
-  const handleLoadPeriod = (data: PaymentFormData) => {
+  const handleLoadPendingPeriod = (data: PaymentFormData) => {
     const { currentPaymentPeriod } = getPeriodData(data);
     setPendingPaymentPeriod(currentPaymentPeriod);
     toast({
-        title: "Cargando Nómina",
-        description: `Buscando pagos pendientes para el período ${formatPaymentPeriod(currentPaymentPeriod)}.`
+        title: "Cargando Nómina Pendiente",
+        description: `Buscando pagos pendientes para ${formatPaymentPeriod(currentPaymentPeriod)}.`
+    })
+  };
+
+  const handleLoadPaidPeriod = (data: PaymentFormData) => {
+    const { currentPaymentPeriod } = getPeriodData(data);
+    setPaidPaymentPeriod(currentPaymentPeriod);
+    toast({
+        title: "Cargando Historial",
+        description: `Buscando pagos realizados para ${formatPaymentPeriod(currentPaymentPeriod)}.`
     })
   };
   
@@ -268,7 +286,6 @@ export default function PaymentsPage() {
         setIsDeleting(false);
     }
   }
-
   
   const handleMarkAsPaid = (paymentId: string) => {
     if (!firestore) return;
@@ -279,6 +296,24 @@ export default function PaymentsPage() {
     });
     toast({ title: "Pago Confirmado", description: "El pago se ha marcado como pagado." });
   };
+
+  const handleRevertToPending = (paymentId: string) => {
+    if (!firestore) return;
+    const paymentRef = doc(firestore, 'payments', paymentId);
+    updateDocumentNonBlocking(paymentRef, {
+        status: 'pending',
+        paidAt: null,
+    });
+    toast({ title: "Pago Revertido", description: "El pago se ha marcado como pendiente." });
+  };
+
+  const handleDeletePaymentRecord = (paymentId: string) => {
+    if (!firestore) return;
+    const paymentRef = doc(firestore, 'payments', paymentId);
+    deleteDocumentNonBlocking(paymentRef);
+    toast({ title: "Registro de Pago Eliminado", description: "El registro ha sido eliminado permanentemente." });
+  };
+
   
   return (
     <div>
@@ -289,103 +324,180 @@ export default function PaymentsPage() {
         </Button>
       </div>
 
-       <Card>
-            <CardHeader>
-            <CardTitle>Nómina de Pagos de Quincena</CardTitle>
-            <CardDescription>
-                Calcula, carga o elimina una nómina de pagos para un período específico.
-            </CardDescription>
-            </CardHeader>
-            <CardContent>
-            <div className="grid md:grid-cols-3 gap-4 items-end">
-                <div className="space-y-2">
-                <Label htmlFor="year">Año</Label>
-                <Controller name="year" control={control} render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue placeholder="Año" /></SelectTrigger>
-                    <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
-                    </Select>
-                )} />
-                </div>
-                <div className="space-y-2">
-                <Label htmlFor="month">Mes</Label>
-                <Controller name="month" control={control} render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue placeholder="Mes" /></SelectTrigger>
-                    <SelectContent>{months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                )} />
-                </div>
-                <div className="space-y-2">
-                <Label htmlFor="period">Quincena</Label>
-                <Controller name="period" control={control} render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue placeholder="Quincena" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="fortnight-1">1ra Quincena</SelectItem>
-                        <SelectItem value="fortnight-2">2da Quincena</SelectItem>
-                    </SelectContent>
-                    </Select>
-                )} />
-                </div>
-            </div>
-            <div className="flex flex-wrap gap-2 mt-4">
-                <Button onClick={handleSubmit(handleCalculateAndSave)} disabled={isCalculating}>
-                    {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
-                    {isCalculating ? 'Calculando...' : 'Calcular y Guardar Nómina'}
-                </Button>
-                <Button onClick={handleSubmit(handleLoadPeriod)} variant="secondary">
-                    <FolderDown className="mr-2 h-4 w-4" />
-                    Cargar Nómina Pendiente
-                </Button>
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="destructive" disabled={!pendingPaymentPeriod || (pendingPayments && pendingPayments.length === 0)}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Eliminar Nómina Pendiente
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                        <AlertDialogTitle>¿Estás seguro de que deseas eliminar esta nómina?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Esta acción eliminará todos los pagos pendientes para el período <span className="font-bold">{formatPaymentPeriod(pendingPaymentPeriod)}</span>. Esta operación no se puede deshacer.
-                        </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeletePeriod} disabled={isDeleting}>
-                            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Sí, eliminar nómina
-                        </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </div>
-            </CardContent>
-        </Card>
+    <Tabs defaultValue="pending-payroll">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="pending-payroll">Nómina de Pagos</TabsTrigger>
+          <TabsTrigger value="admin-validation">Validación Administrativa</TabsTrigger>
+        </TabsList>
         
-        {pendingError && (
-            <Alert variant="destructive" className="mt-4">
-            <AlertTitle>Error de Firestore</AlertTitle>
-            <AlertDescription>No se pudieron cargar los pagos. Es posible que necesites crear un índice compuesto en Firestore. Revisa la consola para más detalles.</AlertDescription>
-            </Alert>
-        )}
+        <TabsContent value="pending-payroll">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Nómina de Pagos de Quincena</CardTitle>
+                    <CardDescription>
+                        Calcula, carga o elimina una nómina de pagos para un período específico.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid md:grid-cols-3 gap-4 items-end">
+                        <div className="space-y-2">
+                        <Label htmlFor="year-pending">Año</Label>
+                        <Controller name="year" control={control} render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger id="year-pending"><SelectValue placeholder="Año" /></SelectTrigger>
+                            <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+                            </Select>
+                        )} />
+                        </div>
+                        <div className="space-y-2">
+                        <Label htmlFor="month-pending">Mes</Label>
+                        <Controller name="month" control={control} render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger id="month-pending"><SelectValue placeholder="Mes" /></SelectTrigger>
+                            <SelectContent>{months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+                            </Select>
+                        )} />
+                        </div>
+                        <div className="space-y-2">
+                        <Label htmlFor="period-pending">Quincena</Label>
+                        <Controller name="period" control={control} render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger id="period-pending"><SelectValue placeholder="Quincena" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="fortnight-1">1ra Quincena</SelectItem>
+                                <SelectItem value="fortnight-2">2da Quincena</SelectItem>
+                            </SelectContent>
+                            </Select>
+                        )} />
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-4">
+                        <Button onClick={handleSubmit(handleCalculateAndSave)} disabled={isCalculating}>
+                            {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
+                            {isCalculating ? 'Calculando...' : 'Calcular y Guardar Nómina'}
+                        </Button>
+                        <Button onClick={handleSubmit(handleLoadPendingPeriod)} variant="secondary">
+                            <FolderDown className="mr-2 h-4 w-4" />
+                            Cargar Nómina Pendiente
+                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" disabled={!pendingPaymentPeriod || (pendingPayments && pendingPayments.length === 0)}>
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Eliminar Nómina Pendiente
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                <AlertDialogTitle>¿Estás seguro de que deseas eliminar esta nómina?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Esta acción eliminará todos los pagos pendientes para el período <span className="font-bold">{formatPaymentPeriod(pendingPaymentPeriod)}</span>. Esta operación no se puede deshacer.
+                                </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeletePeriod} disabled={isDeleting}>
+                                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    Sí, eliminar nómina
+                                </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                </CardContent>
+            </Card>
 
-        {pendingPaymentPeriod && (
-            <PendingPaymentsTable 
-                payments={pendingPayments}
-                isLoading={isLoadingPending}
-                period={pendingPaymentPeriod}
-                settingsData={settingsData}
-                onMarkAsPaid={handleMarkAsPaid}
-            />
-        )}
+            {pendingError && (
+                <Alert variant="destructive" className="mt-4">
+                <AlertTitle>Error de Firestore</AlertTitle>
+                <AlertDescription>No se pudieron cargar los pagos pendientes. Es posible que necesites crear un índice compuesto en Firestore. Revisa la consola para más detalles.</AlertDescription>
+                </Alert>
+            )}
+
+            {pendingPaymentPeriod && (
+                <PendingPaymentsTable 
+                    payments={pendingPayments}
+                    isLoading={isLoadingPending}
+                    period={pendingPaymentPeriod}
+                    settingsData={settingsData}
+                    onMarkAsPaid={handleMarkAsPaid}
+                />
+            )}
+        </TabsContent>
+        
+        <TabsContent value="admin-validation">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Historial y Validación de Pagos</CardTitle>
+                    <CardDescription>
+                        Busca pagos ya realizados para consultarlos o revertir su estado si fue un error.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid md:grid-cols-3 gap-4 items-end">
+                       <div className="space-y-2">
+                        <Label htmlFor="year-paid">Año</Label>
+                        <Controller name="year" control={control} render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger id="year-paid"><SelectValue placeholder="Año" /></SelectTrigger>
+                            <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+                            </Select>
+                        )} />
+                        </div>
+                        <div className="space-y-2">
+                        <Label htmlFor="month-paid">Mes</Label>
+                        <Controller name="month" control={control} render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger id="month-paid"><SelectValue placeholder="Mes" /></SelectTrigger>
+                            <SelectContent>{months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+                            </Select>
+                        )} />
+                        </div>
+                        <div className="space-y-2">
+                        <Label htmlFor="period-paid">Quincena</Label>
+                        <Controller name="period" control={control} render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger id="period-paid"><SelectValue placeholder="Quincena" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="fortnight-1">1ra Quincena</SelectItem>
+                                <SelectItem value="fortnight-2">2da Quincena</SelectItem>
+                            </SelectContent>
+                            </Select>
+                        )} />
+                        </div>
+                    </div>
+                     <div className="flex flex-wrap gap-2 mt-4">
+                         <Button onClick={handleSubmit(handleLoadPaidPeriod)}>
+                            <History className="mr-2 h-4 w-4" />
+                            Buscar Pagos Realizados
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {paidError && (
+                <Alert variant="destructive" className="mt-4">
+                <AlertTitle>Error de Firestore</AlertTitle>
+                <AlertDescription>No se pudieron cargar los pagos realizados. Es posible que necesites crear un índice compuesto en Firestore. Revisa la consola para más detalles.</AlertDescription>
+                </Alert>
+            )}
+
+            {paidPaymentPeriod && (
+                <PaidPaymentsTable 
+                    payments={paidPayments}
+                    isLoading={isLoadingPaid}
+                    period={paidPaymentPeriod}
+                    onRevertToPending={handleRevertToPending}
+                    onDeletePayment={handleDeletePaymentRecord}
+                />
+            )}
+        </TabsContent>
+    </Tabs>
     </div>
   );
 }
 
-// Sub-component for Pending Payments Table
+
 function PendingPaymentsTable({ payments, isLoading, period, settingsData, onMarkAsPaid }: { payments: Payment[] | null, isLoading: boolean, period: string, settingsData: CompanySettings | null, onMarkAsPaid: (id: string) => void }) {
     const [isExporting, setIsExporting] = useState(false);
 
@@ -437,8 +549,8 @@ function PendingPaymentsTable({ payments, isLoading, period, settingsData, onMar
           <CardHeader>
             <div className="flex items-center justify-between">
                 <div>
-                    <CardTitle>Pagos Pendientes para el Período: {formatPaymentPeriod(period)}</CardTitle>
-                    <CardDescription>Lista de publishers con pagos por procesar para el período seleccionado.</CardDescription>
+                    <CardTitle>Pagos Pendientes para: {formatPaymentPeriod(period)}</CardTitle>
+                    <CardDescription>Lista de publishers con pagos por procesar.</CardDescription>
                 </div>
                  <Button onClick={handleExport} variant="outline" disabled={isExporting || !payments || payments.length === 0}>
                     {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
@@ -503,4 +615,72 @@ function PendingPaymentsTable({ payments, isLoading, period, settingsData, onMar
           </CardContent>
         </Card>
     )
+}
+
+function PaidPaymentsTable({ payments, isLoading, period, onRevertToPending, onDeletePayment }: { payments: Payment[] | null, isLoading: boolean, period: string, onRevertToPending: (id: string) => void, onDeletePayment: (id: string) => void }) {
+    
+    return (
+        <Card className="mt-8">
+            <CardHeader>
+                <CardTitle>Historial de Pagos para: {formatPaymentPeriod(period)}</CardTitle>
+                <CardDescription>Pagos ya procesados. Desde aquí puedes revertirlos a "pendientes" si hubo un error.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Publisher</TableHead>
+                            <TableHead>Fecha de Pago</TableHead>
+                            <TableHead className="text-right">Monto (USD)</TableHead>
+                            <TableHead className="text-center">Acciones</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {isLoading && <TableRow><TableCell colSpan={4} className="text-center">Cargando historial...</TableCell></TableRow>}
+                        {!isLoading && payments?.length === 0 && <TableRow><TableCell colSpan={4} className="text-center">No hay pagos realizados para este período.</TableCell></TableRow>}
+                        {payments?.map((payment) => (
+                            <TableRow key={payment.id}>
+                                <TableCell className="font-medium">{payment.publisherName}</TableCell>
+                                <TableCell>{payment.paidAt ? payment.paidAt.toDate().toLocaleDateString('es-VE') : 'N/A'}</TableCell>
+                                <TableCell className="text-right">${payment.amountUSD.toFixed(2)}</TableCell>
+                                <TableCell className="text-center">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onSelect={() => onRevertToPending(payment.id)}>
+                                                <Undo className="mr-2 h-4 w-4" />
+                                                Revertir a Pendiente
+                                            </DropdownMenuItem>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                        Eliminar Registro
+                                                    </DropdownMenuItem>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>¿Confirmas la eliminación?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                          Esta acción eliminará permanentemente el registro de pago para <span className="font-bold">{payment.publisherName}</span>. No se puede deshacer.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => onDeletePayment(payment.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                                            Sí, eliminar
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
 }
