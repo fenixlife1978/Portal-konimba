@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, Calculator, Check, Download, Trash2, FolderDown, History, Undo } from 'lucide-react';
+import { ArrowLeft, Loader2, Calculator, Check, Download, Trash2, FolderDown, History, Undo, CheckCheck } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { exportToPDF } from '@/lib/export-pdf';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -296,6 +296,31 @@ export default function PaymentsPage() {
     });
     toast({ title: "Pago Confirmado", description: "El pago se ha marcado como pagado." });
   };
+  
+  const handleMarkAllAsPaid = async (paymentsToUpdate: Payment[] | null) => {
+    if (!firestore || !paymentsToUpdate || paymentsToUpdate.length === 0) {
+      toast({ variant: 'destructive', title: 'Error', description: 'No hay pagos pendientes para marcar.' });
+      return;
+    }
+
+    const batch = writeBatch(firestore);
+    paymentsToUpdate.forEach(payment => {
+      const paymentRef = doc(firestore, 'payments', payment.id);
+      batch.update(paymentRef, {
+        status: 'paid',
+        paidAt: serverTimestamp(),
+      });
+    });
+
+    try {
+      await batch.commit();
+      toast({ title: 'Nómina Procesada', description: `Se marcaron ${paymentsToUpdate.length} pagos como realizados.` });
+    } catch (error: any) {
+      console.error('Error marking all as paid:', error);
+      toast({ variant: 'destructive', title: 'Error al procesar la nómina', description: error.message });
+    }
+  };
+
 
   const handleRevertToPending = (paymentId: string) => {
     if (!firestore) return;
@@ -421,6 +446,7 @@ export default function PaymentsPage() {
                     period={pendingPaymentPeriod}
                     settingsData={settingsData}
                     onMarkAsPaid={handleMarkAsPaid}
+                    onMarkAllAsPaid={() => handleMarkAllAsPaid(pendingPayments)}
                 />
             )}
         </TabsContent>
@@ -498,7 +524,7 @@ export default function PaymentsPage() {
 }
 
 
-function PendingPaymentsTable({ payments, isLoading, period, settingsData, onMarkAsPaid }: { payments: Payment[] | null, isLoading: boolean, period: string, settingsData: CompanySettings | null, onMarkAsPaid: (id: string) => void }) {
+function PendingPaymentsTable({ payments, isLoading, period, settingsData, onMarkAsPaid, onMarkAllAsPaid }: { payments: Payment[] | null, isLoading: boolean, period: string, settingsData: CompanySettings | null, onMarkAsPaid: (id: string) => void, onMarkAllAsPaid: () => void }) {
     const [isExporting, setIsExporting] = useState(false);
 
     const memoizedPaymentTotals = useMemo((): PaymentTotals | null => {
@@ -547,15 +573,39 @@ function PendingPaymentsTable({ payments, isLoading, period, settingsData, onMar
     return (
         <Card className="mt-8" id="payments-table-container">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                     <CardTitle>Pagos Pendientes para: {formatPaymentPeriod(period)}</CardTitle>
                     <CardDescription>Lista de publishers con pagos por procesar.</CardDescription>
                 </div>
-                 <Button onClick={handleExport} variant="outline" disabled={isExporting || !payments || payments.length === 0}>
-                    {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                    Exportar a PDF
-                </Button>
+                 <div className="flex gap-2">
+                    <Button onClick={handleExport} variant="outline" disabled={isExporting || !payments || payments.length === 0}>
+                        {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Exportar a PDF
+                    </Button>
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                             <Button variant="default" disabled={!payments || payments.length === 0}>
+                                <CheckCheck className="mr-2 h-4 w-4" />
+                                Marcar Todo como Pagado
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Confirmar Nómina Completa?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Estás a punto de marcar los {payments?.length || 0} pagos de esta nómina como realizados. Esta acción no se puede revertir fácilmente. ¿Estás seguro?
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={onMarkAllAsPaid}>
+                                    Sí, confirmar y procesar
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
             </div>
           </CardHeader>
           <CardContent>
