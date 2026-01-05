@@ -129,7 +129,7 @@ service cloud.firestore {
       allow get: if isAdmin() || (isSignedIn() && isOwner(resource.data.publisherId));
       
       // Admins can list everything. Publishers can only list payments that belong to them.
-      allow list: if isAdmin() || 
+      allow list: if isAdmin() ||
                    (isSignedIn() && request.query.where[0][0] == 'publisherId' && request.query.where[0][2] == request.auth.uid);
     }
   }
