@@ -100,7 +100,7 @@ export const exportToPDF = async (
   }
   
   if (!pdfInstance) {
-      pdfInstance = new jsPDF('l', 'mm', 'a4') as jsPDFWithAutoTable;
+      pdfInstance = new jsPDF('p', 'mm', 'a4') as jsPDFWithAutoTable;
       finalOptions = options;
   }
 
