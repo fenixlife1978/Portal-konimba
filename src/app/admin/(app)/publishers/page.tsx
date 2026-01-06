@@ -6,7 +6,6 @@ import { useCollection, useUser, useFirestore } from '@/firebase';
 import {
   collection,
   doc,
-  serverTimestamp,
 } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
@@ -37,10 +36,9 @@ import {
   Pencil,
   Trash2,
   ArrowLeft,
-  Save,
-  X,
   Check,
   Copy,
+  X
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -305,10 +303,12 @@ function EditableSubIdCell({ publisher, onSave }: { publisher: Publisher; onSave
     );
 }
 
-function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; onSave: (id: string, data: Partial<Publisher>) => void; onDelete: (id: string) => void; }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
+function PublisherRow({ publisher, onSave, onEditClick, onDeleteClick }: { 
+  publisher: Publisher; 
+  onSave: (id: string, data: Partial<Publisher>) => void; 
+  onEditClick: () => void;
+  onDeleteClick: () => void;
+}) {
   return (
     <TableRow>
       <TableCell>{publisher.firstName} {publisher.lastName}</TableCell>
@@ -323,21 +323,9 @@ function PublisherRow({ publisher, onSave, onDelete }: { publisher: Publisher; o
             <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-             <Dialog open={isEditing} onOpenChange={setIsEditing}>
-                <DialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()}><Pencil className="mr-2 h-4 w-4" />Ver Detalles</DropdownMenuItem></DialogTrigger>
-                <DialogContent className="sm:max-w-[625px]"><EditDetailsModal publisher={publisher} onSave={(data) => onSave(publisher.id, data)} onOpenChange={setIsEditing} /></DialogContent>
-            </Dialog>
+            <DropdownMenuItem onSelect={onEditClick}><Pencil className="mr-2 h-4 w-4" />Ver Detalles</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <Dialog open={isDeleting} onOpenChange={setIsDeleting}>
-              <DialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Eliminar Publisher</DropdownMenuItem></DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>¿Estás seguro?</DialogTitle><DialogDescription>Esta acción eliminará al publisher permanentemente y no se podrá deshacer.</DialogDescription></DialogHeader>
-                <DialogFooter>
-                  <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-                  <Button variant="destructive" onClick={() => { onDelete(publisher.id); setIsDeleting(false); }}>Sí, eliminar</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <DropdownMenuItem onSelect={onDeleteClick} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Eliminar Publisher</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>
@@ -350,6 +338,8 @@ export default function PublishersPage() {
   const { user } = useUser();
   const { toast } = useToast();
   const [filter, setFilter] = useState('');
+  const [editingPublisher, setEditingPublisher] = useState<Publisher | null>(null);
+  const [deletingPublisher, setDeletingPublisher] = useState<Publisher | null>(null);
 
   const publishersCollectionRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
   const { data: publishers, isLoading } = useCollection<Publisher>(publishersCollectionRef);
@@ -359,13 +349,15 @@ export default function PublishersPage() {
     const publisherRef = doc(firestore, 'publishers', id);
     updateDocumentNonBlocking(publisherRef, data);
     toast({ title: "Publisher actualizado" });
+    setEditingPublisher(null);
   };
 
-  const handleDeletePublisher = (id: string) => {
-    if (!firestore) return;
-    const publisherRef = doc(firestore, 'publishers', id);
+  const handleDeletePublisher = () => {
+    if (!firestore || !deletingPublisher) return;
+    const publisherRef = doc(firestore, 'publishers', deletingPublisher.id);
     deleteDocumentNonBlocking(publisherRef);
     toast({ title: "Publisher eliminado", description: "El documento del publisher fue eliminado. La cuenta de Auth sigue activa."});
+    setDeletingPublisher(null);
   };
   
   const filteredPublishers = useMemo(() => {
@@ -419,13 +411,42 @@ export default function PublishersPage() {
                   key={publisher.id}
                   publisher={publisher}
                   onSave={handleUpdatePublisher}
-                  onDelete={handleDeletePublisher}
+                  onEditClick={() => setEditingPublisher(publisher)}
+                  onDeleteClick={() => setDeletingPublisher(publisher)}
                 />
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingPublisher} onOpenChange={(open) => !open && setEditingPublisher(null)}>
+        <DialogContent className="sm:max-w-[625px]">
+          {editingPublisher && (
+            <EditDetailsModal 
+              publisher={editingPublisher} 
+              onSave={(data) => handleUpdatePublisher(editingPublisher.id, data)} 
+              onOpenChange={(open) => !open && setEditingPublisher(null)} 
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Dialog */}
+      <Dialog open={!!deletingPublisher} onOpenChange={(open) => !open && setDeletingPublisher(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Estás seguro?</DialogTitle>
+            <DialogDescription>Esta acción eliminará al publisher permanentemente y no se podrá deshacer.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline" onClick={() => setDeletingPublisher(null)}>Cancelar</Button></DialogClose>
+            <Button variant="destructive" onClick={handleDeletePublisher}>Sí, eliminar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
