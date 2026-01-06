@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     siteName: "Konimba Group Marketing",
     images: [
       {
-        url: "https://portal-konimba.vercel.app/logo.png", // logo en /public/logo.png
+        url: "https://portal-konimba.vercel.app/favicon-new.png", // logo en /public/favicon-new.png
         width: 600,
         height: 600,
         alt: "Konimba Logo",
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Portal | Konimba Group Marketing",
     description: "Accede al portal de Konimba con toda la información y servicios.",
-    images: ["https://portal-konimba.vercel.app/logo.png"],
+    images: ["https://portal-konimba.vercel.app/favicon-new.png"],
   },
 };
 
