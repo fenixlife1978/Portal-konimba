@@ -6,17 +6,32 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useCollection, useUser, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, setDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, setDoc, doc, writeBatch } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { Combobox } from '@/components/ui/combobox';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Trash2, Calendar as CalendarIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 // Types
 type Publisher = { id: string; firstName: string; lastName: string; email: string; subId?: string };
@@ -31,16 +46,29 @@ const dateSchema = z.object({
 });
 type DateFormData = z.infer<typeof dateSchema>;
 
+const resetSchema = z.object({
+    startDate: z.date({ required_error: 'La fecha de inicio es requerida.' }),
+    endDate: z.date({ required_error: 'La fecha de fin es requerida.' }),
+});
+type ResetFormData = z.infer<typeof resetSchema>;
+
 export default function LeadsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
 
+  const [leads, setLeads] = useState<LeadsData>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [leadsToDelete, setLeadsToDelete] = useState<any[]>([]);
+  const [selectedPublishers, setSelectedPublishers] = useState<Publisher[]>([]);
+
+  // Form for lead entry
   const {
-    control,
-    handleSubmit: handleDateSubmit,
-    watch,
-    formState: { errors },
+    control: entryControl,
+    handleSubmit: handleEntrySubmit,
+    watch: watchEntry,
+    formState: { errors: entryErrors },
   } = useForm<DateFormData>({
     resolver: zodResolver(dateSchema),
     defaultValues: {
@@ -50,9 +78,14 @@ export default function LeadsPage() {
     },
   });
 
-  const [leads, setLeads] = useState<LeadsData>({});
-  const [isSaving, setIsSaving] = useState(false);
-  const [selectedPublishers, setSelectedPublishers] = useState<Publisher[]>([]);
+  // Form for lead reset
+  const {
+    control: resetControl,
+    handleSubmit: handleResetSubmit,
+    watch: watchReset,
+  } = useForm<ResetFormData>({
+    resolver: zodResolver(resetSchema),
+  });
 
   // Data fetching
   const publishersRef = useMemo(
@@ -87,7 +120,6 @@ export default function LeadsPage() {
 
   const handleRemovePublisher = (publisherId: string) => {
     setSelectedPublishers(prev => prev.filter(p => p.id !== publisherId));
-    // Also remove any lead data entered for this publisher
     setLeads(prevLeads => {
         const newLeads = {...prevLeads};
         delete newLeads[publisherId];
@@ -166,23 +198,70 @@ export default function LeadsPage() {
       });
     }
     
-    // Clear inputs but keep selected publishers
     setLeads({});
     setIsSaving(false);
   };
+  
+  const prepareToDeleteLeads = async (data: ResetFormData) => {
+    if (!firestore) return;
+
+    const { startDate, endDate } = data;
+    if (endDate < startDate) {
+        toast({ variant: 'destructive', title: 'Error de Fechas', description: 'La fecha de fin no puede ser anterior a la fecha de inicio.' });
+        return;
+    }
+
+    const startDateString = format(startDate, 'yyyy-MM-dd');
+    const endDateString = format(endDate, 'yyyy-MM-dd');
+
+    const leadsQuery = query(
+        collection(firestore, 'leads'),
+        where('date', '>=', startDateString),
+        where('date', '<=', endDateString)
+    );
+
+    const snapshot = await getDocs(leadsQuery);
+    setLeadsToDelete(snapshot.docs);
+    
+    // This will trigger the AlertDialog because it's the child of AlertDialogTrigger
+  };
+
+  const executeDeleteLeads = async () => {
+    if (!firestore || leadsToDelete.length === 0) {
+        toast({ title: 'Sin cambios', description: 'No se encontraron leads para eliminar en el período seleccionado.' });
+        return;
+    };
+    setIsResetting(true);
+
+    const batch = writeBatch(firestore);
+    leadsToDelete.forEach(leadDoc => {
+        batch.delete(leadDoc.ref);
+    });
+
+    try {
+        await batch.commit();
+        toast({ title: 'Reseteo Exitoso', description: `Se eliminaron ${leadsToDelete.length} registros de leads.` });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error al Resetear', description: error.message });
+    } finally {
+        setIsResetting(false);
+        setLeadsToDelete([]);
+    }
+  };
+
 
   // Date options
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
-  const selectedMonth = watch('month');
-  const selectedYear = watch('year');
+  const selectedMonth = watchEntry('month');
+  const selectedYear = watchEntry('year');
   const daysInMonth = (selectedMonth && selectedYear) ? new Date(parseInt(selectedYear, 10), parseInt(selectedMonth, 10), 0).getDate() : 31;
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold font-headline text-foreground">Cargar Leads</h1>
         <Button asChild variant="outline">
           <Link href="/admin">
@@ -200,13 +279,13 @@ export default function LeadsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleDateSubmit(saveLeads)} className="space-y-6">
+          <form onSubmit={handleEntrySubmit(saveLeads)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               <div className="space-y-2">
                 <Label htmlFor="day">Día</Label>
                 <Controller
                   name="day"
-                  control={control}
+                  control={entryControl}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger><SelectValue placeholder="Día" /></SelectTrigger>
@@ -214,13 +293,13 @@ export default function LeadsPage() {
                     </Select>
                   )}
                 />
-                {errors.day && <p className="text-sm text-destructive">{errors.day.message}</p>}
+                {entryErrors.day && <p className="text-sm text-destructive">{entryErrors.day.message}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="month">Mes</Label>
                 <Controller
                   name="month"
-                  control={control}
+                  control={entryControl}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger><SelectValue placeholder="Mes" /></SelectTrigger>
@@ -228,13 +307,13 @@ export default function LeadsPage() {
                     </Select>
                   )}
                 />
-                {errors.month && <p className="text-sm text-destructive">{errors.month.message}</p>}
+                {entryErrors.month && <p className="text-sm text-destructive">{entryErrors.month.message}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="year">Año</Label>
                 <Controller
                   name="year"
-                  control={control}
+                  control={entryControl}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger><SelectValue placeholder="Año" /></SelectTrigger>
@@ -242,7 +321,7 @@ export default function LeadsPage() {
                     </Select>
                   )}
                 />
-                {errors.year && <p className="text-sm text-destructive">{errors.year.message}</p>}
+                {entryErrors.year && <p className="text-sm text-destructive">{entryErrors.year.message}</p>}
               </div>
             </div>
 
@@ -251,12 +330,11 @@ export default function LeadsPage() {
                  <Combobox
                     options={publisherOptions}
                     onChange={handlePublisherSelect}
-                    value="" // We don't need to maintain a selected value here, it's just for adding
+                    value=""
                     placeholder="Buscar por nombre, apellido, email o Sub ID..."
                     loading={isLoadingPublishers}
                 />
             </div>
-
 
             <div className="overflow-x-auto">
               <Table>
@@ -319,6 +397,85 @@ export default function LeadsPage() {
             </Button>
           </form>
         </CardContent>
+      </Card>
+
+      <Card className="border-destructive">
+         <CardHeader>
+             <CardTitle>Zona de Peligro: Resetear Leads</CardTitle>
+             <CardDescription>
+                Esta acción eliminará permanentemente todos los registros de leads dentro del rango de fechas seleccionado. Úsala con precaución.
+             </CardDescription>
+         </CardHeader>
+         <CardContent>
+            <form onSubmit={handleResetSubmit(prepareToDeleteLeads)} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div className="space-y-2">
+                        <Label>Desde</Label>
+                        <Controller
+                            name="startDate"
+                            control={resetControl}
+                            render={({ field }) => (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Selecciona una fecha</span>}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                    </PopoverContent>
+                                </Popover>
+                            )}
+                        />
+                    </div>
+                     <div className="space-y-2">
+                        <Label>Hasta</Label>
+                        <Controller
+                            name="endDate"
+                            control={resetControl}
+                            render={({ field }) => (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Selecciona una fecha</span>}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                    </PopoverContent>
+                                </Popover>
+                            )}
+                        />
+                    </div>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button type="submit" variant="destructive" disabled={!watchReset('startDate') || !watchReset('endDate')}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Resetear Leads del Período
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Esta acción es irreversible. Se eliminarán <span className="font-bold">{leadsToDelete.length}</span> registros de leads.
+                                    ¿Deseas continuar?
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel onClick={() => setLeadsToDelete([])}>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={executeDeleteLeads} disabled={isResetting}>
+                                    {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Sí, eliminar leads
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+            </form>
+         </CardContent>
       </Card>
     </div>
   );
