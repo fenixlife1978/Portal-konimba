@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { useCollection, useUser, useFirestore } from '@/firebase';
+import { useCollection, useUser, useFirestore, useDoc } from '@/firebase';
 import {
   collection,
   doc,
@@ -38,7 +38,9 @@ import {
   ArrowLeft,
   Check,
   Copy,
-  X
+  X,
+  Download,
+  Loader2
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -49,6 +51,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { exportToPDF } from '@/lib/export-pdf';
 
 type Publisher = {
   id: string;
@@ -70,6 +73,10 @@ type Publisher = {
   mobilePaymentPhone?: string;
   mobilePaymentId?: string;
   usdtAddress?: string;
+};
+
+type CompanySettings = {
+  companyName?: string;
 };
 
 
@@ -340,9 +347,13 @@ export default function PublishersPage() {
   const [filter, setFilter] = useState('');
   const [editingPublisher, setEditingPublisher] = useState<Publisher | null>(null);
   const [deletingPublisher, setDeletingPublisher] = useState<Publisher | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const publishersCollectionRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
   const { data: publishers, isLoading } = useCollection<Publisher>(publishersCollectionRef);
+  
+  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
   const handleUpdatePublisher = (id: string, data: Partial<Publisher>) => {
     if (!firestore) return;
@@ -369,6 +380,28 @@ export default function PublishersPage() {
       p.subId?.toLowerCase().includes(filter.toLowerCase())
     );
   }, [publishers, filter]);
+  
+  const handleExport = async () => {
+    if (!filteredPublishers || filteredPublishers.length === 0) {
+      toast({ title: "No hay datos para exportar" });
+      return;
+    }
+    setIsExporting(true);
+
+    const reportTitle = "Lista de Publishers";
+    const fileName = "Lista_Publishers.pdf";
+    
+    const head = [['Nombre', 'Email', 'Sub ID']];
+    const body = filteredPublishers.map(p => [
+        `${p.firstName} ${p.lastName}`,
+        p.email,
+        p.subId || 'N/A'
+    ]);
+
+    await exportToPDF({ head, body, fileName, reportTitle, companyName: settingsData?.companyName });
+    
+    setIsExporting(false);
+  };
 
   return (
     <div>
@@ -378,6 +411,10 @@ export default function PublishersPage() {
             <p className="text-muted-foreground">Modifica y gestiona los perfiles de los publishers.</p>
         </div>
         <div className="flex gap-2">
+            <Button onClick={handleExport} variant="outline" disabled={isExporting}>
+              {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              {isExporting ? 'Exportando...' : 'Exportar a PDF'}
+            </Button>
             <Button asChild variant="outline">
             <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Volver al panel</Link>
             </Button>
