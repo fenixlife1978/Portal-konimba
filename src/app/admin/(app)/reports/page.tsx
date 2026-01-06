@@ -30,6 +30,10 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { exportToPDF } from '@/lib/export-pdf';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 // Types
 type Publisher = { 
@@ -82,6 +86,11 @@ const generalReportSchema = z.object({
 });
 type GeneralReportFormData = z.infer<typeof generalReportSchema>;
 
+const dailyReportSchema = z.object({
+  date: z.date({ required_error: 'Debes seleccionar una fecha.' }),
+});
+type DailyReportFormData = z.infer<typeof dailyReportSchema>;
+
 const inactivityReportSchema = z.object({
     period: z.string().nonempty("Debes seleccionar un período."),
 });
@@ -105,6 +114,14 @@ type GeneralReportResult = {
     grandTotalEarnings: number;
     totalLeadsByOffer: Map<string, { offerName: string, totalLeads: number }>;
 }
+
+type DailyReportResult = {
+    publishers: { id: string; name: string; subId?: string }[];
+    offers: { id: string; name: string }[];
+    leadsByPublisher: Map<string, { total: number; leadsByOffer: Map<string, number> }>;
+    dateLabel: string;
+};
+
 
 type InactivePublisher = {
     id: string;
@@ -155,9 +172,10 @@ export default function ReportsPage() {
       </div>
 
       <Tabs defaultValue="publisher-report">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="publisher-report">Reporte por Publisher</TabsTrigger>
           <TabsTrigger value="general-payment-report">Rendimiento General</TabsTrigger>
+           <TabsTrigger value="daily-report">Reporte por Día</TabsTrigger>
           <TabsTrigger value="payment-data-report">Datos de Pago</TabsTrigger>
           <TabsTrigger value="inactivity-report">Inactividad</TabsTrigger>
         </TabsList>
@@ -166,6 +184,9 @@ export default function ReportsPage() {
         </TabsContent>
         <TabsContent value="general-payment-report">
             <GeneralPaymentReport publishers={publishers || []} offers={offers || []} settingsData={settingsData} />
+        </TabsContent>
+        <TabsContent value="daily-report">
+            <DailyLeadReport publishers={publishers || []} offers={offers || []} companyName={settingsData?.companyName} />
         </TabsContent>
          <TabsContent value="payment-data-report">
             <PaymentDataReport publishers={publishers || []} isLoadingPublishers={isLoadingPublishers} companyName={settingsData?.companyName} />
@@ -907,7 +928,187 @@ function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers
 }
 
 // #################################################################################
-// ## TAB 3: Reporte de Datos de Pago
+// ## TAB 3: Reporte por Día
+// #################################################################################
+function DailyLeadReport({ publishers, offers, companyName }: { publishers: Publisher[], offers: Offer[], companyName?: string }) {
+    const firestore = db;
+    const { toast } = useToast();
+    const { control, handleSubmit, watch, formState: { errors } } = useForm<DailyReportFormData>({
+        resolver: zodResolver(dailyReportSchema),
+    });
+
+    const [reportData, setReportData] = useState<DailyReportResult | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    
+    const onSubmit = async (data: DailyReportFormData) => {
+        if (!firestore) return;
+        setIsGenerating(true);
+        setReportData(null);
+        
+        const dateString = format(data.date, 'yyyy-MM-dd');
+
+        try {
+            const leadsQuery = query(collection(firestore, 'leads'), where('date', '==', dateString));
+            const leadsSnapshot = await getDocs(leadsQuery);
+            const leads = leadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lead));
+
+            if (leads.length === 0) {
+                toast({ title: "Sin resultados", description: "No se encontraron leads para la fecha seleccionada." });
+                setIsGenerating(false);
+                return;
+            }
+
+            const activePublisherIds = new Set(leads.map(l => l.publisherId));
+            const activeOfferIds = new Set(leads.map(l => l.offerId));
+            
+            const activePublishers = publishers.filter(p => activePublisherIds.has(p.id))
+              .map(p => ({ id: p.id, name: `${p.firstName} ${p.lastName}`, subId: p.subId }))
+              .sort((a,b) => a.name.localeCompare(b.name));
+
+            const activeOffers = offers.filter(o => activeOfferIds.has(o.id))
+              .map(o => ({ id: o.id, name: o.name }))
+              .sort((a,b) => a.name.localeCompare(b.name));
+
+            const leadsByPublisher = new Map<string, { total: number; leadsByOffer: Map<string, number> }>();
+
+            leads.forEach(lead => {
+                if (!leadsByPublisher.has(lead.publisherId)) {
+                    leadsByPublisher.set(lead.publisherId, { total: 0, leadsByOffer: new Map() });
+                }
+                const publisherEntry = leadsByPublisher.get(lead.publisherId)!;
+                publisherEntry.total += lead.quantity;
+                publisherEntry.leadsByOffer.set(lead.offerId, (publisherEntry.leadsByOffer.get(lead.offerId) || 0) + lead.quantity);
+            });
+
+            setReportData({
+                publishers: activePublishers,
+                offers: activeOffers,
+                leadsByPublisher,
+                dateLabel: format(data.date, "PPP", { locale: es }),
+            });
+
+        } catch (error: any) {
+             console.error("Daily Report Error:", error);
+            toast({ variant: "destructive", title: "Error al generar reporte", description: error.message });
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+    
+    const handleExport = async () => {
+        if (!reportData) return;
+        setIsExporting(true);
+
+        const reportTitle = `Reporte de Leads del Día: ${reportData.dateLabel}`;
+        const fileName = `Reporte_Leads_${reportData.dateLabel.replace(/ /g, '_')}.pdf`;
+        
+        const head = [
+            ["Publisher", ...reportData.offers.map(o => o.name), "TOTAL"]
+        ];
+        
+        const body = reportData.publishers.map(pub => {
+            const pubLeads = reportData.leadsByPublisher.get(pub.id);
+            return [
+                `${pub.name}${pub.subId ? ` (${pub.subId})` : ''}`,
+                ...reportData.offers.map(offer => pubLeads?.leadsByOffer.get(offer.id) || '0'),
+                pubLeads?.total || 0,
+            ];
+        });
+
+        await exportToPDF({ head, body, fileName, reportTitle, companyName, showFooter: true });
+
+        setIsExporting(false);
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Reporte de Leads por Día</CardTitle>
+                <CardDescription>Selecciona una fecha para ver un resumen de todos los leads cargados por publisher y por oferta.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                        <div className="space-y-2">
+                             <Label>Fecha del Reporte</Label>
+                             <Controller name="date" control={control} render={({ field }) => (
+                                 <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Selecciona una fecha</span>}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                    </PopoverContent>
+                                 </Popover>
+                             )} />
+                             {errors.date && <p className="text-sm text-destructive">{errors.date.message}</p>}
+                        </div>
+                    </div>
+                     <div className="flex gap-2">
+                        <Button type="submit" disabled={isGenerating}>
+                            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                            {isGenerating ? 'Generando...' : 'Generar Reporte'}
+                        </Button>
+                         <Button type="button" variant="outline" onClick={handleExport} disabled={!reportData || isExporting}>
+                            {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                            Exportar a PDF
+                        </Button>
+                    </div>
+                </form>
+            </CardContent>
+
+            {isGenerating && <div className="p-6 text-center"><Loader2 className="h-6 w-6 animate-spin inline-block" /></div>}
+            
+            {reportData && (
+                 <CardContent className="mt-6" id="daily-lead-report-container">
+                     <CardHeader className="px-0">
+                        <CardTitle>Resultados para el {reportData.dateLabel}</CardTitle>
+                    </CardHeader>
+                     <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="font-bold sticky left-0 bg-background min-w-[200px]">Publisher</TableHead>
+                                    {reportData.offers.map(offer => (
+                                        <TableHead key={offer.id} className="text-center min-w-[120px]">{offer.name}</TableHead>
+                                    ))}
+                                    <TableHead className="font-bold text-right bg-primary/10 min-w-[80px]">TOTAL</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {reportData.publishers.map(pub => {
+                                    const pubLeads = reportData.leadsByPublisher.get(pub.id);
+                                    return (
+                                        <TableRow key={pub.id}>
+                                            <TableCell className="font-medium sticky left-0 bg-background">
+                                                {pub.name}{pub.subId && <span className="text-muted-foreground ml-2">({pub.subId})</span>}
+                                            </TableCell>
+                                            {reportData.offers.map(offer => (
+                                                <TableCell key={offer.id} className="text-center">
+                                                    {pubLeads?.leadsByOffer.get(offer.id) || 0}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell className="font-bold text-right bg-primary/10">
+                                                {pubLeads?.total || 0}
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                     </div>
+                 </CardContent>
+            )}
+        </Card>
+    );
+}
+
+// #################################################################################
+// ## TAB 4: Reporte de Datos de Pago
 // #################################################################################
 
 function PaymentDataReport({ publishers, isLoadingPublishers, companyName }: { publishers: Publisher[], isLoadingPublishers: boolean, companyName?: string }) {
@@ -1065,7 +1266,7 @@ function PaymentDataReport({ publishers, isLoadingPublishers, companyName }: { p
 
 
 // #################################################################################
-// ## TAB 4: Reporte de Inactividad
+// ## TAB 5: Reporte de Inactividad
 // #################################################################################
 
 function InactivityReport({ publishers, companyName }: { publishers: Publisher[], companyName?: string }) {
