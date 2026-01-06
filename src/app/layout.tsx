@@ -16,6 +16,27 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon-new.png",
   },
+  openGraph: {
+    title: "Portal | Konimba Group Marketing",
+    description: "Accede al portal de Konimba con toda la información y servicios.",
+    url: "https://portal-konimba.vercel.app/",
+    siteName: "Konimba Group Marketing",
+    images: [
+      {
+        url: "https://portal-konimba.vercel.app/logo.png", // logo en /public/logo.png
+        width: 600,
+        height: 600,
+        alt: "Konimba Logo",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Portal | Konimba Group Marketing",
+    description: "Accede al portal de Konimba con toda la información y servicios.",
+    images: ["https://portal-konimba.vercel.app/logo.png"],
+  },
 };
 
 export default function RootLayout({
