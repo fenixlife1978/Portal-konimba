@@ -577,8 +577,21 @@ export default function SettingsPage() {
     }
   };
 
+  // Detectar Chrome móvil problemático
+  const isChromeMobile = typeof navigator !== 'undefined' &&
+    /Chrome/.test(navigator.userAgent) &&
+    /Mobile/.test(navigator.userAgent);
+
   return (
     <div>
+      {isChromeMobile && (
+        <div className="p-4 mb-4 bg-yellow-100 border border-yellow-400 rounded">
+          <p className="text-yellow-800 font-semibold">
+            Nota: Si ves problemas de carga en Chrome móvil, prueba actualizar Chrome o usar otro navegador.
+          </p>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold font-headline text-foreground">Configuración de Cuenta</h1>
         <Button asChild variant="outline">
