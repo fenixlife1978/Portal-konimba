@@ -9,9 +9,7 @@ import {
   BarChart3, 
   Settings, 
   LogOut,
-  ArrowLeftRight,
-  Database,
-  MessageSquare
+  ArrowLeftRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -47,7 +45,8 @@ export function AdminSidebar({ companyName, logoUrl }: AdminSidebarProps) {
   const pathname = usePathname();
   const auth = useAuth();
   const router = useRouter();
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, state } = useSidebar();
+  const isCollapsed = state === 'collapsed';
 
   const handleLogout = async () => {
     if (auth) {
@@ -57,18 +56,20 @@ export function AdminSidebar({ companyName, logoUrl }: AdminSidebarProps) {
   };
 
   return (
-    <Sidebar className="border-r border-border/40 bg-card/50 backdrop-blur-xl">
+    <Sidebar collapsible="icon" className="border-r border-border/40 bg-card/50 backdrop-blur-xl">
       <SidebarHeader className="p-6">
         <Link href="/admin" className="flex items-center gap-3">
-          <Logo className="h-10 w-10 rounded-xl" src={logoUrl} />
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-foreground line-clamp-1">
-              {companyName || 'Siren\'s Portal'}
-            </span>
-            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-              Administrador
-            </span>
-          </div>
+          <Logo className="h-10 w-10 rounded-xl flex-shrink-0" src={logoUrl} />
+          {!isCollapsed && (
+            <div className="flex flex-col overflow-hidden animate-in fade-in duration-300">
+              <span className="text-sm font-bold text-foreground line-clamp-1">
+                {companyName || 'Siren\'s Portal'}
+              </span>
+              <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                Administrador
+              </span>
+            </div>
+          )}
         </Link>
       </SidebarHeader>
       
@@ -79,6 +80,7 @@ export function AdminSidebar({ companyName, logoUrl }: AdminSidebarProps) {
               <SidebarMenuButton
                 asChild
                 isActive={pathname === item.href}
+                tooltip={item.title}
                 className={cn(
                   "flex items-center gap-3 px-4 py-6 rounded-2xl transition-all duration-300",
                   pathname === item.href 
@@ -88,8 +90,12 @@ export function AdminSidebar({ companyName, logoUrl }: AdminSidebarProps) {
                 onClick={() => setOpenMobile(false)}
               >
                 <Link href={item.href}>
-                  <item.icon className="h-5 w-5" />
-                  <span className="font-semibold">{item.title}</span>
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  {!isCollapsed && (
+                    <span className="font-semibold animate-in fade-in slide-in-from-left-2 duration-300">
+                      {item.title}
+                    </span>
+                  )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -100,11 +106,14 @@ export function AdminSidebar({ companyName, logoUrl }: AdminSidebarProps) {
       <SidebarFooter className="p-4 border-t border-border/40">
         <Button 
           variant="ghost" 
-          className="w-full justify-start gap-3 rounded-2xl text-destructive hover:bg-destructive/10 hover:text-destructive py-6"
+          className={cn(
+            "w-full justify-start gap-3 rounded-2xl text-destructive hover:bg-destructive/10 hover:text-destructive py-6",
+            isCollapsed && "justify-center px-0"
+          )}
           onClick={handleLogout}
         >
-          <LogOut className="h-5 w-5" />
-          <span className="font-semibold">Cerrar Sesión</span>
+          <LogOut className="h-5 w-5 flex-shrink-0" />
+          {!isCollapsed && <span className="font-semibold animate-in fade-in duration-300">Cerrar Sesión</span>}
         </Button>
       </SidebarFooter>
     </Sidebar>
