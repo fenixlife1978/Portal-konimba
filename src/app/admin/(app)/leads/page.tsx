@@ -61,6 +61,7 @@ export default function LeadsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [leadsToDelete, setLeadsToDelete] = useState<any[]>([]);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedPublishers, setSelectedPublishers] = useState<Publisher[]>([]);
 
   // Form for lead entry
@@ -211,6 +212,7 @@ export default function LeadsPage() {
         return;
     }
 
+    setIsResetting(true);
     const startDateString = format(startDate, 'yyyy-MM-dd');
     const endDateString = format(endDate, 'yyyy-MM-dd');
 
@@ -222,15 +224,17 @@ export default function LeadsPage() {
 
     const snapshot = await getDocs(leadsQuery);
     setLeadsToDelete(snapshot.docs);
+    setIsResetting(false);
     
-    // This will trigger the AlertDialog because it's the child of AlertDialogTrigger
+    if (snapshot.empty) {
+        toast({ title: 'Sin registros', description: 'No se encontraron leads para eliminar en el período seleccionado.' });
+    } else {
+        setIsDeleteDialogOpen(true);
+    }
   };
 
   const executeDeleteLeads = async () => {
-    if (!firestore || leadsToDelete.length === 0) {
-        toast({ title: 'Sin cambios', description: 'No se encontraron leads para eliminar en el período seleccionado.' });
-        return;
-    };
+    if (!firestore || leadsToDelete.length === 0) return;
     setIsResetting(true);
 
     const batch = writeBatch(firestore);
@@ -246,6 +250,7 @@ export default function LeadsPage() {
     } finally {
         setIsResetting(false);
         setLeadsToDelete([]);
+        setIsDeleteDialogOpen(false);
     }
   };
 
@@ -449,35 +454,33 @@ export default function LeadsPage() {
                             )}
                         />
                     </div>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button type="submit" variant="destructive" disabled={!watchReset('startDate') || !watchReset('endDate')}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Resetear Leads del Período
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Esta acción es irreversible. Se eliminarán <span className="font-bold">{leadsToDelete.length}</span> registros de leads.
-                                    ¿Deseas continuar?
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel onClick={() => setLeadsToDelete([])}>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={executeDeleteLeads} disabled={isResetting}>
-                                    {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Sí, eliminar leads
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    <Button type="submit" variant="destructive" disabled={isResetting || !watchReset('startDate') || !watchReset('endDate')}>
+                        {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                        Validar Período
+                    </Button>
                 </div>
             </form>
          </CardContent>
       </Card>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      Esta acción es irreversible. Se eliminarán <span className="font-bold text-destructive">{leadsToDelete.length}</span> registros de leads del período seleccionado.
+                      ¿Deseas continuar?
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => { setLeadsToDelete([]); setIsDeleteDialogOpen(false); }}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={executeDeleteLeads} disabled={isResetting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Sí, eliminar leads permanentemente
+                  </AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-    

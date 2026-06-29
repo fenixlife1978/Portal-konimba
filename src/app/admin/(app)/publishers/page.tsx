@@ -330,9 +330,9 @@ function PublisherRow({ publisher, onSave, onEditClick, onDeleteClick }: {
             <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={onEditClick}><Pencil className="mr-2 h-4 w-4" />Ver Detalles</DropdownMenuItem>
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onEditClick(); }}><Pencil className="mr-2 h-4 w-4" />Ver Detalles</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onDeleteClick} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Eliminar Publisher</DropdownMenuItem>
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onDeleteClick(); }} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Eliminar Publisher</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>
