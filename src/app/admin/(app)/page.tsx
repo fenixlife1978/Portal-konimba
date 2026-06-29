@@ -12,8 +12,10 @@ import {
   DollarSign, 
   CheckCircle2,
   Signal,
-  TrendingUp
+  TrendingUp,
+  MessageSquare
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // Types
 type Publisher = { id: string };
@@ -61,8 +63,6 @@ const KPIStore = ({
     </CardContent>
   </Card>
 );
-
-import { cn } from '@/lib/utils';
 
 export default function AdminDashboardPage() {
   const firestore = db;
