@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -10,7 +11,9 @@ import {
   Settings, 
   LogOut,
   ArrowLeftRight,
-  PanelLeft
+  PanelLeft,
+  Activity,
+  Megaphone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -37,7 +40,9 @@ interface AdminSidebarProps {
 const menuItems = [
   { title: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { title: 'Equipo y SubIds', href: '/admin/publishers', icon: Users },
-  { title: 'Gestión de Leads', href: '/admin/leads', icon: ArrowLeftRight },
+  { title: 'Campañas (Ofertas)', href: '/admin/offers', icon: Megaphone },
+  { title: 'Monitor de Leads', href: '/admin/leads-monitor', icon: Activity },
+  { title: 'Gestión Manual', href: '/admin/leads', icon: ArrowLeftRight },
   { title: 'Registro de Pagos', href: '/admin/payments', icon: CreditCard },
   { title: 'Reportes y Auditoría', href: '/admin/reports', icon: BarChart3 },
   { title: 'Configuración', href: '/admin/settings', icon: Settings },
@@ -108,7 +113,6 @@ export function AdminSidebar({ companyName, logoUrl }: AdminSidebarProps) {
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-border/40 flex flex-col gap-2">
-        {/* Toggle Button at the bottom as requested */}
         <SidebarTrigger 
           className={cn(
             "w-full justify-start gap-3 rounded-2xl text-muted-foreground hover:bg-muted py-6 hidden md:flex",
