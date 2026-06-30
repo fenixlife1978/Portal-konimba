@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -51,8 +52,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setIsResetting(true);
 
     try {
-      // Colecciones a resetear (Borrar toda la data excepto usuarios y publishers)
-      const collectionsToReset = ['leads', 'offers', 'payments', 'settings'];
+      // Colecciones a resetear (Borrar solo data operativa)
+      // IMPORTANTE: Excluimos 'publishers', 'roles_admin' y 'settings' para no perder usuarios ni el motor dinámico.
+      const collectionsToReset = ['leads', 'offers', 'payments'];
       let totalDeleted = 0;
 
       for (const colName of collectionsToReset) {
@@ -96,7 +98,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                <span className="text-sm font-medium text-muted-foreground">Panel de Control</span>
             </div>
 
-            {/* Reset Button in Header (Requested position) */}
+            {/* Reset Button in Header */}
             {mounted && (
               <div className="ml-auto">
                 <AlertDialog>
@@ -116,10 +118,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             <li>Registros de Leads</li>
                             <li>Catálogo de Ofertas</li>
                             <li>Historial de Pagos</li>
-                            <li>Configuración Corporativa</li>
                           </ul>
                           <br />
-                          <span className="text-emerald-600 font-bold">IMPORTANTE: Los usuarios (Trabajadores y Admins) NO serán eliminados.</span>
+                          <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                            <span className="text-emerald-600 font-bold text-sm block">NO se eliminarán:</span>
+                            <span className="text-emerald-700 text-xs mt-1 block">
+                              Usuarios, Miembros del Equipo y la Configuración del Sistema (Motor, APIs, Tasas, etc.)
+                            </span>
+                          </div>
                         </div>
                       </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -127,7 +133,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
                       <AlertDialogAction onClick={handleResetApp} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl px-6">
                         {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                        Confirmar Borrado Total
+                        Confirmar Borrado Operativo
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
