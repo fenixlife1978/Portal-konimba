@@ -3,38 +3,21 @@ import { useMemo, useState, useEffect } from 'react';
 import { useCollection, useUser, useFirestore } from '@/firebase';
 import { 
   collection, 
-  getDocs, 
-  writeBatch, 
 } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
 import { 
   Users, 
-  Target, 
   BarChart3, 
   DollarSign, 
   CheckCircle2,
   Signal,
   TrendingUp,
   MessageSquare,
-  RefreshCw,
   Loader2,
-  Trash2
+  Target
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
 // Types
 type Publisher = { id: string };
@@ -86,8 +69,6 @@ const KPIStore = ({
 export default function AdminDashboardPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
-  const { toast } = useToast();
-  const [isResetting, setIsResetting] = useState(false);
   
   // Hydration fix
   const [mounted, setMounted] = useState(false);
@@ -146,44 +127,6 @@ export default function AdminDashboardPage() {
 
   const isLoading = isLoadingPublishers || isLoadingOffers || isLoadingLeads || isUserLoading;
 
-  const handleResetApp = async () => {
-    if (!firestore) return;
-    setIsResetting(true);
-
-    try {
-      // Colecciones a resetear (Borrar toda la data excepto usuarios)
-      const collectionsToReset = ['leads', 'offers', 'payments', 'settings'];
-      let totalDeleted = 0;
-
-      for (const colName of collectionsToReset) {
-        const colRef = collection(firestore, colName);
-        const snapshot = await getDocs(colRef);
-        
-        if (!snapshot.empty) {
-          const batch = writeBatch(firestore);
-          snapshot.docs.forEach((doc) => {
-            batch.delete(doc.ref);
-            totalDeleted++;
-          });
-          await batch.commit();
-        }
-      }
-
-      toast({ 
-        title: "Sistema Reiniciado", 
-        description: `Se han eliminado ${totalDeleted} registros operativos con éxito.` 
-      });
-    } catch (error: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "Error al reiniciar", 
-        description: error.message 
-      });
-    } finally {
-      setIsResetting(false);
-    }
-  };
-
   // Prevent hydration mismatch
   if (!mounted) {
     return (
@@ -198,44 +141,12 @@ export default function AdminDashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-col gap-2">
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
-            Panel de Control
+            Resumen de Actividad
           </h1>
           <p className="text-muted-foreground font-medium">
-            Bienvenido de nuevo, {user?.displayName || 'Administrador'}. Aquí tienes el resumen de hoy.
+            Bienvenido de nuevo, {user?.displayName || 'Administrador'}.
           </p>
         </div>
-
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive" size="sm" className="rounded-xl h-10 shadow-lg shadow-destructive/10">
-              <RefreshCw className={cn("mr-2 h-4 w-4", isResetting && "animate-spin")} />
-              Resetear Aplicación
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent className="rounded-2xl">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-2xl font-bold">¿Estás totalmente seguro?</AlertDialogTitle>
-              <AlertDialogDescription className="text-base">
-                Esta acción es irreversible y eliminará permanentemente todos los:
-                <ul className="list-disc list-inside mt-2 space-y-1 font-semibold text-foreground">
-                  <li>Registros de Leads</li>
-                  <li>Catálogo de Ofertas</li>
-                  <li>Historial de Pagos</li>
-                  <li>Configuración Corporativa</li>
-                </ul>
-                <br />
-                <span className="text-emerald-600 font-bold">IMPORTANTE: Los usuarios (Trabajadores y Admins) NO serán eliminados.</span>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="gap-2">
-              <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleResetApp} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl px-6">
-                {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                Confirmar Borrado Total
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
 
       {/* KPI Cards */}
@@ -294,7 +205,7 @@ export default function AdminDashboardPage() {
             <div className="flex items-center justify-between p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
               <div className="flex items-center gap-3">
                 <Target className="h-5 w-5 text-amber-500" />
-                <span className="font-semibold text-amber-700">API Cpamerchant</span>
+                <span className="font-semibold text-amber-700">API CPA</span>
               </div>
               <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
             </div>

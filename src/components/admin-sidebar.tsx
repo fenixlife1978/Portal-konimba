@@ -9,7 +9,8 @@ import {
   BarChart3, 
   Settings, 
   LogOut,
-  ArrowLeftRight
+  ArrowLeftRight,
+  PanelLeft
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -59,7 +60,7 @@ export function AdminSidebar({ companyName, logoUrl }: AdminSidebarProps) {
   return (
     <Sidebar collapsible="icon" className="border-r border-border/40 bg-card/50 backdrop-blur-xl">
       <SidebarHeader className="p-4">
-        <div className="flex items-center justify-between gap-2 overflow-hidden">
+        <div className="flex items-center gap-3 overflow-hidden shrink-0">
           <Link href="/admin" className="flex items-center gap-3 overflow-hidden shrink-0">
             <Logo className="h-8 w-8 rounded-xl flex-shrink-0" src={logoUrl} />
             {!isCollapsed && (
@@ -73,7 +74,6 @@ export function AdminSidebar({ companyName, logoUrl }: AdminSidebarProps) {
               </div>
             )}
           </Link>
-          <SidebarTrigger className={cn("h-8 w-8 shrink-0 hidden md:flex", isCollapsed && "mx-auto")} />
         </div>
       </SidebarHeader>
       
@@ -107,7 +107,18 @@ export function AdminSidebar({ companyName, logoUrl }: AdminSidebarProps) {
         </SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-border/40">
+      <SidebarFooter className="p-4 border-t border-border/40 flex flex-col gap-2">
+        {/* Toggle Button at the bottom as requested */}
+        <SidebarTrigger 
+          className={cn(
+            "w-full justify-start gap-3 rounded-2xl text-muted-foreground hover:bg-muted py-6 hidden md:flex",
+            isCollapsed && "justify-center px-0"
+          )}
+        >
+          <PanelLeft className="h-5 w-5 flex-shrink-0" />
+          {!isCollapsed && <span className="font-semibold">Colapsar Menú</span>}
+        </SidebarTrigger>
+
         <Button 
           variant="ghost" 
           className={cn(
