@@ -24,7 +24,8 @@ import {
   CheckCheck,
   Search,
   Wallet,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Users
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { exportToPDF } from '@/lib/export-pdf';
@@ -84,7 +85,7 @@ const months = [
     { value: '1', label: 'Enero' }, { value: '2', label: 'Febrero' }, { value: '3', label: 'Marzo' },
     { value: '4', label: 'Abril' }, { value: '5', label: 'Mayo' }, { value: '6', 'label': 'Junio' },
     { value: '7', label: 'Julio' }, { value: '8', label: 'Agosto' }, { value: '9', 'label': 'Septiembre' },
-    { value: '10', label: 'Octubre' }, { value: '11', 'label': 'Noviembre' }, { value: '12', 'label': 'Diciembre' }
+    { value: '10', label: 'Octubre' }, { value: '11', label: 'Noviembre' }, { value: '12', 'label': 'Diciembre' }
 ];
 
 export default function PayrollPage() {
@@ -93,7 +94,6 @@ export default function PayrollPage() {
   const { toast } = useToast();
   
   const [isCalculating, setIsCalculating] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
   const [paymentToRecord, setPaymentToRecord] = useState<Payment | null>(null);
   
@@ -111,6 +111,13 @@ export default function PayrollPage() {
       year: String(new Date().getFullYear()),
     },
   });
+
+  // Años dinámicos desde 2023 hasta el año actual + 1
+  const years = useMemo(() => {
+    const current = new Date().getFullYear();
+    const start = 2023;
+    return Array.from({ length: Math.max(current - start + 2, 5) }, (_, i) => start + i);
+  }, []);
 
   const pendingPaymentsQuery = useMemo(() => {
     if (!firestore || !pendingPaymentPeriod) return null;
@@ -178,7 +185,7 @@ export default function PayrollPage() {
                     <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger className="rounded-xl bg-background"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-xl">
-                        {[2023, 2024, 2025].map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                        {years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   )} />
@@ -287,11 +294,21 @@ export default function PayrollPage() {
               <div className="grid md:grid-cols-4 gap-4 items-end">
                 <div className="space-y-2 col-span-1">
                   <Label>Año</Label>
-                  <Select><SelectTrigger className="rounded-xl"><SelectValue placeholder="2025"/></SelectTrigger></Select>
+                  <Select>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder={String(new Date().getFullYear())}/></SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2 col-span-1">
                   <Label>Mes</Label>
-                  <Select><SelectTrigger className="rounded-xl"><SelectValue placeholder="Enero"/></SelectTrigger></Select>
+                  <Select>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Enero"/></SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                        {months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2 col-span-2">
                   <Button className="w-full rounded-xl h-10"><Search className="mr-2 h-4 w-4" /> Buscar en Archivo</Button>
