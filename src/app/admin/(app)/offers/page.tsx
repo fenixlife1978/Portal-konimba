@@ -21,7 +21,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -82,7 +81,7 @@ function OfferForm({ onSave, offer, onOpenChange }: { onSave: (data: OfferFormDa
         </div>
         <div className="grid grid-cols-4 items-center gap-4">
           <Label htmlFor="status" className="text-right">Estado</Label>
-          <select id="status" {...register('status')} className="col-span-3 flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+          <select id="status" {...register('status')} className="col-span-3 flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
             <option value="active">Activa</option>
             <option value="inactive">Inactiva</option>
           </select>
@@ -96,10 +95,7 @@ function OfferForm({ onSave, offer, onOpenChange }: { onSave: (data: OfferFormDa
   );
 }
 
-function OfferRow({ offer, onSave, onDelete }: { offer: Offer; onSave: (data: Partial<Offer>) => void; onDelete: () => void }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
+function OfferRow({ offer, onEditClick, onDeleteClick }: { offer: Offer; onEditClick: () => void; onDeleteClick: () => void }) {
   return (
     <TableRow>
       <TableCell className="font-medium">{offer.name}</TableCell>
@@ -113,20 +109,8 @@ function OfferRow({ offer, onSave, onDelete }: { offer: Offer; onSave: (data: Pa
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <Dialog open={isEditing} onOpenChange={setIsEditing}>
-              <DialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()}><Pencil className="mr-2 h-4 w-4" />Editar</DropdownMenuItem></DialogTrigger>
-              <DialogContent><OfferForm offer={offer} onSave={onSave} onOpenChange={setIsEditing} /></DialogContent>
-            </Dialog>
-            <Dialog open={isDeleting} onOpenChange={setIsDeleting}>
-              <DialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Eliminar</DropdownMenuItem></DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>¿Estás seguro?</DialogTitle><DialogDescription>Esta acción eliminará la oferta permanentemente.</DialogDescription></DialogHeader>
-                <DialogFooter>
-                  <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-                  <Button variant="destructive" onClick={() => { onDelete(); setIsDeleting(false); }}>Sí, eliminar</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onEditClick(); }}><Pencil className="mr-2 h-4 w-4" />Editar</DropdownMenuItem>
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onDeleteClick(); }} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Eliminar</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>
@@ -138,6 +122,8 @@ export default function OffersPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
+  const [deletingOffer, setDeletingOffer] = useState<Offer | null>(null);
 
   const offersCollectionRef = useMemo(() => firestore ? collection(firestore, 'offers') : null, [firestore]);
   const { data: offers, isLoading } = useCollection<Offer>(offersCollectionRef);
@@ -156,11 +142,12 @@ export default function OffersPage() {
     }
   };
 
-  const handleDeleteOffer = (id: string) => {
-    if (!firestore) return;
-    const offerRef = doc(firestore, 'offers', id);
+  const handleDeleteOffer = () => {
+    if (!firestore || !deletingOffer) return;
+    const offerRef = doc(firestore, 'offers', deletingOffer.id);
     deleteDocumentNonBlocking(offerRef);
     toast({ title: "Oferta eliminada" });
+    setDeletingOffer(null);
   };
   
   return (
@@ -168,12 +155,7 @@ export default function OffersPage() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold font-headline text-foreground">Gestión de Ofertas</h1>
         <div className='flex gap-2'>
-          <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-            <DialogTrigger asChild>
-              <Button><PlusCircle className="mr-2 h-4 w-4" />Crear Oferta</Button>
-            </DialogTrigger>
-            <DialogContent><OfferForm onSave={(data) => handleSaveOffer(null, data)} onOpenChange={setIsCreateModalOpen} /></DialogContent>
-          </Dialog>
+          <Button onClick={() => setIsCreateModalOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Crear Oferta</Button>
           <Button asChild variant="outline"><Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Volver al panel</Link></Button>
         </div>
       </div>
@@ -196,14 +178,44 @@ export default function OffersPage() {
                 <OfferRow
                   key={offer.id}
                   offer={offer}
-                  onSave={(data) => handleSaveOffer(offer.id, data as OfferFormData)}
-                  onDelete={() => handleDeleteOffer(offer.id)}
+                  onEditClick={() => setEditingOffer(offer)}
+                  onDeleteClick={() => setDeletingOffer(offer)}
                 />
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {/* Create Dialog */}
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent>
+            <OfferForm onSave={(data) => handleSaveOffer(null, data)} onOpenChange={setIsCreateModalOpen} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingOffer} onOpenChange={(open) => !open && setEditingOffer(null)}>
+        <DialogContent>
+          {editingOffer && (
+            <OfferForm offer={editingOffer} onSave={(data) => handleSaveOffer(editingOffer.id, data)} onOpenChange={(open) => !open && setEditingOffer(null)} />
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Dialog */}
+      <Dialog open={!!deletingOffer} onOpenChange={(open) => !open && setDeletingOffer(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Estás seguro?</DialogTitle>
+            <DialogDescription>Esta acción eliminará la oferta permanentemente.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
+            <Button variant="destructive" onClick={handleDeleteOffer}>Sí, eliminar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

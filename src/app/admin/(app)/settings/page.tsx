@@ -21,11 +21,9 @@ import {
   Globe,
   Loader2,
   Image as ImageIcon,
-  Link as LinkIcon
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
 import { FileUpload } from '@/components/ui/file-upload';
 import { Progress } from '@/components/ui/progress';
 import Image from 'next/image';
@@ -63,13 +61,33 @@ export default function SystemSettingsPage() {
       dbType: 'firebase',
       companyName: '',
       companyAddress: '',
+      dbConnectionString: '',
+      dbAuthToken: '',
+      dbServiceAccount: '',
+      whatsappUrl: '',
+      whatsappToken: '',
+      logoUrl: '',
       usdToVesRate: 1,
       usdToCopRate: 1,
     }
   });
 
   useEffect(() => {
-    if (settingsData) reset(settingsData);
+    if (settingsData) {
+      reset({
+        companyName: settingsData.companyName || '',
+        companyAddress: settingsData.companyAddress || '',
+        dbType: settingsData.dbType || 'firebase',
+        dbConnectionString: settingsData.dbConnectionString || '',
+        dbAuthToken: settingsData.dbAuthToken || '',
+        dbServiceAccount: settingsData.dbServiceAccount || '',
+        whatsappUrl: settingsData.whatsappUrl || '',
+        whatsappToken: settingsData.whatsappToken || '',
+        logoUrl: settingsData.logoUrl || '',
+        usdToVesRate: settingsData.usdToVesRate ?? 1,
+        usdToCopRate: settingsData.usdToCopRate ?? 1,
+      });
+    }
   }, [settingsData, reset]);
 
   const dbType = watch('dbType');
