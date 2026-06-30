@@ -266,6 +266,7 @@ export default function SystemSettingsPage() {
                       render={({ field }) => (
                         <Textarea 
                           {...field} 
+                          value={field.value || ''}
                           placeholder='{ "type": "service_account", ... }' 
                           className="min-h-[200px] rounded-xl font-mono text-xs bg-muted/30"
                         />
@@ -281,7 +282,7 @@ export default function SystemSettingsPage() {
                       <Controller
                         name="dbConnectionString"
                         control={control}
-                        render={({ field }) => <Input {...field} className="rounded-xl bg-muted/30" />}
+                        render={({ field }) => <Input {...field} value={field.value || ''} className="rounded-xl bg-muted/30" />}
                       />
                     </div>
                     {dbType === 'turso' && (
@@ -290,7 +291,7 @@ export default function SystemSettingsPage() {
                         <Controller
                           name="dbAuthToken"
                           control={control}
-                          render={({ field }) => <Input {...field} type="password" className="rounded-xl bg-muted/30" />}
+                          render={({ field }) => <Input {...field} value={field.value || ''} type="password" className="rounded-xl bg-muted/30" />}
                         />
                       </div>
                     )}
@@ -362,7 +363,7 @@ export default function SystemSettingsPage() {
                     <Controller
                       name="whatsappUrl"
                       control={control}
-                      render={({ field }) => <Input {...field} placeholder="https://api.tuservidor.com" className="rounded-xl" />}
+                      render={({ field }) => <Input {...field} value={field.value || ''} placeholder="https://api.tuservidor.com" className="rounded-xl" />}
                     />
                   </div>
                   <div className="space-y-2">
@@ -370,7 +371,7 @@ export default function SystemSettingsPage() {
                     <Controller
                       name="whatsappToken"
                       control={control}
-                      render={({ field }) => <Input {...field} type="password" placeholder="Tu token secreto" className="rounded-xl" />}
+                      render={({ field }) => <Input {...field} value={field.value || ''} type="password" placeholder="Tu token secreto" className="rounded-xl" />}
                     />
                   </div>
                 </div>
@@ -399,19 +400,19 @@ export default function SystemSettingsPage() {
                 <div className="grid gap-6 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Nombre de la Empresa</Label>
-                    <Controller name="companyName" control={control} render={({ field }) => <Input {...field} className="rounded-xl" />} />
+                    <Controller name="companyName" control={control} render={({ field }) => <Input {...field} value={field.value || ''} className="rounded-xl" />} />
                   </div>
                   <div className="space-y-2">
                     <Label>Dirección Corporativa</Label>
-                    <Controller name="companyAddress" control={control} render={({ field }) => <Input {...field} className="rounded-xl" />} />
+                    <Controller name="companyAddress" control={control} render={({ field }) => <Input {...field} value={field.value || ''} className="rounded-xl" />} />
                   </div>
                   <div className="space-y-2">
                     <Label>Tasa USD a Bolívares (VES)</Label>
-                    <Controller name="usdToVesRate" control={control} render={({ field }) => <Input {...field} type="number" step="0.01" className="rounded-xl" />} />
+                    <Controller name="usdToVesRate" control={control} render={({ field }) => <Input {...field} value={field.value || ''} type="number" step="0.01" className="rounded-xl" />} />
                   </div>
                   <div className="space-y-2">
                     <Label>Tasa USD a Pesos (COP)</Label>
-                    <Controller name="usdToCopRate" control={control} render={({ field }) => <Input {...field} type="number" step="1" className="rounded-xl" />} />
+                    <Controller name="usdToCopRate" control={control} render={({ field }) => <Input {...field} value={field.value || ''} type="number" step="1" className="rounded-xl" />} />
                   </div>
                 </div>
               </CardContent>

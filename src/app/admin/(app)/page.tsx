@@ -1,14 +1,12 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useCollection, useUser, useFirestore } from '@/firebase';
-import { db } from '@/firebase/config';
 import { 
   collection, 
   getDocs, 
   writeBatch, 
-  doc 
 } from 'firebase/firestore';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -90,6 +88,12 @@ export default function AdminDashboardPage() {
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const [isResetting, setIsResetting] = useState(false);
+  
+  // Hydration fix
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Data fetching
   const publishersRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
@@ -147,7 +151,7 @@ export default function AdminDashboardPage() {
     setIsResetting(true);
 
     try {
-      // Colecciones a resetear (Borrar toda la data)
+      // Colecciones a resetear (Borrar toda la data excepto usuarios)
       const collectionsToReset = ['leads', 'offers', 'payments', 'settings'];
       let totalDeleted = 0;
 
@@ -167,7 +171,7 @@ export default function AdminDashboardPage() {
 
       toast({ 
         title: "Sistema Reiniciado", 
-        description: `Se han eliminado ${totalDeleted} registros de leads, ofertas, pagos y configuración corporativa.` 
+        description: `Se han eliminado ${totalDeleted} registros operativos con éxito.` 
       });
     } catch (error: any) {
       toast({ 
@@ -179,6 +183,15 @@ export default function AdminDashboardPage() {
       setIsResetting(false);
     }
   };
+
+  // Prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-primary opacity-20" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
