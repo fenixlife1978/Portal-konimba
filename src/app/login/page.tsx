@@ -18,7 +18,7 @@ import { signInWithEmailAndPassword, updateProfile, createUserWithEmailAndPasswo
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/ui/logo";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -57,7 +57,7 @@ export default function LoginPage() {
     try {
       const docSnap = await getDoc(adminRoleRef);
       if (docSnap.exists()) {
-        router.replace('/admin/dashboard');
+        router.replace('/admin');
       } else {
         router.replace('/publisher/receipts');
       }
@@ -80,7 +80,7 @@ export default function LoginPage() {
       const docSnap = await getDoc(adminRoleRef);
 
       if (docSnap.exists()) {
-        router.replace('/admin/dashboard');
+        router.replace('/admin');
       } else {
         router.replace('/publisher/receipts');
       }
@@ -103,20 +103,24 @@ export default function LoginPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
       const uid = userCredential.user.uid;
       
-      const [firstName, ...lastNameParts] = registerName.trim().split(' ');
-      const lastName = lastNameParts.join(' ');
+      const nameParts = registerName.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
 
       await updateProfile(userCredential.user, { displayName: registerName });
 
+      // IMPORTANTE: Crear el documento de forma asíncrona pero asegurar que el usuario tenga acceso.
       const publisherDocRef = doc(firestore, 'publishers', uid);
       setDocumentNonBlocking(publisherDocRef, {
         id: uid,
-        firstName: firstName || '',
-        lastName: lastName || '',
+        firstName: firstName,
+        lastName: lastName,
         email: userCredential.user.email,
         status: 'active',
+        createdAt: serverTimestamp(),
       });
 
+      toast({ title: "Cuenta creada", description: "Bienvenido al portal del equipo." });
       router.replace('/publisher/receipts');
     } catch (error: any) {
       toast({ 
@@ -148,13 +152,13 @@ export default function LoginPage() {
       </div>
 
       <Tabs defaultValue="login" className="w-full max-w-sm">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Ingresar</TabsTrigger>
-          <TabsTrigger value="register">Registrarse (Publishers)</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 rounded-xl bg-muted/50 p-1">
+          <TabsTrigger value="login" className="rounded-lg">Ingresar</TabsTrigger>
+          <TabsTrigger value="register" className="rounded-lg">Registrarse</TabsTrigger>
         </TabsList>
         <TabsContent value="login">
           <form onSubmit={handleLogin}>
-            <Card>
+            <Card className="rounded-2xl border-none shadow-sm">
               <CardHeader>
                 <CardTitle>Bienvenido</CardTitle>
                 <CardDescription>Accede a tu panel de control.</CardDescription>
@@ -162,15 +166,15 @@ export default function LoginPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="login-email">Email</Label>
-                  <Input id="login-email" type="email" placeholder="Email" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} disabled={isLoading} />
+                  <Input id="login-email" type="email" placeholder="Email" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} disabled={isLoading} className="rounded-xl bg-muted/30" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="login-password">Contraseña</Label>
-                  <Input id="login-password" type="password" placeholder="Contraseña" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} disabled={isLoading} />
+                  <Input id="login-password" type="password" placeholder="Contraseña" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} disabled={isLoading} className="rounded-xl bg-muted/30" />
                 </div>
               </CardContent>
               <CardFooter>
-                <Button className="w-full" type="submit" disabled={isLoading}>
+                <Button className="w-full rounded-xl" type="submit" disabled={isLoading}>
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {isLoading ? "Validando..." : "Acceder"}
                 </Button>
@@ -180,35 +184,35 @@ export default function LoginPage() {
         </TabsContent>
         <TabsContent value="register">
           <form onSubmit={handleRegister}>
-            <Card>
+            <Card className="rounded-2xl border-none shadow-sm">
               <CardHeader>
-                <CardTitle>Crear Cuenta de Publisher</CardTitle>
-                <CardDescription>Regístrate para acceder a tu panel.</CardDescription>
+                <CardTitle>Crear Cuenta de Miembro</CardTitle>
+                <CardDescription>Regístrate para unirte al equipo.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="register-name">Nombre y Apellido</Label>
-                  <Input id="register-name" type="text" placeholder="Nombre y Apellido" required value={registerName} onChange={(e) => setRegisterName(e.target.value)} disabled={isLoading} />
+                  <Input id="register-name" type="text" placeholder="Nombre y Apellido" required value={registerName} onChange={(e) => setRegisterName(e.target.value)} disabled={isLoading} className="rounded-xl bg-muted/30" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="register-email">Email</Label>
-                  <Input id="register-email" type="email" placeholder="Email" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} disabled={isLoading} />
+                  <Label htmlFor="register-email">Email Corporativo</Label>
+                  <Input id="register-email" type="email" placeholder="Email" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} disabled={isLoading} className="rounded-xl bg-muted/30" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="register-password">Contraseña</Label>
-                  <Input id="register-password" type="password" placeholder="Mínimo 6 caracteres" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} disabled={isLoading} />
+                  <Input id="register-password" type="password" placeholder="Mínimo 6 caracteres" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} disabled={isLoading} className="rounded-xl bg-muted/30" />
                 </div>
               </CardContent>
               <CardFooter>
-                <Button className="w-full" type="submit" disabled={isLoading}>
+                <Button className="w-full rounded-xl" type="submit" disabled={isLoading}>
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {isLoading ? "Creando cuenta..." : "Registrarse"}
                 </Button>
               </CardFooter>
              </Card>
-          </form>   {/* cierre del form */}
-        </TabsContent> {/* cierre del TabsContent */}
-      </Tabs> {/* cierre del Tabs */}
+          </form>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

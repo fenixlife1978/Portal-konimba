@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -25,7 +25,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -40,7 +39,10 @@ import {
   Copy,
   X,
   Download,
-  Loader2
+  Loader2,
+  Phone,
+  ShieldCheck,
+  ShieldX
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -51,6 +53,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { exportToPDF } from '@/lib/export-pdf';
 
 type Publisher = {
@@ -141,39 +145,42 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Editar Detalles del Publisher</DialogTitle>
+        <DialogTitle>Editar Detalles del Miembro</DialogTitle>
         <DialogDescription>
-          Modifica la información del publisher {publisher.firstName} {publisher.lastName}.
+          Modifica la información del trabajador {publisher.firstName} {publisher.lastName}.
         </DialogDescription>
       </DialogHeader>
       <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-4">
-        <h3 className="font-bold">Información Personal</h3>
-        <div>
-          <Label htmlFor="firstName">Nombre</Label>
-          <Input
-            id="firstName"
-            value={formData.firstName || ''}
-            onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-          />
+        <h3 className="font-bold text-primary">Información Personal</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="firstName">Nombre</Label>
+            <Input
+              id="firstName"
+              value={formData.firstName || ''}
+              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="lastName">Apellido</Label>
+            <Input
+              id="lastName"
+              value={formData.lastName || ''}
+              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+            />
+          </div>
         </div>
         <div>
-          <Label htmlFor="lastName">Apellido</Label>
-          <Input
-            id="lastName"
-            value={formData.lastName || ''}
-            onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label htmlFor="phone">Teléfono</Label>
+          <Label htmlFor="phone">WhatsApp / Teléfono</Label>
           <Input
             id="phone"
             value={formData.phone || ''}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            placeholder="+58 412 0000000"
           />
         </div>
         <div>
-          <Label htmlFor="address">Dirección</Label>
+          <Label htmlFor="address">Dirección Corta</Label>
           <Input
             id="address"
             value={formData.address || ''}
@@ -183,70 +190,32 @@ function EditDetailsModal({ publisher, onSave, onOpenChange }: EditDetailsModalP
         
         <Separator className='my-4' />
         <div className="flex justify-between items-center">
-            <h3 className="font-bold">Información de Pago</h3>
+            <h3 className="font-bold text-primary">Información de Pago</h3>
             <Button variant="outline" size="sm" onClick={handleCopyPaymentInfo}>
                 <Copy className="mr-2 h-4 w-4" />
-                Copiar Info de Pago
+                Copiar Datos
             </Button>
         </div>
-        <div>
-          <Label htmlFor="country">País</Label>
-          <Input
-            id="country"
-            value={formData.country || ''}
-            onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-          />
-        </div>
-         <div>
-          <Label htmlFor="paymentMethod">Método de Pago</Label>
-          <Input
-            id="paymentMethod"
-            value={formData.paymentMethod || ''}
-            onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as any })}
-          />
-        </div>
-         <div>
-          <Label htmlFor="bank">Banco (Transferencia)</Label>
-          <Input
-            id="bank"
-            value={formData.bank || ''}
-            onChange={(e) => setFormData({ ...formData, bank: e.target.value })}
-          />
-        </div>
-         <div>
-          <Label htmlFor="accountNumber">Nº de Cuenta (Transferencia)</Label>
-          <Input
-            id="accountNumber"
-            value={formData.accountNumber || ''}
-            onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="country">País</Label>
+            <Input
+              id="country"
+              value={formData.country || ''}
+              onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+            />
+          </div>
+           <div>
+            <Label htmlFor="paymentMethod">Método</Label>
+            <Input
+              id="paymentMethod"
+              value={formData.paymentMethod || ''}
+              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as any })}
+            />
+          </div>
         </div>
         <div>
-          <Label htmlFor="mobilePaymentBank">Banco (Pago Móvil)</Label>
-          <Input
-            id="mobilePaymentBank"
-            value={formData.mobilePaymentBank || ''}
-            onChange={(e) => setFormData({ ...formData, mobilePaymentBank: e.target.value })}
-          />
-        </div>
-         <div>
-          <Label htmlFor="mobilePaymentPhone">Teléfono (Pago Móvil)</Label>
-          <Input
-            id="mobilePaymentPhone"
-            value={formData.mobilePaymentPhone || ''}
-            onChange={(e) => setFormData({ ...formData, mobilePaymentPhone: e.target.value })}
-          />
-        </div>
-         <div>
-          <Label htmlFor="mobilePaymentId">Cédula/RIF (Pago Móvil)</Label>
-          <Input
-            id="mobilePaymentId"
-            value={formData.mobilePaymentId || ''}
-            onChange={(e) => setFormData({ ...formData, mobilePaymentId: e.target.value })}
-          />
-        </div>
-         <div>
-          <Label htmlFor="usdtAddress">Email (USDT)</Label>
+          <Label htmlFor="usdtAddress">Email / Wallet (USDT)</Label>
           <Input
             id="usdtAddress"
             value={formData.usdtAddress || ''}
@@ -289,12 +258,11 @@ function EditableSubIdCell({ publisher, onSave }: { publisher: Publisher; onSave
                 <Input 
                     value={subId} 
                     onChange={(e) => setSubId(e.target.value)} 
-                    className="h-8"
+                    className="h-8 w-24 text-xs"
                     autoFocus
                     onKeyDown={(e) => e.key === 'Enter' && handleSave()}
                 />
-                <Button size="icon" className="h-8 w-8" onClick={handleSave}><Check className="h-4 w-4" /></Button>
-                <Button size="icon" variant="outline" className="h-8 w-8" onClick={handleCancel}><X className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleSave}><Check className="h-3 w-3" /></Button>
             </div>
         );
     }
@@ -304,7 +272,7 @@ function EditableSubIdCell({ publisher, onSave }: { publisher: Publisher; onSave
             className="flex items-center gap-2 group cursor-pointer"
             onClick={() => setIsEditing(true)}
         >
-            <span>{publisher.subId || <span className="text-muted-foreground">N/A</span>}</span>
+            <span className="text-xs font-mono bg-muted px-2 py-1 rounded">{publisher.subId || <span className="text-muted-foreground opacity-50">SIN ID</span>}</span>
             <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
     );
@@ -316,23 +284,54 @@ function PublisherRow({ publisher, onSave, onEditClick, onDeleteClick }: {
   onEditClick: () => void;
   onDeleteClick: () => void;
 }) {
+  const initials = `${publisher.firstName?.charAt(0) || ''}${publisher.lastName?.charAt(0) || ''}`;
+
   return (
-    <TableRow>
-      <TableCell>{publisher.firstName} {publisher.lastName}</TableCell>
-      <TableCell>{publisher.email}</TableCell>
+    <TableRow className="group">
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <Avatar className="h-10 w-10 border-2 border-background shadow-sm">
+            <AvatarFallback className="bg-primary/10 text-primary font-bold">{initials}</AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col">
+            <span className="font-bold text-sm">{publisher.firstName} {publisher.lastName}</span>
+            <span className="text-xs text-muted-foreground">{publisher.email}</span>
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2 text-xs">
+          <Phone className="h-3 w-3 text-emerald-500" />
+          {publisher.phone || 'No asignado'}
+        </div>
+      </TableCell>
       <TableCell>
         <EditableSubIdCell publisher={publisher} onSave={onSave} />
       </TableCell>
-      <TableCell><Badge variant={publisher.status === 'active' ? 'default' : 'secondary'}>{publisher.status}</Badge></TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <Switch 
+            checked={publisher.status === 'active'} 
+            onCheckedChange={(checked) => onSave(publisher.id, { status: checked ? 'active' : 'inactive' })}
+          />
+          <Badge variant={publisher.status === 'active' ? 'default' : 'secondary'} className="text-[10px] uppercase">
+            {publisher.status === 'active' ? 'Activo' : 'Inactivo'}
+          </Badge>
+        </div>
+      </TableCell>
       <TableCell className="text-right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onEditClick(); }}><Pencil className="mr-2 h-4 w-4" />Ver Detalles</DropdownMenuItem>
+          <DropdownMenuContent align="end" className="rounded-xl">
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onEditClick(); }}>
+              <Pencil className="mr-2 h-4 w-4" />Ver/Editar Perfil
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onDeleteClick(); }} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Eliminar Publisher</DropdownMenuItem>
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onDeleteClick(); }} className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />Eliminar del Equipo
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>
@@ -359,7 +358,7 @@ export default function PublishersPage() {
     if (!firestore) return;
     const publisherRef = doc(firestore, 'publishers', id);
     updateDocumentNonBlocking(publisherRef, data);
-    toast({ title: "Publisher actualizado" });
+    toast({ title: "Perfil Actualizado", description: "Los cambios se han sincronizado con el motor." });
     setEditingPublisher(null);
   };
 
@@ -367,7 +366,7 @@ export default function PublishersPage() {
     if (!firestore || !deletingPublisher) return;
     const publisherRef = doc(firestore, 'publishers', deletingPublisher.id);
     deleteDocumentNonBlocking(publisherRef);
-    toast({ title: "Publisher eliminado", description: "El documento del publisher fue eliminado. La cuenta de Auth sigue activa."});
+    toast({ title: "Miembro Eliminado", description: "El acceso ha sido revocado y el registro eliminado."});
     setDeletingPublisher(null);
   };
   
@@ -388,14 +387,16 @@ export default function PublishersPage() {
     }
     setIsExporting(true);
 
-    const reportTitle = "Lista de Publishers";
-    const fileName = "Lista_Publishers.pdf";
+    const reportTitle = "Nómina de Equipo y Sub-IDs";
+    const fileName = "Equipo_Trabajo.pdf";
     
-    const head = [['Nombre', 'Email', 'Sub ID']];
+    const head = [['Nombre', 'WhatsApp', 'Email', 'Sub ID', 'Estado']];
     const body = filteredPublishers.map(p => [
         `${p.firstName} ${p.lastName}`,
+        p.phone || 'N/A',
         p.email,
-        p.subId || 'N/A'
+        p.subId || 'N/A',
+        p.status?.toUpperCase()
     ]);
 
     await exportToPDF({ head, body, fileName, reportTitle, companyName: settingsData?.companyName });
@@ -404,45 +405,55 @@ export default function PublishersPage() {
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
+    <div className="space-y-8 animate-in fade-in duration-700">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-            <h1 className="text-3xl font-bold font-headline text-foreground">Gestión de Publishers</h1>
-            <p className="text-muted-foreground">Modifica y gestiona los perfiles de los publishers.</p>
+            <h1 className="text-4xl font-extrabold tracking-tight">Equipo y SubIds</h1>
+            <p className="text-muted-foreground font-medium mt-1">Gestión de trabajadores, enlaces de tracking y estados operativos.</p>
         </div>
         <div className="flex gap-2">
-            <Button onClick={handleExport} variant="outline" disabled={isExporting}>
+            <Button onClick={handleExport} variant="outline" disabled={isExporting} className="rounded-xl">
               {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-              {isExporting ? 'Exportando...' : 'Exportar a PDF'}
+              Exportar Lista
             </Button>
-            <Button asChild variant="outline">
-            <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Volver al panel</Link>
+            <Button asChild variant="outline" className="rounded-xl">
+              <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Volver</Link>
             </Button>
         </div>
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
-           <div className="mb-4">
-              <Input
-                placeholder="Buscar por nombre, email o Sub ID..."
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              />
-            </div>
+      <Card className="rounded-2xl border-none shadow-sm overflow-hidden bg-card/50 backdrop-blur-sm">
+        <CardHeader className="p-6 pb-0">
+           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="relative w-full md:w-96">
+                <Input
+                  placeholder="Buscar por nombre, email o Sub ID..."
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  className="rounded-xl bg-background/50 pl-10"
+                />
+                <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
+              </div>
+              <div className="flex gap-4 text-xs font-bold text-muted-foreground">
+                <div className="flex items-center gap-1"><ShieldCheck className="h-3 w-3 text-emerald-500"/> {publishers?.filter(p => p.status === 'active').length || 0} Activos</div>
+                <div className="flex items-center gap-1"><ShieldX className="h-3 w-3 text-amber-500"/> {publishers?.filter(p => p.status !== 'active').length || 0} Inactivos</div>
+              </div>
+           </div>
+        </CardHeader>
+        <CardContent className="p-0 mt-6">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Sub ID</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableHead className="font-bold text-foreground py-4">Miembro del Equipo</TableHead>
+                <TableHead className="font-bold text-foreground">WhatsApp</TableHead>
+                <TableHead className="font-bold text-foreground">Sub ID Asignado</TableHead>
+                <TableHead className="font-bold text-foreground">Estado</TableHead>
+                <TableHead className="text-right font-bold text-foreground">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={5} className="text-center">Cargando publishers...</TableCell></TableRow>}
-              {!isLoading && filteredPublishers.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">No se encontraron publishers.</TableCell></TableRow>}
+              {isLoading && <TableRow><TableCell colSpan={5} className="text-center h-48"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary opacity-20" /></TableCell></TableRow>}
+              {!isLoading && filteredPublishers.length === 0 && <TableRow><TableCell colSpan={5} className="text-center h-48 text-muted-foreground">No se encontraron miembros en el equipo.</TableCell></TableRow>}
               {filteredPublishers.map((publisher) => (
                 <PublisherRow
                   key={publisher.id}
@@ -459,7 +470,7 @@ export default function PublishersPage() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editingPublisher} onOpenChange={(open) => !open && setEditingPublisher(null)}>
-        <DialogContent className="sm:max-w-[625px]">
+        <DialogContent className="sm:max-w-[625px] rounded-2xl">
           {editingPublisher && (
             <EditDetailsModal 
               publisher={editingPublisher} 
@@ -472,14 +483,16 @@ export default function PublishersPage() {
       
       {/* Delete Dialog */}
       <Dialog open={!!deletingPublisher} onOpenChange={(open) => !open && setDeletingPublisher(null)}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
-            <DialogTitle>¿Estás seguro?</DialogTitle>
-            <DialogDescription>Esta acción eliminará al publisher permanentemente y no se podrá deshacer.</DialogDescription>
+            <DialogTitle className="text-2xl font-bold">¿Eliminar del equipo?</DialogTitle>
+            <DialogDescription>
+              Esta acción revocará el acceso de <b>{deletingPublisher?.firstName}</b> al portal y eliminará sus configuraciones. Los datos de leads y pagos se mantendrán por auditoría.
+            </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <DialogClose asChild><Button variant="outline" onClick={() => setDeletingPublisher(null)}>Cancelar</Button></DialogClose>
-            <Button variant="destructive" onClick={handleDeletePublisher}>Sí, eliminar</Button>
+          <DialogFooter className="gap-2">
+            <DialogClose asChild><Button variant="outline" className="rounded-xl">Cancelar</Button></DialogClose>
+            <Button variant="destructive" onClick={handleDeletePublisher} className="rounded-xl shadow-lg shadow-destructive/20">Sí, eliminar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

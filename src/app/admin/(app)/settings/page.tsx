@@ -21,7 +21,8 @@ import {
   Globe,
   Loader2,
   Image as ImageIcon,
-  X as CloseIcon
+  X as CloseIcon,
+  Play
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,6 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import Image from 'next/image';
+import { initializeExternalDatabase } from '@/actions/db-actions';
 
 const agencySchema = z.object({
   name: z.string().min(1, 'El nombre de la agencia es requerido.'),
@@ -66,6 +68,7 @@ export default function SystemSettingsPage() {
   const storage = useStorage();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -121,6 +124,8 @@ export default function SystemSettingsPage() {
   const dbType = watch('dbType');
   const logoUrl = watch('logoUrl');
   const agencies = watch('agencies');
+  const currentDbConn = watch('dbConnectionString');
+  const currentDbAuth = watch('dbAuthToken');
 
   const onSubmit = (data: SystemFormData) => {
     if (!settingsRef) return;
@@ -128,6 +133,22 @@ export default function SystemSettingsPage() {
     setDocumentNonBlocking(settingsRef, data, { merge: true });
     toast({ title: "Motor actualizado", description: "La configuración del sistema se ha guardado correctamente." });
     setIsSaving(false);
+  };
+
+  const handleInitializeDB = async () => {
+    setIsInitializing(true);
+    const result = await initializeExternalDatabase({
+      dbType: dbType,
+      dbConnectionString: currentDbConn,
+      dbAuthToken: currentDbAuth
+    });
+
+    if (result.success) {
+      toast({ title: "Éxito", description: result.message });
+    } else {
+      toast({ variant: 'destructive', title: "Fallo de Inicialización", description: result.message });
+    }
+    setIsInitializing(false);
   };
 
   const handleFileChange = (file: File) => {
@@ -206,9 +227,17 @@ export default function SystemSettingsPage() {
         <div className="mt-6">
           <TabsContent value="db">
             <Card className="rounded-2xl border-none shadow-sm">
-              <CardHeader>
-                <CardTitle>Conexión de Base de Datos</CardTitle>
-                <CardDescription>Configura dónde se almacenará la información del portal.</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Conexión de Base de Datos</CardTitle>
+                  <CardDescription>Configura dónde se almacenará la información del portal.</CardDescription>
+                </div>
+                {dbType !== 'firebase' && (
+                  <Button variant="secondary" onClick={handleInitializeDB} disabled={isInitializing || !currentDbConn} className="rounded-xl">
+                    {isInitializing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                    Inicializar Tablas/Colecciones
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid gap-4">
