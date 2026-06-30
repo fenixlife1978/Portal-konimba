@@ -71,11 +71,16 @@ export default function SystemSettingsPage() {
   const [isInitializing, setIsInitializing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   // States for Agency Modal
   const [isAgencyModalOpen, setIsAgencyModalOpen] = useState(false);
   const [currentAgencyIndex, setCurrentAgencyIndex] = useState<number | null>(null);
   const [tempApiKey, setTempApiKey] = useState('');
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<any>(settingsRef);
@@ -194,6 +199,14 @@ export default function SystemSettingsPage() {
     const updatedAgencies = agencies.filter((_, i) => i !== index);
     setValue('agencies', updatedAgencies);
   };
+
+  if (!mounted) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-primary opacity-20" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
