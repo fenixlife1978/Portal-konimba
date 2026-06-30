@@ -1,10 +1,17 @@
 'use client';
-import { useMemo } from 'react';
-import { useCollection, useUser } from '@/firebase';
+import { useMemo, useState } from 'react';
+import { useCollection, useUser, useFirestore } from '@/firebase';
 import { db } from '@/firebase/config';
-import { collection } from 'firebase/firestore';
+import { 
+  collection, 
+  getDocs, 
+  writeBatch, 
+  doc 
+} from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Users, 
   Target, 
@@ -13,9 +20,23 @@ import {
   CheckCircle2,
   Signal,
   TrendingUp,
-  MessageSquare
+  MessageSquare,
+  RefreshCw,
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 // Types
 type Publisher = { id: string };
@@ -65,8 +86,10 @@ const KPIStore = ({
 );
 
 export default function AdminDashboardPage() {
-  const firestore = db;
+  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
+  const { toast } = useToast();
+  const [isResetting, setIsResetting] = useState(false);
 
   // Data fetching
   const publishersRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
@@ -119,15 +142,87 @@ export default function AdminDashboardPage() {
 
   const isLoading = isLoadingPublishers || isLoadingOffers || isLoadingLeads || isUserLoading;
 
+  const handleResetApp = async () => {
+    if (!firestore) return;
+    setIsResetting(true);
+
+    try {
+      // Colecciones a resetear (Borrar toda la data)
+      const collectionsToReset = ['leads', 'offers', 'payments', 'settings'];
+      let totalDeleted = 0;
+
+      for (const colName of collectionsToReset) {
+        const colRef = collection(firestore, colName);
+        const snapshot = await getDocs(colRef);
+        
+        if (!snapshot.empty) {
+          const batch = writeBatch(firestore);
+          snapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+            totalDeleted++;
+          });
+          await batch.commit();
+        }
+      }
+
+      toast({ 
+        title: "Sistema Reiniciado", 
+        description: `Se han eliminado ${totalDeleted} registros de leads, ofertas, pagos y configuración corporativa.` 
+      });
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Error al reiniciar", 
+        description: error.message 
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
-          Panel de Control
-        </h1>
-        <p className="text-muted-foreground font-medium">
-          Bienvenido de nuevo, {user?.displayName || 'Administrador'}. Aquí tienes el resumen de hoy.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
+            Panel de Control
+          </h1>
+          <p className="text-muted-foreground font-medium">
+            Bienvenido de nuevo, {user?.displayName || 'Administrador'}. Aquí tienes el resumen de hoy.
+          </p>
+        </div>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm" className="rounded-xl h-10 shadow-lg shadow-destructive/10">
+              <RefreshCw className={cn("mr-2 h-4 w-4", isResetting && "animate-spin")} />
+              Resetear Aplicación
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-2xl font-bold">¿Estás totalmente seguro?</AlertDialogTitle>
+              <AlertDialogDescription className="text-base">
+                Esta acción es irreversible y eliminará permanentemente todos los:
+                <ul className="list-disc list-inside mt-2 space-y-1 font-semibold text-foreground">
+                  <li>Registros de Leads</li>
+                  <li>Catálogo de Ofertas</li>
+                  <li>Historial de Pagos</li>
+                  <li>Configuración Corporativa</li>
+                </ul>
+                <br />
+                <span className="text-emerald-600 font-bold">IMPORTANTE: Los usuarios (Trabajadores y Admins) NO serán eliminados.</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="gap-2">
+              <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleResetApp} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl px-6">
+                {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                Confirmar Borrado Total
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {/* KPI Cards */}

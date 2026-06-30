@@ -20,6 +20,7 @@ import {
   SidebarMenu, 
   SidebarMenuItem, 
   SidebarMenuButton,
+  SidebarTrigger,
   useSidebar
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/logo';
@@ -57,20 +58,23 @@ export function AdminSidebar({ companyName, logoUrl }: AdminSidebarProps) {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/40 bg-card/50 backdrop-blur-xl">
-      <SidebarHeader className="p-6">
-        <Link href="/admin" className="flex items-center gap-3">
-          <Logo className="h-10 w-10 rounded-xl flex-shrink-0" src={logoUrl} />
-          {!isCollapsed && (
-            <div className="flex flex-col overflow-hidden animate-in fade-in duration-300">
-              <span className="text-sm font-bold text-foreground line-clamp-1">
-                {companyName || 'Siren\'s Portal'}
-              </span>
-              <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                Administrador
-              </span>
-            </div>
-          )}
-        </Link>
+      <SidebarHeader className="p-4">
+        <div className="flex items-center justify-between gap-2 overflow-hidden">
+          <Link href="/admin" className="flex items-center gap-3 overflow-hidden shrink-0">
+            <Logo className="h-8 w-8 rounded-xl flex-shrink-0" src={logoUrl} />
+            {!isCollapsed && (
+              <div className="flex flex-col overflow-hidden animate-in fade-in duration-300">
+                <span className="text-sm font-bold text-foreground line-clamp-1">
+                  {companyName || 'Konimba Group'}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                  Administrador
+                </span>
+              </div>
+            )}
+          </Link>
+          <SidebarTrigger className={cn("h-8 w-8 shrink-0 hidden md:flex", isCollapsed && "mx-auto")} />
+        </div>
       </SidebarHeader>
       
       <SidebarContent className="px-4 py-2">

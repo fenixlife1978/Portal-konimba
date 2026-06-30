@@ -28,8 +28,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <AdminSidebar companyName={settingsData?.companyName} logoUrl={settingsData?.logoUrl} />
         <SidebarInset className="flex flex-col bg-background/50">
           <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-background/80 backdrop-blur-sm sticky top-0 z-10">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
+            <SidebarTrigger className="-ml-1 md:hidden" />
+            <Separator orientation="vertical" className="mr-2 h-4 md:hidden" />
             <div className="flex items-center gap-2">
                <span className="text-sm font-medium text-muted-foreground">Panel de Control</span>
             </div>
