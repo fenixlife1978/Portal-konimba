@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -73,13 +73,11 @@ type ReportData = {
 }
 
 // Date constants
-const currentYear = new Date().getFullYear();
-const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 const months = [
     { value: '1', label: 'Enero' }, { value: '2', label: 'Febrero' }, { value: '3', label: 'Marzo' },
     { value: '4', label: 'Abril' }, { value: '5', label: 'Mayo' }, { value: '6', 'label': 'Junio' },
     { value: '7', label: 'Julio' }, { value: '8', label: 'Agosto' }, { value: '9', 'label': 'Septiembre' },
-    { value: '10', label: 'Octubre' }, { value: '11', 'label': 'Noviembre' }, { value: '12', 'label': 'Diciembre' }
+    { value: '10', label: 'Octubre' }, { value: '11', label: 'Noviembre' }, { value: '12', 'label': 'Diciembre' }
 ];
 const periodOptions = [
     { value: 'monthly', label: 'Mes Completo' },
@@ -130,6 +128,19 @@ export default function PerformancePage() {
   const firestore = db;
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Dynamic Years
+  const years = useMemo(() => {
+    const current = new Date().getFullYear();
+    const start = 2023;
+    const end = current + 1;
+    return Array.from({ length: Math.max(end - start + 1, 5) }, (_, i) => start + i).reverse();
+  }, []);
 
   const { control, handleSubmit, formState: { errors } } = useForm<ReportFormData>({
     resolver: zodResolver(reportSchema),
@@ -271,6 +282,8 @@ export default function PerformancePage() {
     setIsExporting(false);
   }
 
+
+  if (!mounted) return null;
 
   if (isLoadingPublisher || isUserLoading) {
     return (
@@ -481,5 +494,3 @@ function ReportDisplay({ reportData, publisher, period, settings }: { reportData
         </Card>
     );
 }
-
-    

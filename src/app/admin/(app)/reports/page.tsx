@@ -131,73 +131,13 @@ type InactivePublisher = {
 };
 
 
-// Date options for forms
-const currentYear = new Date().getFullYear();
-const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+// Static Date options
 const months = [
     { value: '1', label: 'Enero' }, { value: '2', label: 'Febrero' }, { value: '3', label: 'Marzo' },
     { value: '4', label: 'Abril' }, { value: '5', label: 'Mayo' }, { value: '6', 'label': 'Junio' },
     { value: '7', label: 'Julio' }, { value: '8', label: 'Agosto' }, { value: '9', 'label': 'Septiembre' },
-    { value: '10', label: 'Octubre' }, { value: '11', 'label': 'Noviembre' }, { value: '12', 'label': 'Diciembre' }
+    { value: '10', label: 'Octubre' }, { value: '11', label: 'Noviembre' }, { value: '12', 'label': 'Diciembre' }
 ];
-const periodOptionsForSelect = [
-    { value: 'monthly', label: 'Mes Completo' },
-    { value: 'fortnight-1', label: '1ra Quincena' },
-    { value: 'fortnight-2', label: '2da Quincena' },
-];
-
-
-// Main Component
-export default function ReportsPage() {
-  const firestore = db;
-  const { user } = useUser();
-  
-  // Data fetching for publishers
-  const publishersRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
-  const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
-  
-  const offersRef = useMemo(() => (firestore && user ? collection(firestore, 'offers') : null), [firestore, user]);
-  const { data: offers, isLoading: isLoadingOffers } = useCollection<Offer>(offersRef);
-
-  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
-  const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold font-headline text-foreground">Reportes de Leads</h1>
-        <Button asChild variant="outline">
-          <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Volver al panel</Link>
-        </Button>
-      </div>
-
-      <Tabs defaultValue="publisher-report">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="publisher-report">Reporte por Publisher</TabsTrigger>
-          <TabsTrigger value="general-payment-report">Rendimiento General</TabsTrigger>
-           <TabsTrigger value="daily-report">Reporte por Día</TabsTrigger>
-          <TabsTrigger value="payment-data-report">Datos de Pago</TabsTrigger>
-          <TabsTrigger value="inactivity-report">Inactividad</TabsTrigger>
-        </TabsList>
-        <TabsContent value="publisher-report">
-            <PublisherReport publishers={publishers || []} isLoadingPublishers={isLoadingPublishers} companyName={settingsData?.companyName} />
-        </TabsContent>
-        <TabsContent value="general-payment-report">
-            <GeneralPaymentReport publishers={publishers || []} offers={offers || []} settingsData={settingsData} />
-        </TabsContent>
-        <TabsContent value="daily-report">
-            <DailyLeadReport publishers={publishers || []} offers={offers || []} companyName={settingsData?.companyName} />
-        </TabsContent>
-         <TabsContent value="payment-data-report">
-            <PaymentDataReport publishers={publishers || []} isLoadingPublishers={isLoadingPublishers} companyName={settingsData?.companyName} />
-        </TabsContent>
-        <TabsContent value="inactivity-report">
-            <InactivityReport publishers={publishers || []} companyName={settingsData?.companyName} />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
 
 const processReportData = (reportData: ReportData) => {
     if (!reportData) return null;
@@ -237,6 +177,75 @@ const processReportData = (reportData: ReportData) => {
     return { dayColumns: daysInPeriod, tableRows, totalLeads, totalEarnings };
 }
 
+
+// #################################################################################
+// ## MAIN PAGE COMPONENT
+// #################################################################################
+export default function ReportsPage() {
+  const firestore = db;
+  const { user } = useUser();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  
+  // Data fetching for publishers
+  const publishersRef = useMemo(() => (firestore && user ? collection(firestore, 'publishers') : null), [firestore, user]);
+  const { data: publishers, isLoading: isLoadingPublishers } = useCollection<Publisher>(publishersRef);
+  
+  const offersRef = useMemo(() => (firestore && user ? collection(firestore, 'offers') : null), [firestore, user]);
+  const { data: offers, isLoading: isLoadingOffers } = useCollection<Offer>(offersRef);
+
+  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
+  const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
+
+  // Dynamic years list inside component
+  const years = useMemo(() => {
+    const current = new Date().getFullYear();
+    const start = 2023;
+    const end = current + 1; // Incluir el próximo año
+    return Array.from({ length: Math.max(end - start + 1, 5) }, (_, i) => start + i).reverse();
+  }, []);
+
+  if (!mounted) return null;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold font-headline text-foreground">Reportes de Leads</h1>
+        <Button asChild variant="outline">
+          <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Volver al panel</Link>
+        </Button>
+      </div>
+
+      <Tabs defaultValue="publisher-report">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-5 h-auto">
+          <TabsTrigger value="publisher-report">Reporte por Publisher</TabsTrigger>
+          <TabsTrigger value="general-payment-report">Rendimiento General</TabsTrigger>
+           <TabsTrigger value="daily-report">Reporte por Día</TabsTrigger>
+          <TabsTrigger value="payment-data-report">Datos de Pago</TabsTrigger>
+          <TabsTrigger value="inactivity-report">Inactividad</TabsTrigger>
+        </TabsList>
+        <TabsContent value="publisher-report">
+            <PublisherReport publishers={publishers || []} isLoadingPublishers={isLoadingPublishers} companyName={settingsData?.companyName} years={years} />
+        </TabsContent>
+        <TabsContent value="general-payment-report">
+            <GeneralPaymentReport publishers={publishers || []} offers={offers || []} settingsData={settingsData} years={years} />
+        </TabsContent>
+        <TabsContent value="daily-report">
+            <DailyLeadReport publishers={publishers || []} offers={offers || []} companyName={settingsData?.companyName} />
+        </TabsContent>
+         <TabsContent value="payment-data-report">
+            <PaymentDataReport publishers={publishers || []} isLoadingPublishers={isLoadingPublishers} companyName={settingsData?.companyName} />
+        </TabsContent>
+        <TabsContent value="inactivity-report">
+            <InactivityReport publishers={publishers || []} companyName={settingsData?.companyName} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
 
 // #################################################################################
 // ## SHARED: Report Display Component
@@ -321,7 +330,7 @@ function ReportDisplay({ reportData, publisher, period, showExchangeRate = false
 // ## TAB 1: Reporte por Publisher
 // #################################################################################
 
-function PublisherReport({ publishers, isLoadingPublishers, companyName }: { publishers: Publisher[], isLoadingPublishers: boolean, companyName?: string }) {
+function PublisherReport({ publishers, isLoadingPublishers, companyName, years }: { publishers: Publisher[], isLoadingPublishers: boolean, companyName?: string, years: number[] }) {
     const firestore = db;
     const { toast } = useToast();
     const { control, handleSubmit, watch, formState: { errors } } = useForm<ReportFormData>({
@@ -538,7 +547,7 @@ const periodOptions: { value: Period; label: string }[] = [
   { value: "fortnight-2", label: "2da Quincena" },
 ];
 
-function GeneralPaymentReport({ publishers, offers, settingsData }: { publishers: Publisher[], offers: Offer[], settingsData?: CompanySettings | null }) {
+function GeneralPaymentReport({ publishers, offers, settingsData, years }: { publishers: Publisher[], offers: Offer[], settingsData?: CompanySettings | null, years: number[] }) {
     const firestore = db;
     const { toast } = useToast();
     const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<GeneralReportFormData>({

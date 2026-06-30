@@ -109,16 +109,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <AlertDialogContent className="rounded-2xl">
                     <AlertDialogHeader>
                       <AlertDialogTitle className="text-2xl font-bold">¿Estás totalmente seguro?</AlertDialogTitle>
-                      <AlertDialogDescription className="text-base">
-                        Esta acción es irreversible y eliminará permanentemente todos los:
-                        <ul className="list-disc list-inside mt-2 space-y-1 font-semibold text-foreground">
-                          <li>Registros de Leads</li>
-                          <li>Catálogo de Ofertas</li>
-                          <li>Historial de Pagos</li>
-                          <li>Configuración Corporativa</li>
-                        </ul>
-                        <br />
-                        <span className="text-emerald-600 font-bold">IMPORTANTE: Los usuarios (Trabajadores y Admins) NO serán eliminados.</span>
+                      <AlertDialogDescription className="text-base" asChild>
+                        <div className="text-muted-foreground">
+                          Esta acción es irreversible y eliminará permanentemente todos los:
+                          <ul className="list-disc list-inside mt-2 space-y-1 font-semibold text-foreground">
+                            <li>Registros de Leads</li>
+                            <li>Catálogo de Ofertas</li>
+                            <li>Historial de Pagos</li>
+                            <li>Configuración Corporativa</li>
+                          </ul>
+                          <br />
+                          <span className="text-emerald-600 font-bold">IMPORTANTE: Los usuarios (Trabajadores y Admins) NO serán eliminados.</span>
+                        </div>
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="gap-2">

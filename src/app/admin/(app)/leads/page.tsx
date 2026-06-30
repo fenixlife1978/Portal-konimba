@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -56,6 +56,11 @@ export default function LeadsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [leads, setLeads] = useState<LeadsData>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -63,6 +68,16 @@ export default function LeadsPage() {
   const [leadsToDelete, setLeadsToDelete] = useState<any[]>([]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedPublishers, setSelectedPublishers] = useState<Publisher[]>([]);
+
+  // Date options dynamic
+  const years = useMemo(() => {
+    const current = new Date().getFullYear();
+    const start = 2023;
+    const end = current + 1;
+    return Array.from({ length: Math.max(end - start + 1, 5) }, (_, i) => start + i).reverse();
+  }, []);
+
+  const months = useMemo(() => Array.from({ length: 12 }, (_, i) => i + 1), []);
 
   // Form for lead entry
   const {
@@ -87,6 +102,11 @@ export default function LeadsPage() {
   } = useForm<ResetFormData>({
     resolver: zodResolver(resetSchema),
   });
+
+  const selectedMonth = watchEntry('month');
+  const selectedYear = watchEntry('year');
+  const daysInMonth = useMemo(() => (selectedMonth && selectedYear) ? new Date(parseInt(selectedYear, 10), parseInt(selectedMonth, 10), 0).getDate() : 31, [selectedMonth, selectedYear]);
+  const days = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => i + 1), [daysInMonth]);
 
   // Data fetching
   const publishersRef = useMemo(
@@ -254,15 +274,7 @@ export default function LeadsPage() {
     }
   };
 
-
-  // Date options
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
-  const months = Array.from({ length: 12 }, (_, i) => i + 1);
-  const selectedMonth = watchEntry('month');
-  const selectedYear = watchEntry('year');
-  const daysInMonth = (selectedMonth && selectedYear) ? new Date(parseInt(selectedYear, 10), parseInt(selectedMonth, 10), 0).getDate() : 31;
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  if (!mounted) return null;
 
   return (
     <div className="space-y-8">
