@@ -54,11 +54,18 @@ service cloud.firestore {
       allow read, list: if isSignedIn();
     }
 
-    // Leads
+    // Leads Manuales
     match /leads/{leadId} {
       allow write: if isAdmin();
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.publisherId);
       allow list: if isAdmin() || isSignedIn();
+    }
+
+    // Leads Automatizados (Webhooks Monitor)
+    match /leads_automated/{leadId} {
+      allow read, write, list: if isAdmin();
+      // Los trabajadores pueden ver sus propias conversiones automatizadas
+      allow read: if isSignedIn() && request.auth.uid == resource.data.publisherId;
     }
     
     // Settings
