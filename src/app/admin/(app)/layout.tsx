@@ -6,8 +6,7 @@ import { useRouter } from 'next/navigation';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AdminSidebar } from '@/components/admin-sidebar';
 import { useAuth, useDoc, useFirestore, useUser } from '@/firebase';
-import { db } from '@/firebase/config';
-import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, collection, getDocs, writeBatch, getDoc } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -32,14 +31,43 @@ type CompanySettings = {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const firestore = useFirestore();
-  const { user } = useUser();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
   const { toast } = useToast();
   const [isResetting, setIsResetting] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Strict Role Validation
+  useEffect(() => {
+    if (!isUserLoading) {
+      if (!user) {
+        router.replace('/admin/login');
+      } else if (firestore) {
+        const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+        getDoc(adminRoleRef).then(docSnap => {
+          if (docSnap.exists()) {
+            setIsAuthorized(true);
+          } else {
+            // Not an admin, kick out
+            auth.signOut().then(() => {
+              toast({
+                variant: 'destructive',
+                title: 'Acceso Denegado',
+                description: 'No tienes permisos de administrador para acceder a esta área.'
+              });
+              router.replace('/admin/login');
+            });
+          }
+        });
+      }
+    }
+  }, [user, isUserLoading, firestore, router, auth, toast]);
 
   const settingsRef = useMemo(
     () => (firestore ? doc(firestore, 'settings', 'company') : null),
@@ -53,7 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     try {
       // Colecciones a resetear (Borrar solo data operativa)
-      // IMPORTANTE: Excluimos 'publishers', 'roles_admin' y 'settings' para no perder usuarios ni el motor dinámico.
+      // IMPORTANTE: Excluimos 'publishers', 'roles_admin' y 'settings'
       const collectionsToReset = ['leads', 'offers', 'payments'];
       let totalDeleted = 0;
 
@@ -73,7 +101,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       toast({ 
         title: "Sistema Reiniciado", 
-        description: `Se han eliminado ${totalDeleted} registros operativos con éxito.` 
+        description: `Se han eliminado ${totalDeleted} registros operativos con éxito. La configuración se mantuvo intacta.` 
       });
     } catch (error: any) {
       toast({ 
@@ -86,14 +114,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   };
 
+  if (isUserLoading || !isAuthorized) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground animate-pulse font-medium">Verificando credenciales administrativas...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background/95">
         <AdminSidebar companyName={settingsData?.companyName} logoUrl={settingsData?.logoUrl} />
         <SidebarInset className="flex flex-col bg-background/50">
           <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-background/80 backdrop-blur-sm sticky top-0 z-10">
-            <SidebarTrigger className="-ml-1 md:hidden" />
-            <Separator orientation="vertical" className="mr-2 h-4 md:hidden" />
             <div className="flex items-center gap-2">
                <span className="text-sm font-medium text-muted-foreground">Panel de Control</span>
             </div>
@@ -123,7 +160,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                           <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
                             <span className="text-emerald-600 font-bold text-sm block">NO se eliminarán:</span>
                             <span className="text-emerald-700 text-xs mt-1 block">
-                              Usuarios, Miembros del Equipo y la Configuración del Sistema (Motor, APIs, Tasas, etc.)
+                              Usuarios, Configuración del Sistema (Motor, APIs, Tasas), ni Miembros del Equipo.
                             </span>
                           </div>
                         </div>

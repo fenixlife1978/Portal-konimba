@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -35,7 +36,7 @@ import {
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/ui/logo';
-import { doc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -61,21 +62,13 @@ function ForgotPasswordDialog() {
 
     setIsSending(true);
     try {
-      // Check if the user exists
       const methods = await fetchSignInMethodsForEmail(auth, email);
       
       if (methods.length > 0) {
-        // User exists, send password reset
         await sendPasswordResetEmail(auth, email);
-        
-        // We can't directly get the user object here without logging them in.
-        // So, we cannot check `emailVerified` status directly.
-        // We will send the password reset email regardless.
-        // And we will also send the verification email if we assume they might not be verified.
-        // This is a reasonable UX trade-off.
         toast({
           title: 'Correos Enviados',
-          description: 'Si tu cuenta existe, recibirás un correo para restablecer la contraseña y, si es necesario, otro para verificar tu correo.',
+          description: 'Si tu cuenta existe, recibirás un correo para restablecer la contraseña.',
         });
       } else {
         toast({
@@ -98,7 +91,7 @@ function ForgotPasswordDialog() {
     <DialogContent>
       <DialogHeader>
         <DialogTitle>Recuperar Contraseña</DialogTitle>
-        <DialogDescription>Introduce tu correo para recibir un enlace de recuperación. Si tu correo no está verificado, también recibirás un enlace de verificación.</DialogDescription>
+        <DialogDescription>Introduce tu correo para recibir un enlace de recuperación.</DialogDescription>
       </DialogHeader>
       <div className="py-4 space-y-2">
         <Label htmlFor="reset-email">Email</Label>
@@ -145,30 +138,59 @@ export default function PublisherLoginPage() {
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
   useEffect(() => {
-    if (!isUserLoading) {
+    if (!isUserLoading && firestore) {
       if (user) {
-        router.replace('/publisher');
+        // Verify it's not an admin trying to login as worker
+        const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+        getDoc(adminRoleRef).then(docSnap => {
+          if (docSnap.exists()) {
+             auth.signOut().then(() => {
+                setIsCheckingSession(false);
+                toast({
+                  variant: 'destructive',
+                  title: 'Acceso Denegado',
+                  description: 'Las cuentas administrativas no pueden ingresar al portal de equipo. Usa el acceso de admin.'
+                });
+             });
+          } else {
+            router.replace('/publisher');
+          }
+        });
       } else {
         setIsCheckingSession(false);
       }
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, router, firestore, auth, toast]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
+    if (!auth || !firestore) return;
 
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      // The useEffect will handle the redirect
-      router.push('/publisher');
+      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      const uid = userCredential.user.uid;
+
+      // Anti-Admin Check
+      const adminRoleRef = doc(firestore, 'roles_admin', uid);
+      const docSnap = await getDoc(adminRoleRef);
+
+      if (docSnap.exists()) {
+        await auth.signOut();
+        toast({
+          variant: 'destructive',
+          title: 'Acceso Denegado',
+          description: 'Esta cuenta es de administrador. Por favor, usa el portal administrativo.',
+        });
+        setIsLoading(false);
+      } else {
+        router.push('/publisher');
+      }
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Error de Acceso',
-        description:
-          'Credenciales inválidas o la cuenta no existe. Por favor, verifica tus datos.',
+        description: 'Credenciales inválidas. Por favor, verifica tus datos.',
       });
       setIsLoading(false);
     }
@@ -188,13 +210,11 @@ export default function PublisherLoginPage() {
       const { user } = userCredential;
       const uid = user.uid;
 
-      // Send verification email
       await sendEmailVerification(user);
       toast({
         title: '¡Registro casi listo!',
         description: 'Se ha enviado un correo de verificación. Por favor, revisa tu bandeja de entrada.',
       });
-
 
       const [firstName, ...lastNameParts] = registerName.trim().split(' ');
       const lastName = lastNameParts.join(' ');
@@ -208,16 +228,15 @@ export default function PublisherLoginPage() {
         lastName: lastName || '',
         email: userCredential.user.email,
         status: 'active',
+        createdAt: serverTimestamp(),
       });
 
-      // The useEffect will handle the redirect
        router.push('/publisher');
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Error de Registro',
-        description:
-          'No se pudo completar el registro. El email podría ya estar en uso.',
+        description: 'No se pudo completar el registro. El email podría ya estar en uso.',
       });
       setIsLoading(false);
     }
@@ -226,8 +245,8 @@ export default function PublisherLoginPage() {
   if (isCheckingSession) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
-        <p className="mt-4 text-sm text-muted-foreground">Validando sesión...</p>
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="mt-4 text-sm text-muted-foreground font-medium">Validando sesión...</p>
       </div>
     );
   }
@@ -242,45 +261,29 @@ export default function PublisherLoginPage() {
           <h1 className="text-2xl font-bold mt-4">
             {settingsData?.companyName || 'Cargando...'}
           </h1>
-          <p className="text-muted-foreground">Portal de Acceso para Publishers</p>
+          <p className="text-muted-foreground">Portal de Acceso para el Equipo</p>
         </div>
 
         <Tabs defaultValue="login" className="w-full max-w-sm">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="login">Ingresar</TabsTrigger>
-            <TabsTrigger value="register">Registrarse</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 rounded-xl bg-muted/50 p-1">
+            <TabsTrigger value="login" className="rounded-lg">Ingresar</TabsTrigger>
+            <TabsTrigger value="register" className="rounded-lg">Registrarse</TabsTrigger>
           </TabsList>
           <TabsContent value="login">
             <form onSubmit={handleLogin}>
-              <Card>
+              <Card className="rounded-2xl border-none shadow-sm">
                 <CardHeader>
                   <CardTitle>Bienvenido</CardTitle>
-                  <CardDescription>Accede a tu panel de control.</CardDescription>
+                  <CardDescription>Accede a tu panel de rendimiento.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="login-email">Email</Label>
-                    <Input
-                      id="login-email"
-                      type="email"
-                      placeholder="Email"
-                      required
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      disabled={isLoading}
-                    />
+                    <Input id="login-email" type="email" placeholder="Email corporativo" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} disabled={isLoading} className="rounded-xl bg-muted/30" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Contraseña</Label>
-                    <Input
-                      id="login-password"
-                      type="password"
-                      placeholder="Contraseña"
-                      required
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      disabled={isLoading}
-                    />
+                    <Input id="login-password" type="password" placeholder="Contraseña" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} disabled={isLoading} className="rounded-xl bg-muted/30" />
                   </div>
                    <div className="text-sm">
                     <DialogTrigger asChild>
@@ -291,9 +294,8 @@ export default function PublisherLoginPage() {
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button className="w-full" type="submit" disabled={isLoading}>
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isLoading ? 'Validando...' : 'Acceder'}
+                  <Button className="w-full rounded-xl" type="submit" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Acceder"}
                   </Button>
                 </CardFooter>
               </Card>
@@ -301,55 +303,28 @@ export default function PublisherLoginPage() {
           </TabsContent>
           <TabsContent value="register">
             <form onSubmit={handleRegister}>
-              <Card>
+              <Card className="rounded-2xl border-none shadow-sm">
                 <CardHeader>
-                  <CardTitle>Crear Cuenta de Publisher</CardTitle>
-                  <CardDescription>
-                    Regístrate para acceder a tu panel.
-                  </CardDescription>
+                  <CardTitle>Unirse al Equipo</CardTitle>
+                  <CardDescription>Regístrate para empezar a generar leads.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="register-name">Nombre y Apellido</Label>
-                    <Input
-                      id="register-name"
-                      type="text"
-                      placeholder="Nombre y Apellido"
-                      required
-                      value={registerName}
-                      onChange={(e) => setRegisterName(e.target.value)}
-                      disabled={isLoading}
-                    />
+                    <Input id="register-name" type="text" placeholder="Tu nombre completo" required value={registerName} onChange={(e) => setRegisterName(e.target.value)} disabled={isLoading} className="rounded-xl bg-muted/30" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="register-email">Email</Label>
-                    <Input
-                      id="register-email"
-                      type="email"
-                      placeholder="Email"
-                      required
-                      value={registerEmail}
-                      onChange={(e) => setRegisterEmail(e.target.value)}
-                      disabled={isLoading}
-                    />
+                    <Input id="register-email" type="email" placeholder="Email corporativo" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} disabled={isLoading} className="rounded-xl bg-muted/30" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="register-password">Contraseña</Label>
-                    <Input
-                      id="register-password"
-                      type="password"
-                      placeholder="Mínimo 6 caracteres"
-                      required
-                      value={registerPassword}
-                      onChange={(e) => setRegisterPassword(e.target.value)}
-                      disabled={isLoading}
-                    />
+                    <Input id="register-password" type="password" placeholder="Mínimo 6 caracteres" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} disabled={isLoading} className="rounded-xl bg-muted/30" />
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button className="w-full" type="submit" disabled={isLoading}>
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isLoading ? 'Creando cuenta...' : 'Registrarse'}
+                  <Button className="w-full rounded-xl" type="submit" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Registrarse"}
                   </Button>
                 </CardFooter>
               </Card>

@@ -1,14 +1,15 @@
+
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { LogOut, MailCheck, ShieldAlert } from 'lucide-react';
+import { LogOut, MailCheck, ShieldAlert, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
-import { useAuth, useUser, useDoc } from '@/firebase';
+import { useAuth, useUser, useDoc, useFirestore } from '@/firebase';
 import { db } from '@/firebase/config';
 import { signOut, sendEmailVerification } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 type CompanySettings = {
@@ -19,19 +20,38 @@ type CompanySettings = {
 export default function PublisherAppLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
-  const firestore = db;
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [isSendingVerification, setIsSendingVerification] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/publisher/login');
+    if (!isUserLoading) {
+      if (!user) {
+        router.push('/publisher/login');
+      } else if (firestore) {
+        // Check if user is an admin - Admins should not be in the publisher area
+        const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+        getDoc(adminRoleRef).then(docSnap => {
+          if (docSnap.exists()) {
+            // It's an admin, redirect to admin portal
+            toast({
+              variant: 'destructive',
+              title: 'Acceso Restringido',
+              description: 'Como administrador, debes usar el portal dedicado.'
+            });
+            router.push('/admin');
+          } else {
+            setIsAuthorized(true);
+          }
+        });
+      }
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, router, firestore, toast]);
 
   const handleLogout = () => {
     if (auth) {
@@ -51,7 +71,7 @@ export default function PublisherAppLayout({ children }: { children: React.React
       await sendEmailVerification(user);
       toast({
         title: 'Correo enviado',
-        description: 'Se ha enviado un nuevo correo de verificación. Revisa tu bandeja de entrada (y la carpeta de spam).',
+        description: 'Se ha enviado un nuevo correo de verificación. Revisa tu bandeja de entrada.',
       });
     } catch (error: any) {
       toast({
@@ -65,10 +85,11 @@ export default function PublisherAppLayout({ children }: { children: React.React
   };
 
 
-  if (isUserLoading || !user) {
+  if (isUserLoading || !isAuthorized) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <p>Cargando...</p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background">
+        <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+        <p className="text-sm text-muted-foreground font-medium">Validando acceso al portal de equipo...</p>
       </div>
     );
   }
@@ -93,7 +114,7 @@ export default function PublisherAppLayout({ children }: { children: React.React
         </div>
       </header>
 
-      {!user.emailVerified && (
+      {!user?.emailVerified && (
         <div className="bg-yellow-100 dark:bg-yellow-900/30 border-b border-yellow-500/50">
           <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
              <div className="flex items-center gap-3">
