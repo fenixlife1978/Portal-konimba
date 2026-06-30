@@ -1,76 +1,57 @@
 'use client';
-import { useState, useMemo } from 'react';
-import Link from 'next/link';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useCollection, useDoc, useUser, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
-import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { useCollection, useDoc, useUser, useFirestore, useStorage } from '@/firebase';
+import { collection, query, where, getDocs, doc, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { 
-  ArrowLeft, 
-  Loader2, 
   Calculator, 
-  Check, 
   Download, 
-  Trash2, 
   History, 
-  Undo, 
-  CheckCheck,
-  Search,
+  Search, 
   Wallet,
   FileSpreadsheet,
-  Users
+  Users,
+  Loader2,
+  CheckCircle2,
+  Image as ImageIcon,
+  ExternalLink
 } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { exportToPDF } from '@/lib/export-pdf';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
+import { FileUpload } from '@/components/ui/file-upload';
+import { Progress } from '@/components/ui/progress';
 
 // Types
-type Publisher = { id: string; firstName: string; lastName: string; paymentMethod?: string; country?: string; };
-type Offer = { id: string; name: string; paymentAmount: number };
-type Lead = { publisherId: string; offerId: string; quantity: number; date: string; publisherName: string; };
-type CompanySettings = { usdToVesRate?: number; usdToCopRate?: number; companyName?: string };
 type Payment = {
   id: string;
   publisherId: string;
   publisherName: string;
   paymentPeriod: string;
   amountUSD: number;
-  amountVES: number;
-  amountCOP: number;
   status: 'pending' | 'paid';
   createdAt: Timestamp;
   paidAt?: Timestamp;
   reference?: string;
   paymentMethodUsed?: string;
+  captureUrl?: string;
 };
 
-// Form Schema for Payment Modal
+// Form Schemas
 const paymentRecordSchema = z.object({
   reference: z.string().min(1, "El número de referencia es requerido."),
   paymentMethodUsed: z.string().min(1, "El método de pago es requerido."),
+  captureUrl: z.string().optional(),
 });
 type PaymentRecordData = z.infer<typeof paymentRecordSchema>;
 
@@ -90,20 +71,22 @@ const months = [
 
 export default function PayrollPage() {
   const firestore = useFirestore();
-  const { user } = useUser();
+  const storage = useStorage();
   const { toast } = useToast();
   
   const [isCalculating, setIsCalculating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
   const [paymentToRecord, setPaymentToRecord] = useState<Payment | null>(null);
   
   const [pendingPaymentPeriod, setPendingPaymentPeriod] = useState<string | null>(null);
-  const [paidPaymentPeriod, setPaidPaymentPeriod] = useState<string | null>(null);
-  
-  const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
-  const { data: settingsData } = useDoc<CompanySettings>(settingsRef);
+  const [archiveYear, setArchiveYear] = useState(String(new Date().getFullYear()));
+  const [archiveMonth, setArchiveMonth] = useState(String(new Date().getMonth() + 1));
+  const [archivePeriod, setArchivePeriod] = useState<string | null>(null);
 
-  const { control, handleSubmit } = useForm<PaymentFormData>({
+  // Period Form
+  const { control: periodControl, handleSubmit: handlePeriodSubmit } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentFormSchema),
     defaultValues: {
       period: 'fortnight-1',
@@ -112,43 +95,81 @@ export default function PayrollPage() {
     },
   });
 
-  // Años dinámicos desde 2023 hasta el año actual + 1
+  // Payment Record Form
+  const { 
+    register: registerRecord, 
+    handleSubmit: handleRecordSubmit, 
+    setValue: setRecordValue, 
+    watch: watchRecord,
+    reset: resetRecord 
+  } = useForm<PaymentRecordData>({
+    resolver: zodResolver(paymentRecordSchema),
+    defaultValues: {
+      reference: '',
+      paymentMethodUsed: '',
+      captureUrl: ''
+    }
+  });
+
   const years = useMemo(() => {
     const current = new Date().getFullYear();
     const start = 2023;
     return Array.from({ length: Math.max(current - start + 2, 5) }, (_, i) => start + i);
   }, []);
 
+  // Queries
   const pendingPaymentsQuery = useMemo(() => {
     if (!firestore || !pendingPaymentPeriod) return null;
     return query(collection(firestore, "payments"), where("paymentPeriod", "==", pendingPaymentPeriod), where("status", "==", "pending"));
   }, [firestore, pendingPaymentPeriod]);
-  
-  const { data: pendingPayments, isLoading: isLoadingPending } = useCollection<Payment>(pendingPaymentsQuery);
+  const { data: pendingPayments } = useCollection<Payment>(pendingPaymentsQuery);
   
   const paidPaymentsQuery = useMemo(() => {
-    if (!firestore || !paidPaymentPeriod) return null;
-    return query(collection(firestore, "payments"), where("paymentPeriod", "==", paidPaymentPeriod), where("status", "==", "paid"));
-  }, [firestore, paidPaymentPeriod]);
-  
-  const { data: paidPayments, isLoading: isLoadingPaid } = useCollection<Payment>(paidPaymentsQuery);
+    if (!firestore || !archivePeriod) return null;
+    return query(collection(firestore, "payments"), where("paymentPeriod", "==", archivePeriod), where("status", "==", "paid"));
+  }, [firestore, archivePeriod]);
+  const { data: paidPayments } = useCollection<Payment>(paidPaymentsQuery);
 
-  const handleMarkAsPaid = async (data: PaymentRecordData) => {
+  const handleFileChange = async (file: File) => {
+    if (!storage || !file) return;
+    setIsUploading(true);
+    const fileName = `captures/${Date.now()}_${file.name}`;
+    const fileRef = storageRef(storage, fileName);
+    const uploadTask = uploadBytesResumable(fileRef, file);
+
+    uploadTask.on('state_changed', 
+      (snap) => setUploadProgress((snap.bytesTransferred / snap.totalBytes) * 100),
+      (err) => { 
+        setIsUploading(false); 
+        toast({ variant: "destructive", title: "Error", description: "No se pudo subir el comprobante." }); 
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then(url => {
+          setRecordValue('captureUrl', url);
+          setIsUploading(false);
+          toast({ title: "Comprobante cargado con éxito" });
+        });
+      }
+    );
+  };
+
+  const onConfirmPayment = async (data: PaymentRecordData) => {
     if (!firestore || !paymentToRecord) return;
-    const paymentId = paymentToRecord.id;
-    setProcessingPaymentId(paymentId);
+    setProcessingPaymentId(paymentToRecord.id);
     
     try {
-        await updateDoc(doc(firestore, 'payments', paymentId), {
+        await updateDoc(doc(firestore, 'payments', paymentToRecord.id), {
             status: 'paid',
             paidAt: serverTimestamp(),
             reference: data.reference,
-            paymentMethodUsed: data.paymentMethodUsed
+            paymentMethodUsed: data.paymentMethodUsed,
+            captureUrl: data.captureUrl || null
         });
-        toast({ title: "Pago Registrado", description: "El trabajador ha pasado a estado SOLVENTE." });
+        toast({ title: "Pago Registrado", description: `${paymentToRecord.publisherName} ahora está SOLVENTE.` });
         setPaymentToRecord(null);
+        resetRecord();
     } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo registrar el pago.' });
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo actualizar el estado del pago.' });
     } finally {
         setProcessingPaymentId(null);
     }
@@ -158,7 +179,7 @@ export default function PayrollPage() {
     <div className="space-y-8 animate-in fade-in duration-700">
       <div className="flex flex-col gap-2">
         <h1 className="text-4xl font-extrabold tracking-tight">Registro de Pagos</h1>
-        <p className="text-muted-foreground font-medium">Gestión de nómina y pre-liquidación automática</p>
+        <p className="text-muted-foreground font-medium">Gestión de nómina y liquidación de trabajadores</p>
       </div>
 
       <Tabs defaultValue="pending-payroll" className="w-full">
@@ -175,13 +196,13 @@ export default function PayrollPage() {
           <Card className="rounded-2xl border-none shadow-sm overflow-hidden bg-card/50 backdrop-blur-sm">
             <CardHeader className="p-8 pb-4">
               <CardTitle className="text-2xl">Control de Liquidación</CardTitle>
-              <CardDescription>Procesa los leads acumulados y genera la pre-nómina automática.</CardDescription>
+              <CardDescription>Selecciona un período para ver los pagos pendientes de proceso.</CardDescription>
             </CardHeader>
             <CardContent className="p-8 pt-4 space-y-8">
               <div className="grid md:grid-cols-3 gap-6 items-end p-6 rounded-2xl bg-muted/30 border border-border/40">
                 <div className="space-y-2">
                   <Label className="font-bold">Año Fiscal</Label>
-                  <Controller name="year" control={control} render={({ field }) => (
+                  <Controller name="year" control={periodControl} render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger className="rounded-xl bg-background"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-xl">
@@ -192,7 +213,7 @@ export default function PayrollPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="font-bold">Mes de Liquidación</Label>
-                  <Controller name="month" control={control} render={({ field }) => (
+                  <Controller name="month" control={periodControl} render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger className="rounded-xl bg-background"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-xl">
@@ -203,7 +224,7 @@ export default function PayrollPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="font-bold">Período de Corte</Label>
-                  <Controller name="period" control={control} render={({ field }) => (
+                  <Controller name="period" control={periodControl} render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger className="rounded-xl bg-background"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-xl">
@@ -216,23 +237,14 @@ export default function PayrollPage() {
               </div>
 
               <div className="flex flex-wrap gap-4">
-                <Button onClick={handleSubmit(async (d) => {
+                <Button onClick={handlePeriodSubmit((d) => {
                   setIsCalculating(true);
-                  // Lógica de cálculo simplificada para el ejemplo
                   setPendingPaymentPeriod(`${d.year}-${d.month}-${d.period}`);
                   setIsCalculating(false);
                 })} className="rounded-xl px-8 h-12 shadow-lg shadow-primary/20">
                   {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
-                  Procesar Datos Quincenales
+                  Cargar Datos del Período
                 </Button>
-                {pendingPaymentPeriod && (
-                  <Button variant="outline" className="rounded-xl h-12 border-2" onClick={() => exportToPDF({
-                    fileName: `Liquidacion_${pendingPaymentPeriod}.pdf`,
-                    reportTitle: `Pre-nómina ${pendingPaymentPeriod}`
-                  })}>
-                    <Download className="mr-2 h-4 w-4" /> Exportar Reporte
-                  </Button>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -240,7 +252,7 @@ export default function PayrollPage() {
           {pendingPaymentPeriod && (
             <div className="mt-8 space-y-6 animate-in slide-in-from-top-4 duration-500">
               <h3 className="text-xl font-bold px-2">Pendientes de Pago ({pendingPayments?.length || 0})</h3>
-              <div className="grid gap-6">
+              <div className="grid gap-4">
                 {pendingPayments?.map((payment) => (
                   <Card key={payment.id} className="rounded-2xl border-none shadow-sm hover:shadow-md transition-shadow">
                     <CardContent className="p-6 flex items-center justify-between">
@@ -251,17 +263,16 @@ export default function PayrollPage() {
                         <div>
                           <h4 className="text-lg font-bold">{payment.publisherName}</h4>
                           <div className="flex gap-4 mt-1">
-                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Período: {payment.paymentPeriod}</span>
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Monto a liquidar</span>
                             <div className="flex items-center gap-1 text-xs font-bold text-amber-500">
                               <div className="h-2 w-2 rounded-full bg-amber-500" />
-                              PENDIENTE
+                              ESTADO: PENDIENTE
                             </div>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-12">
                         <div className="text-right">
-                          <p className="text-xs font-bold text-muted-foreground uppercase">Monto Total</p>
                           <p className="text-2xl font-black text-primary">${payment.amountUSD.toFixed(2)}</p>
                         </div>
                         <Button 
@@ -274,9 +285,9 @@ export default function PayrollPage() {
                     </CardContent>
                   </Card>
                 ))}
-                {pendingPayments?.length === 0 && (
+                {pendingPayments?.length === 0 && !isCalculating && (
                   <div className="text-center p-12 bg-muted/20 rounded-2xl border-2 border-dashed">
-                    <p className="text-muted-foreground font-medium">No hay pagos pendientes para este período.</p>
+                    <p className="text-muted-foreground font-medium">No se encontraron pagos pendientes en este período.</p>
                   </div>
                 )}
               </div>
@@ -287,33 +298,89 @@ export default function PayrollPage() {
         <TabsContent value="admin-validation">
           <Card className="rounded-2xl border-none shadow-sm bg-card/50">
             <CardHeader>
-              <CardTitle>Historial y Auditoría</CardTitle>
-              <CardDescription>Busca registros de pagos realizados para verificación o corrección.</CardDescription>
+              <CardTitle>Historial y Auditoría de Pagos</CardTitle>
+              <CardDescription>Consulta los registros de trabajadores solventes por período.</CardDescription>
             </CardHeader>
             <CardContent className="p-8 space-y-8">
               <div className="grid md:grid-cols-4 gap-4 items-end">
-                <div className="space-y-2 col-span-1">
+                <div className="space-y-2">
                   <Label>Año</Label>
-                  <Select>
-                    <SelectTrigger className="rounded-xl"><SelectValue placeholder={String(new Date().getFullYear())}/></SelectTrigger>
+                  <Select onValueChange={setArchiveYear} value={archiveYear}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent className="rounded-xl">
                       {years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2 col-span-1">
+                <div className="space-y-2">
                   <Label>Mes</Label>
-                  <Select>
-                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Enero"/></SelectTrigger>
+                  <Select onValueChange={setArchiveMonth} value={archiveMonth}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent className="rounded-xl">
                         {months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2 col-span-2">
-                  <Button className="w-full rounded-xl h-10"><Search className="mr-2 h-4 w-4" /> Buscar en Archivo</Button>
+                <div className="space-y-2">
+                  <Label>Quincena</Label>
+                   <Select onValueChange={(val) => setArchivePeriod(`${archiveYear}-${archiveMonth}-${val}`)}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                        <SelectItem value="fortnight-1">1ra Quincena</SelectItem>
+                        <SelectItem value="fortnight-2">2da Quincena</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Button className="w-full rounded-xl h-10" disabled={!archivePeriod}>
+                    <Search className="mr-2 h-4 w-4" /> Buscar en Archivo
+                  </Button>
                 </div>
               </div>
+
+              {archivePeriod && (
+                <div className="border rounded-2xl overflow-hidden">
+                   <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow>
+                        <TableHead className="font-bold">Trabajador</TableHead>
+                        <TableHead className="font-bold">Monto</TableHead>
+                        <TableHead className="font-bold">Método</TableHead>
+                        <TableHead className="font-bold">Referencia</TableHead>
+                        <TableHead className="font-bold">Fecha Pago</TableHead>
+                        <TableHead className="text-right font-bold">Comprobante</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paidPayments?.map(p => (
+                        <TableRow key={p.id}>
+                          <TableCell className="font-medium">{p.publisherName}</TableCell>
+                          <TableCell className="font-bold text-emerald-600">${p.amountUSD.toFixed(2)}</TableCell>
+                          <TableCell className="capitalize">{p.paymentMethodUsed}</TableCell>
+                          <TableCell className="font-mono text-xs">{p.reference}</TableCell>
+                          <TableCell className="text-xs">{p.paidAt?.toDate().toLocaleDateString()}</TableCell>
+                          <TableCell className="text-right">
+                            {p.captureUrl ? (
+                              <Button asChild variant="ghost" size="sm">
+                                <a href={p.captureUrl} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-4 w-4" />
+                                </a>
+                              </Button>
+                            ) : '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {paidPayments?.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-12 text-muted-foreground italic">
+                            No hay registros solventes para este período.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -321,45 +388,72 @@ export default function PayrollPage() {
 
       {/* Register Payment Modal */}
       <Dialog open={!!paymentToRecord} onOpenChange={(open) => !open && setPaymentToRecord(null)}>
-        <DialogContent className="rounded-2xl sm:max-w-[425px]">
+        <DialogContent className="rounded-2xl sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold">Registrar Pago Realizado</DialogTitle>
-            <CardDescription>
-              Introduce los detalles de la transacción para {paymentToRecord?.publisherName}.
-            </CardDescription>
+            <DialogTitle className="text-2xl font-bold">Confirmar Liquidación</DialogTitle>
+            <DialogDescription>
+              Registra los detalles del pago realizado a <b>{paymentToRecord?.publisherName}</b>.
+            </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-6 py-6">
+          
+          <form onSubmit={handleRecordSubmit(onConfirmPayment)} className="space-y-6 py-4">
             <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex justify-between items-center">
-              <span className="font-bold text-muted-foreground uppercase text-xs">Monto a Liquidar</span>
+              <span className="font-bold text-muted-foreground uppercase text-xs">Monto Total Liquidado</span>
               <span className="text-2xl font-black text-primary">${paymentToRecord?.amountUSD.toFixed(2)}</span>
             </div>
-            <div className="space-y-4">
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Método de Pago Utilizado</Label>
-                <Select onValueChange={(val) => {}}>
-                  <SelectTrigger className="rounded-xl"><SelectValue placeholder="Seleccionar método"/></SelectTrigger>
+                <Label>Método de Pago *</Label>
+                <Select onValueChange={(val) => setRecordValue('paymentMethodUsed', val)}>
+                  <SelectTrigger className="rounded-xl"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                   <SelectContent className="rounded-xl">
                     <SelectItem value="binance">Binance (USDT)</SelectItem>
                     <SelectItem value="pagomovil">Pago Móvil (VES)</SelectItem>
                     <SelectItem value="transferencia">Transferencia Bancaria</SelectItem>
+                    <SelectItem value="efectivo">Efectivo / Cash</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Número de Referencia / Comprobante</Label>
-                <Input placeholder="Ej: 1234567890" className="rounded-xl" />
+                <Label>Nº Referencia *</Label>
+                <Input {...registerRecord('reference')} placeholder="Ej: 123456" className="rounded-xl" />
               </div>
             </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild><Button variant="ghost" className="rounded-xl">Cancelar</Button></DialogClose>
-            <Button 
-              onClick={() => handleMarkAsPaid({ reference: 'REF-123', paymentMethodUsed: 'Binance' })} 
-              className="rounded-xl bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20"
-            >
-              Confirmar y Archivar
-            </Button>
-          </DialogFooter>
+
+            <div className="space-y-3">
+              <Label>Capture o Comprobante (Opcional)</Label>
+              {watchRecord('captureUrl') ? (
+                <div className="flex items-center gap-4 p-3 border rounded-xl bg-emerald-50 text-emerald-700 border-emerald-100">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <span className="text-xs font-bold truncate flex-1">Imagen cargada correctamente</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setRecordValue('captureUrl', '')}>Cambiar</Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <FileUpload onFileSelect={handleFileChange} disabled={isUploading} />
+                  {isUploading && (
+                    <div className="space-y-1">
+                      <Progress value={uploadProgress} className="h-1.5" />
+                      <p className="text-[10px] text-muted-foreground text-center font-bold">SUBIENDO ARCHIVO... {Math.round(uploadProgress)}%</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="pt-4">
+              <DialogClose asChild><Button variant="ghost" className="rounded-xl">Cancelar</Button></DialogClose>
+              <Button 
+                type="submit"
+                disabled={processingPaymentId !== null || isUploading}
+                className="rounded-xl bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 px-8"
+              >
+                {processingPaymentId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                Confirmar y Archivar
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
