@@ -21,28 +21,45 @@ import {
   Globe,
   Loader2,
   Image as ImageIcon,
+  X as CloseIcon
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { FileUpload } from '@/components/ui/file-upload';
 import { Progress } from '@/components/ui/progress';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import Image from 'next/image';
+
+const agencySchema = z.object({
+  name: z.string().min(1, 'El nombre de la agencia es requerido.'),
+  apiKey: z.string().optional().default(''),
+  active: z.boolean().default(true),
+});
 
 const systemSchema = z.object({
   companyName: z.string().min(1, 'El nombre de la empresa es requerido.'),
   companyAddress: z.string().min(1, 'La dirección es requerida.'),
   dbType: z.enum(['firebase', 'mongodb', 'turso']),
-  dbConnectionString: z.string().optional(),
-  dbAuthToken: z.string().optional(),
-  dbServiceAccount: z.string().optional(),
-  whatsappUrl: z.string().url('Debe ser una URL válida.').or(z.literal('')),
-  whatsappToken: z.string().optional(),
-  logoUrl: z.string().optional(),
-  usdToVesRate: z.coerce.number().positive(),
-  usdToCopRate: z.coerce.number().positive(),
+  dbConnectionString: z.string().optional().default(''),
+  dbAuthToken: z.string().optional().default(''),
+  dbServiceAccount: z.string().optional().default(''),
+  whatsappUrl: z.string().url('Debe ser una URL válida.').or(z.literal('')).default(''),
+  whatsappToken: z.string().optional().default(''),
+  logoUrl: z.string().optional().default(''),
+  usdToVesRate: z.coerce.number().positive().default(1),
+  usdToCopRate: z.coerce.number().positive().default(1),
+  agencies: z.array(agencySchema).default([]),
 });
 
 type SystemFormData = z.infer<typeof systemSchema>;
+type Agency = z.infer<typeof agencySchema>;
 
 export default function SystemSettingsPage() {
   const firestore = useFirestore();
@@ -51,6 +68,11 @@ export default function SystemSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+
+  // States for Agency Modal
+  const [isAgencyModalOpen, setIsAgencyModalOpen] = useState(false);
+  const [currentAgencyIndex, setCurrentAgencyIndex] = useState<number | null>(null);
+  const [tempApiKey, setTempApiKey] = useState('');
 
   const settingsRef = useMemo(() => firestore ? doc(firestore, 'settings', 'company') : null, [firestore]);
   const { data: settingsData } = useDoc<any>(settingsRef);
@@ -69,6 +91,9 @@ export default function SystemSettingsPage() {
       logoUrl: '',
       usdToVesRate: 1,
       usdToCopRate: 1,
+      agencies: [
+        { name: 'Cpamerchant', apiKey: '', active: true }
+      ],
     }
   });
 
@@ -86,12 +111,16 @@ export default function SystemSettingsPage() {
         logoUrl: settingsData.logoUrl || '',
         usdToVesRate: settingsData.usdToVesRate ?? 1,
         usdToCopRate: settingsData.usdToCopRate ?? 1,
+        agencies: settingsData.agencies && settingsData.agencies.length > 0 
+          ? settingsData.agencies 
+          : [{ name: 'Cpamerchant', apiKey: '', active: true }],
       });
     }
   }, [settingsData, reset]);
 
   const dbType = watch('dbType');
   const logoUrl = watch('logoUrl');
+  const agencies = watch('agencies');
 
   const onSubmit = (data: SystemFormData) => {
     if (!settingsRef) return;
@@ -117,6 +146,32 @@ export default function SystemSettingsPage() {
         });
       }
     );
+  };
+
+  const openAgencyKeyModal = (index: number) => {
+    setCurrentAgencyIndex(index);
+    setTempApiKey(agencies[index].apiKey || '');
+    setIsAgencyModalOpen(true);
+  };
+
+  const saveAgencyKey = () => {
+    if (currentAgencyIndex !== null) {
+      const updatedAgencies = [...agencies];
+      updatedAgencies[currentAgencyIndex].apiKey = tempApiKey;
+      setValue('agencies', updatedAgencies);
+      setIsAgencyModalOpen(false);
+      toast({ title: "API Key asignada", description: "No olvides pulsar 'Guardar Cambios' para aplicar." });
+    }
+  };
+
+  const addAgency = () => {
+    const newAgency: Agency = { name: 'Nueva Agencia', apiKey: '', active: true };
+    setValue('agencies', [...agencies, newAgency]);
+  };
+
+  const removeAgency = (index: number) => {
+    const updatedAgencies = agencies.filter((_, i) => i !== index);
+    setValue('agencies', updatedAgencies);
   };
 
   return (
@@ -223,24 +278,44 @@ export default function SystemSettingsPage() {
                   <CardTitle>Agencias CPA Integradas</CardTitle>
                   <CardDescription>Gestiona las llaves de API para la sincronización de leads.</CardDescription>
                 </div>
-                <Button variant="outline" className="rounded-xl">
+                <Button variant="outline" className="rounded-xl" onClick={addAgency}>
                   <Plus className="mr-2 h-4 w-4" /> Añadir Agencia
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-4 rounded-2xl bg-muted/30 border border-border/40">
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center font-bold text-primary">CP</div>
-                    <div>
-                      <h4 className="font-bold">Cpamerchant</h4>
-                      <p className="text-xs text-muted-foreground">Sincronización quincenal activa</p>
+                {agencies.map((agency, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 rounded-2xl bg-muted/30 border border-border/40 group">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center font-bold text-primary">
+                        {agency.name.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <h4 className="font-bold">{agency.name}</h4>
+                        <p className="text-xs text-muted-foreground">
+                          {agency.apiKey ? 'API Key configurada' : 'Falta configurar API Key'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="rounded-xl hover:bg-primary/10"
+                        onClick={() => openAgencyKeyModal(index)}
+                      >
+                        <Key className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="rounded-xl text-destructive hover:bg-destructive/10"
+                        onClick={() => removeAgency(index)}
+                      >
+                        <CloseIcon className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="icon" className="rounded-xl"><Key className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="rounded-xl text-destructive"><Plus className="h-4 w-4 rotate-45" /></Button>
-                  </div>
-                </div>
+                ))}
               </CardContent>
             </Card>
           </TabsContent>
@@ -315,6 +390,48 @@ export default function SystemSettingsPage() {
           </TabsContent>
         </div>
       </Tabs>
+
+      {/* Agency API Key Modal */}
+      <Dialog open={isAgencyModalOpen} onOpenChange={setIsAgencyModalOpen}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Configurar API Key</DialogTitle>
+            <DialogDescription>
+              Introduce la llave de acceso para {currentAgencyIndex !== null ? agencies[currentAgencyIndex].name : 'la agencia'}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Nombre de la Agencia</Label>
+              <Input 
+                value={currentAgencyIndex !== null ? agencies[currentAgencyIndex].name : ''} 
+                onChange={(e) => {
+                  if (currentAgencyIndex !== null) {
+                    const updated = [...agencies];
+                    updated[currentAgencyIndex].name = e.target.value;
+                    setValue('agencies', updated);
+                  }
+                }}
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Token de Acceso (API Key)</Label>
+              <Input 
+                type="password"
+                placeholder="Pega aquí el token secreto" 
+                value={tempApiKey}
+                onChange={(e) => setTempApiKey(e.target.value)}
+                className="rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAgencyModalOpen(false)} className="rounded-xl">Cancelar</Button>
+            <Button onClick={saveAgencyKey} className="rounded-xl">Asignar Llave</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
